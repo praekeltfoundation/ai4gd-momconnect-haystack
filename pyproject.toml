@@ -3,5 +3,10 @@ name = "ai4gd-momconnect-haystack"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
-dependencies = []
+requires-python = ">=3.11"
+dependencies = [
+    "weaviate-haystack==6.0.0",
+    "haystack-ai==2.13.2",
+    "openai==1.78.1",
+    "python-dotenv==1.1.0"
+]

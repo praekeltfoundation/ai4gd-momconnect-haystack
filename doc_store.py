@@ -3,12 +3,10 @@ import logging
 from dotenv import load_dotenv
 
 from haystack import Document, Pipeline
-from haystack_integrations.document_stores.chroma import ChromaDocumentStore
+from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 from haystack.components.embedders import OpenAIDocumentEmbedder
 from haystack.components.writers import DocumentWriter
 from haystack.utils import Secret
-
-from config import CHROMA_PATH
 
 
 # --- Configurations ---
@@ -191,25 +189,20 @@ ASSESSMENT_FLOWS: dict[str, list[dict[str, any]]] = {
 
 
 # --- Core Functions ---
-def initialize_document_store() -> ChromaDocumentStore:
+def initialize_document_store() -> WeaviateDocumentStore:
     """
-    Initializes the ChromaDocumentStore with the specified path and settings.
+    Initializes the WeaviateDocumentStore with the specified path and settings.
 
     Returns:
-        An instance of ChromaDocumentStore.
+        An instance of WeaviateDocumentStore.
     """
-    if not os.path.exists(CHROMA_PATH):
-        os.makedirs(CHROMA_PATH)
-        logger.info(f"Created ChromaDB storage directory at {CHROMA_PATH}")
-    doc_store = ChromaDocumentStore(
-        collection_name="content_embeddings",
-        persist_path=CHROMA_PATH,
-        distance_function="cosine"
+    doc_store = WeaviateDocumentStore(
+        url="http://weaviate:8080"
     )
-    logger.info(f"Initialized Document Store: {type(doc_store).__name__} with collection '{doc_store._collection_name}'")
+    logger.info(f"Initialized Document Store: {type(doc_store).__name__}")
     return doc_store
 
-def create_embedding_pipeline(doc_store: ChromaDocumentStore) -> Pipeline:
+def create_embedding_pipeline(doc_store: WeaviateDocumentStore) -> Pipeline:
     """
     Creates a Haystack pipeline for embedding and writing documents to the store.
 
@@ -300,6 +293,5 @@ if initial_doc_count == 0:
     ingest_content(indexing_pipe, ASSESSMENT_FLOWS)
 else:
     logger.warning("Documents found in the store. Skipping ingestion to avoid duplicates.")
-    logger.warning(f"Delete the '{CHROMA_PATH}' directory to re-ingest.")
 
 logger.info(f"Total documents in store after potential ingestion: {document_store.count_documents()}")

@@ -173,5 +173,9 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-# ChromaDB document store
-chroma_store_data
+# Weaviate document store
+weaviate_data/
+
+# Other files
+.python-version
+uv.lock

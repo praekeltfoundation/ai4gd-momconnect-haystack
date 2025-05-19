@@ -1,0 +1,46 @@
+services:
+  weaviate:
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8080'
+      - --scheme
+      - http
+    image: cr.weaviate.io/semitechnologies/weaviate:1.23.9
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    volumes:
+      - ./weaviate_data:/var/lib/weaviate
+    restart: on-failure:0
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'none'
+      CLUSTER_HOSTNAME: 'node1'
+    networks:
+      - app-network
+
+  python-app:
+    build:
+      context: .
+    depends_on:
+      - weaviate
+    environment:
+      WEAVIATE_URL: http://weaviate:8080
+      # OPENAI_API_KEY: 'your_openai_api_key_if_needed_by_haystack' # Add other necessary ENV VARS
+    networks:
+      - app-network
+    # If your main.py needs to be interactive (uses input()), you need these:
+    stdin_open: true
+    tty: true
+
+volumes:
+  weaviate_data: {}
+
+networks:
+  app-network:
+    driver: bridge
+    
