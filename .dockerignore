@@ -1,0 +1,5 @@
+weaviate_data/
+
+.python-version
+
+uv.lock

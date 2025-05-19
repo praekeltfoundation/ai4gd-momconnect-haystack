@@ -172,3 +172,10 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Weaviate document store
+weaviate_data/
+
+# Other files
+.python-version
+uv.lock
