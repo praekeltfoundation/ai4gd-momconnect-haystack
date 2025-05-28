@@ -1,5 +1,6 @@
-weaviate_data/
-
+__pycache__
 .python-version
 
-uv.lock
+.venv
+
+weaviate_data/
