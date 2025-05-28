@@ -10,7 +10,6 @@ services:
     image: cr.weaviate.io/semitechnologies/weaviate:1.23.9
     ports:
       - "8080:8080"
-      - "50051:50051"
     volumes:
       - ./weaviate_data:/var/lib/weaviate
     restart: on-failure:0
@@ -36,6 +35,9 @@ services:
     # If your main.py needs to be interactive (uses input()), you need these:
     stdin_open: true
     tty: true
+    # To use `docker-compose run python-app` without rebuilding the image after code changes:
+    volumes:
+      - .:/app
 
 volumes:
   weaviate_data: {}

@@ -1,4 +1,3 @@
-import os
 import logging
 from dotenv import load_dotenv
 
@@ -275,23 +274,32 @@ def get_remaining_onboarding_questions(user_context: dict[str, any], all_onboard
     return remaining_questions
 
 # --- Setup ---
-# Document store initialization and population
-logger.info("Initializing document store and ingesting data...")
-document_store = initialize_document_store()
+def setup_document_store() -> WeaviateDocumentStore:
+    """
+    Initializes document store and ingests data if needed.
+        
+    Returns:
+        An initialized and populated WeaviateDocumentStore.
+    """
+    logger.info("Setting up document store...")
+    document_store = initialize_document_store()
 
-# Check if documents already exist in the store
-initial_doc_count = document_store.count_documents()
-logger.info(f"Document store currently contains {initial_doc_count} documents.")
+    # Check if documents already exist in the store
+    initial_doc_count = document_store.count_documents()
+    logger.info(f"Document store currently contains {initial_doc_count} documents.")
 
-# If the document store is empty, ingest the onboarding and assessment content
-if initial_doc_count == 0:
-    indexing_pipe = create_embedding_pipeline(document_store)
-    logger.info("Document store is empty. Proceeding with ingestion.")
-    logger.info("--- Ingesting Onboarding Content ---")
-    ingest_content(indexing_pipe, ONBOARDING_FLOWS)
-    logger.info("--- Ingesting Assessment Content ---")
-    ingest_content(indexing_pipe, ASSESSMENT_FLOWS)
-else:
-    logger.warning("Documents found in the store. Skipping ingestion to avoid duplicates.")
+    # If the document store is empty, ingest the content
+    if initial_doc_count == 0:
+        logger.info("Document store is empty. Proceeding with ingestion.")
+        indexing_pipe = create_embedding_pipeline(document_store)
+        logger.info("--- Ingesting Onboarding Content ---")
+        ingest_content(indexing_pipe, ONBOARDING_FLOWS)
+        logger.info("--- Ingesting Assessment Content ---")
+        ingest_content(indexing_pipe, ASSESSMENT_FLOWS)
+    else:
+        logger.info("Documents found in the store. Skipping ingestion to avoid duplicates.")
 
-logger.info(f"Total documents in store after potential ingestion: {document_store.count_documents()}")
+    final_doc_count = document_store.count_documents()
+    logger.info(f"Total documents in store after setup: {final_doc_count}")
+    
+    return document_store
