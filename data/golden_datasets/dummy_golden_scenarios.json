@@ -1,0 +1,86 @@
+[
+    {
+        "scenario_id": "onboarding_scenario_001_happy_path",
+        "flow_type": "onboarding",
+        "mock_dialogue_transcript": [
+            {
+                "turn": 1,
+                "speaker": "user",
+                "utterance": "Hello"
+            },
+            {
+                "turn": 2,
+                "speaker": "llm",
+                "utterance": "Hi there! Which province do you live in?",
+                "message_length": 44
+            },
+            {
+                "turn": 3,
+                "speaker": "user",
+                "utterance": "I'm in Gauteng."
+            },
+            {
+                "turn": 4,
+                "speaker": "llm",
+                "utterance": "Thanks! And what kind of area do you live in? (e.g. City, Township, Farm)",
+                "message_length": 79
+            }
+        ],
+        "ground_truth_extracted_data": {
+            "province": "Gauteng",
+            "area_type": "City",
+            "relationship_status": "Married",
+            "education_level": "Finished high school",
+            "hunger_days": "0 days",
+            "num_children": "2",
+            "phone_ownership": "Yes"
+        },
+        "mock_llm_extracted_data": {
+            "province": "Gauteng",
+            "area_type": "City",
+            "relationship_status": "Married",
+            "education_level": "Finished high school",
+            "hunger_days": "0 days",
+            "num_children": "2",
+            "phone_ownership": "Yes"
+        }
+    },
+    {
+        "scenario_id": "assessment_scenario_001_confident_user",
+        "flow_type": "dma-assessment",
+        "mock_dialogue_transcript": [
+            {
+                "turn": 1,
+                "speaker": "llm",
+                "utterance": "How confident are you making decisions about health?",
+                "message_length": 51
+            },
+            {
+                "turn": 2,
+                "speaker": "user",
+                "utterance": "Very confident."
+            }
+        ],
+        "ground_truth_extracted_data": {
+            "confidence_health_decisions": "Very confident",
+            "confidence_discuss_medical_problems": "Confident",
+            "confidence_questioning_treatment": "Very confident",
+            "confidence_taking_actions_health": "Confident",
+            "confidence_finding_info_other_sources": "Somewhat confident"
+        },
+        "mock_llm_extracted_data": {
+            "confidence_health_decisions": "Very confident",
+            "confidence_discuss_medical_problems": "Confident",
+            "confidence_questioning_treatment": "Very confident",
+            "confidence_taking_actions_health": "Confident",
+            "confidence_finding_info_other_sources": "Somewhat confident"
+        },
+        "mock_llm_collection_sequence": [
+            "confidence_health_decisions",
+            "confidence_discuss_medical_problems",
+            "confidence_questioning_treatment",
+            "confidence_taking_actions_health",
+            "confidence_finding_info_other_sources"
+        ]
+    }
+]

@@ -1,0 +1,49 @@
+{
+    "dma-assessment": [
+        {
+            "question_number": 1,
+            "content": "How confident are you in making decisions about your health?",
+            "collects": "confidence_health_decisions",
+            "valid_responses": [
+                "Not at all confident", "A little confident", "Somewhat confident", 
+                "Confident", "Very confident"
+            ]
+        },
+        {
+            "question_number": 2,
+            "content": "How confident are you discussing your medical problems with your doctor/nurse?",
+            "collects": "confidence_discuss_medical_problems",
+            "valid_responses": [
+                "Not at all confident", "A little confident", "Somewhat confident", 
+                "Confident", "Very confident"
+            ]
+        },
+        {
+            "question_number": 3,
+            "content": "I feel confident questioning my doctor/nurse about my treatment.",
+            "collects": "confidence_questioning_treatment",
+            "valid_responses": [
+                "Not at all confident", "A little confident", "Somewhat confident", 
+                "Confident", "Very confident"
+            ]
+        },
+        {
+            "question_number": 4,
+            "content": "How confident are you in taking actions to improve your health?",
+            "collects": "confidence_taking_actions_health",
+            "valid_responses": [
+                "Not at all confident", "A little confident", "Somewhat confident", 
+                "Confident", "Very confident"
+            ]
+        },
+        {
+            "question_number": 5,
+            "content": "How confident are you in finding information about your health problems from other sources?",
+            "collects": "confidence_finding_info_other_sources",
+            "valid_responses": [
+                "Not at all confident", "A little confident", "Somewhat confident", 
+                "Confident", "Very confident"
+            ]
+        }
+    ]
+}

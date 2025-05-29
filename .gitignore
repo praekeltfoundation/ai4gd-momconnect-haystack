@@ -175,3 +175,7 @@ cython_debug/
 
 # ChromaDB document store
 chroma_store_data
+
+# evaluation results
+evaluation_outputs/
+.vscode/
