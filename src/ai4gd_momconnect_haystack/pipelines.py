@@ -163,7 +163,8 @@ def create_next_onboarding_question_pipeline() -> Pipeline | None:
     JSON Response:
     """
     prompt_builder = ChatPromptBuilder(
-        template=[ChatMessage.from_user(prompt_template)]
+        template=[ChatMessage.from_user(prompt_template)],
+        required_variables=["user_context", "chat_history", "remaining_questions"]
     )
 
     json_validator = JsonSchemaValidator(
@@ -500,8 +501,7 @@ def run_assessment_response_validator_pipeline(pipeline: Pipeline, user_response
 
         llm_response = result.get("llm", {})
         if llm_response and llm_response.get("replies"):
-            # Access the .content attribute of the ChatMessage
-            return llm_response["replies"][0].content
+            return llm_response["replies"][0].text
         else:
             logger.warning("No replies found in LLM response for validation")
             return None
