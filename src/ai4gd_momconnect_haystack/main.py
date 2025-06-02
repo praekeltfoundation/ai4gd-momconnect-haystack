@@ -1,6 +1,6 @@
 import logging
 
-import tasks
+from . import tasks
 
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ def run_simulation():
     }
     max_onboarding_steps = 10 # Safety break
     chat_history = []
-    
+
 
     # Simulate Onboarding
     for attempt in range(max_onboarding_steps):
@@ -75,7 +75,7 @@ def run_simulation():
 
         # Simulate User Response
         user_response = input(contextualized_question + "\n> ")
-        
+
         ### Endpoint 4: Turn can call to validate a user's response to an assessment question.
         result = tasks.validate_assessment_answer(user_response, current_assessment_step)
         if not result:
@@ -87,6 +87,6 @@ def run_simulation():
     logger.info("--- Simulation Complete ---")
 
 
-if __name__ == "__main__":
+def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     run_simulation()
