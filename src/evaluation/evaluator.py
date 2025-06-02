@@ -5,10 +5,9 @@ from pathlib import Path
 
 # --- Required Dependency Imports ---
 from langfuse import Langfuse
-from langfuse.model import CreateTrace, CreateGeneration, CreateScore
 
-from haystack.evaluation.evaluators import (
-    AnswerExactMatchEvaluator, 
+from haystack.components.evaluators  import (
+    AnswerExactMatchEvaluator,
     SASEvaluator,
     LLMEvaluator as HaystackLLMEvaluator
 )
@@ -46,7 +45,7 @@ class DialogueSimulator:
         current_trace: Any | None = None
 
         if self.langfuse_client:
-            current_trace = self.langfuse_client.trace(CreateTrace(
+            current_trace = self.langfuse_client.trace(
                 name=f"Eval Scenario - {scenario_id}",
                 user_id=scenario.get("user_persona", {}).get("id", "eval_user"),
                 metadata={
@@ -54,7 +53,7 @@ class DialogueSimulator:
                     "flow_type": scenario.get("flow_type")
                 },
                 tags=[scenario.get("flow_type", "unknown"), "eval_run"]
-            ))
+            )
 
         dialogue_transcript: list[dict[str, Any]] = \
             scenario.get("mock_dialogue_transcript", [])
@@ -69,11 +68,11 @@ class DialogueSimulator:
                 ack_text = f"Ack: '{user_utterance[:20]}...'"
 
                 if current_trace:
-                    current_trace.generation(CreateGeneration(
+                    current_trace.generation(
                         name=f"LLM Turn {i+1}", input=user_utterance,
                         output=ack_text, model="mock_llm_v1",
                         metadata={"turn_num": i+1}
-                    ))
+                    )
                 dialogue_transcript.append({
                     "turn":i+1, "speaker": "llm", "utterance": ack_text,
                     "message_length": len(ack_text)})
@@ -92,12 +91,10 @@ class DialogueSimulator:
                             else "N/A"
                         )
                         current_trace.generation(
-                            CreateGeneration(
-                                name=f"LLM Mocked Turn {turn.get('turn', i)}",
-                                input=prev_in, output=turn.get("utterance"),
-                                model="mock_transcript_llm",
-                                metadata={"turn": turn.get('turn', i)}
-                            )
+                            name=f"LLM Mocked Turn {turn.get('turn', i)}",
+                            input=prev_in, output=turn.get("utterance"),
+                            model="mock_transcript_llm",
+                            metadata={"turn": turn.get('turn', i)}
                         )
 
         llm_extracted_data = scenario.get("mock_llm_extracted_data", {})
@@ -465,22 +462,22 @@ class OnboardingEvaluator(BaseFlowEvaluator):
         }
         if scenario_trace:
             scenario_trace.score(
-                CreateScore(name="onboarding_completeness", value=comp_rate)
+                name="onboarding_completeness", value=comp_rate
             )
             for r_val in val_results:
-                scenario_trace.score(CreateScore(
+                scenario_trace.score(
                     name=f"{r_val['collects_field']}_accuracy",
                     value=1 if r_val["is_accurate_to_gt"] else 0,
-                    comment=f"LLM: {r_val['llm_value_extracted']}, GT: {r_val['gt_value']}"))
+                    comment=f"LLM: {r_val['llm_value_extracted']}, GT: {r_val['gt_value']}")
             for k, v_dict in dialogue_metrics.items():
                 if isinstance(v_dict, dict):
                     for sub_k, sub_v in v_dict.items():
                         if sub_k != "thresh":
                             scenario_trace.score(
-                                CreateScore(name=f"{k}_{sub_k}", value=sub_v)
+                                name=f"{k}_{sub_k}", value=sub_v
                             )
                 elif isinstance(v_dict, (int, float)):
-                    scenario_trace.score(CreateScore(name=k, value=v_dict))
+                    scenario_trace.score(name=k, value=v_dict)
         return report
 
     def run_evaluation(
@@ -598,31 +595,23 @@ class AssessmentEvaluator(BaseFlowEvaluator):
         }
         if scenario_trace:
             scenario_trace.score(
-                CreateScore(
-                    name="assess_order_perfect_accurate",
-                    value=1 if final_order_check else 0
-                )
+                name="assess_order_perfect_accurate",
+                value=1 if final_order_check else 0
             )
             scenario_trace.score(
-                CreateScore(
-                    name="assess_all_data_accurate",
-                    value=1 if all_data_ok else 0
-                    )
+                name="assess_all_data_accurate",
+                value=1 if all_data_ok else 0
                 )
             for k, v_dict in dialogue_metrics.items():
                 if isinstance(v_dict, dict):
                     for sub_k, sub_v in v_dict.items():
                         if sub_k != "thresh":
                             scenario_trace.score(
-                                CreateScore(
-                                    name=f"assess_{k}_{sub_k}", value=sub_v
-                                )
+                                name=f"assess_{k}_{sub_k}", value=sub_v
                             )
                 elif isinstance(v_dict, (int, float)):
                     scenario_trace.score(
-                        CreateScore(
-                            name=f"assess_{k}", value=v_dict
-                        )
+                        name=f"assess_{k}", value=v_dict
                     )
         return report
 

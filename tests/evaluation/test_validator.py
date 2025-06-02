@@ -1,42 +1,34 @@
 import pytest
 from pathlib import Path
+from typing import Any
 from src.evaluation.evaluator import (
     DataPointValidator, DialogueSimulator, BaseFlowEvaluator, OnboardingEvaluator
 )
 
 # Assume Haystack classes are importable for type hinting and spec,
 # but we will mock their instances during tests.
-from haystack.evaluation.evaluators import (
+from haystack.components.evaluators import (
     AnswerExactMatchEvaluator, 
     SASEvaluator, 
     LLMEvaluator as HaystackLLMEvaluator
 )
 
-# Langfuse types for mocking return values if needed by tests
-try:
-    from langfuse.model import CreateScore  # Used in asserts
-    LANGFUSE_AVAILABLE_FOR_TEST = True
-except ImportError:
-    LANGFUSE_AVAILABLE_FOR_TEST = False
-    class CreateScore:
-        pass  # Dummy if Langfuse not installed during test run
 
 # --- Fixtures using pytest-mock ---
 @pytest.fixture
-def mock_dialogue_simulator(mocker):  # Inject the mocker fixture
+def mock_dialogue_simulator(mocker):
     """Provides a mocked DialogueSimulator using pytest-mock."""
     simulator = mocker.MagicMock(spec=DialogueSimulator)
 
     # Mock the run_simulation to return predictable output
     # including a mock trace object if Langfuse is involved
-    mock_trace = mocker.MagicMock() # Langfuse trace mock
-    # Configure mock_trace.score if tests will assert calls to it
+    mock_trace = mocker.MagicMock()
     mock_trace.score = mocker.Mock()
 
     simulator.run_simulation.return_value = (
-        [{"speaker": "user", "utterance": "Hello"}, 
-         {"speaker": "llm", "utterance": "Hi there!", "message_length": 9}],  # dialogue_transcript
-        {"extracted_field": "some_value"},  # llm_extracted_data
+        [{"speaker": "user", "utterance": "Hello"},
+         {"speaker": "llm", "utterance": "Hi there!", "message_length": 9}],
+        {"extracted_field": "some_value"},
         mock_trace  # scenario_trace (mocked Langfuse trace)
     )
     return simulator
@@ -46,7 +38,7 @@ def mock_dialogue_simulator(mocker):  # Inject the mocker fixture
 def mock_sas_evaluator(mocker):
     """Provides a mocked SASEvaluator that returns a specific score."""
     evaluator = mocker.MagicMock(spec=SASEvaluator)
-    evaluator.run = mocker.Mock(return_value={"sas_score": 0.9}) 
+    evaluator.run = mocker.Mock(return_value={"sas_score": 0.9})
     return evaluator
 
 
@@ -74,7 +66,8 @@ def mock_llm_interaction_evaluator(mocker):
 @pytest.fixture
 def data_validator_with_sas(mock_sas_evaluator):
     """DataPointValidator instance with a mocked SASEvaluator."""
-    # Assuming AnswerExactMatchEvaluator is not the focus for this specific fixture
+    # Assuming AnswerExactMatchEvaluator is not the focus for
+    # this specific fixture
     return DataPointValidator(
         exact_match_evaluator=None, sas_evaluator=mock_sas_evaluator
     )
@@ -97,7 +90,9 @@ def dummy_flow_definition():
 
 @pytest.fixture
 def dummy_onboarding_evaluator(
-    dummy_flow_definition, data_validator_no_haystack, mock_dialogue_simulator,
+    dummy_flow_definition,
+    data_validator_no_haystack,
+    mock_dialogue_simulator,
     mock_llm_interaction_evaluator 
 ):
     """An OnboardingEvaluator instance with mocked dependencies."""
@@ -121,9 +116,21 @@ def dummy_scenario_for_qualitative_eval():
             {"speaker": "user", "utterance": "What data do you need next?"},
             {"speaker": "llm", "utterance": "Next, I need to know about your previous pregnancies.", "message_length": 60}
         ],
-        "ground_truth_extracted_data": {}, 
+        "ground_truth_extracted_data": {},
         "mock_llm_extracted_data": {}
     }
+
+
+@pytest.fixture(scope="session")
+def langfuse_available_for_test():
+    """
+    Checks if Langfuse is available for testing.
+    """
+    try:
+        from langfuse import Langfuse
+        return True
+    except ImportError:
+        return False
 
 
 # --- Tests for DataPointValidator with SASEvaluator ---
@@ -133,7 +140,8 @@ def test_dpv_uses_sas_evaluator_for_specific_field(data_validator_with_sas, mock
     Tests that SASEvaluator is called for a field configured to use it,
     and its score is included.
     """
-    # This field name should match the condition in DataPointValidator._validate_single_data_point
+    # This field name should match the condition
+    # in DataPointValidator._validate_single_data_point
     # for using SAS, e.g., if it's "some_narrative_field"
     collects_field_for_sas = "some_narrative_field"
 
@@ -189,7 +197,9 @@ def test_dpv_no_sas_evaluator_provided(data_validator_no_haystack):
 def test_base_evaluator_runs_qualitative_evaluators_if_provided(
     dummy_onboarding_evaluator,  # This fixture now includes mock_llm_interaction_evaluator
     mock_llm_interaction_evaluator,  # To assert calls on it
-    dummy_scenario_for_qualitative_eval 
+    dummy_scenario_for_qualitative_eval ,
+    mocker,  # For creating a fresh mock_scenario_trace
+    langfuse_available_for_test # Inject the fixture
 ):
     """
     Tests that _run_qualitative_evaluators attempts to use
@@ -215,26 +225,27 @@ def test_base_evaluator_runs_qualitative_evaluators_if_provided(
     assert qual_scores["avg_llm_clarity_placeholder"] == -1.0 
     assert qual_scores["avg_llm_empathy_placeholder"] == -1.0
 
-    if LANGFUSE_AVAILABLE_FOR_TEST: 
+    if langfuse_available_for_test:
         mock_scenario_trace.score.assert_any_call(
-            CreateScore(name="avg_llm_clarity", value=-1.0)
+            name="avg_llm_clarity", value=-1.0
         )
         mock_scenario_trace.score.assert_any_call(
-            CreateScore(name="avg_llm_empathy", value=-1.0)
+            name="avg_llm_empathy", value=-1.0
         )
 
 
 def test_base_evaluator_qualitative_eval_skipped_if_no_evaluator(
     mocker,  # For creating a fresh mock_dialogue_simulator
     dummy_flow_definition, 
-    data_validator_no_haystack
+    data_validator_no_haystack,
+    langfuse_available_for_test 
 ):
     """
     Tests that qualitative evaluation is skipped if no llm_interaction_evaluator.
     """
     mock_sim = mocker.MagicMock(spec=DialogueSimulator)
     mock_trace = mocker.MagicMock()
-    mock_sim.run_simulation.return_value = ([{"s":"u","u":"t"}], {}, mock_trace)
+    mock_sim.run_simulation.return_value = ([{"s": "u", "u": "t"}], {}, mock_trace)
     
     evaluator_no_qual = OnboardingEvaluator(
         flow_definition=dummy_flow_definition,
@@ -253,7 +264,7 @@ def test_base_evaluator_qualitative_eval_skipped_if_no_evaluator(
     assert qual_scores["eval_status"] == "llm_interaction_evaluator_not_provided"
     # Ensure no Langfuse scores for these qualitative metrics were attempted
     # by checking that score was not called with these specific names.
-    if LANGFUSE_AVAILABLE_FOR_TEST:
+    if langfuse_available_for_test:
         for call_obj in mock_trace.score.call_args_list:
             # call_obj is a tuple, first element is args tuple, second is kwargs dict
             # We are interested in the first argument to score(), which is a CreateScore object
