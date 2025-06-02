@@ -216,7 +216,8 @@ def create_onboarding_data_extraction_pipeline() -> Pipeline | None:
     """
 
     prompt_builder = ChatPromptBuilder(
-        template=[ChatMessage.from_user(prompt_template)]
+        template=[ChatMessage.from_user(prompt_template)],
+        required_variables=["user_context", "chat_history", "user_response"]
     )
 
     pipeline.add_component("prompt_builder", prompt_builder)
@@ -267,7 +268,8 @@ def create_assessment_contextualization_pipeline() -> Pipeline | None:
     Contextualized Question:
     """
     prompt_builder = ChatPromptBuilder(
-        template=[ChatMessage.from_user(prompt_template)]
+        template=[ChatMessage.from_user(prompt_template)],
+        required_variables=["user_context", "documents"]
     )
 
     document_store = setup_document_store()
@@ -315,7 +317,8 @@ def create_assessment_response_validator_pipeline() -> Pipeline | None:
     Validated Response:
     """
     prompt_builder = ChatPromptBuilder(
-        template=[ChatMessage.from_user(prompt_template)]
+        template=[ChatMessage.from_user(prompt_template)],
+        required_variables=["user_response"]
     )
 
     pipeline.add_component("prompt_builder", prompt_builder)
