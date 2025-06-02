@@ -10,3 +10,14 @@ dependencies = [
     "openai>=1.78.1",
     "python-dotenv>=1.1.0"
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+]
+
+[project.scripts]
+main = "ai4gd_momconnect_haystack:main.main"
+
+[tool.uv]
+package = true

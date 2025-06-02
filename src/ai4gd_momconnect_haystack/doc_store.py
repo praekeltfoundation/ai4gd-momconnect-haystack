@@ -1,17 +1,18 @@
 import logging
+from os import environ
 from dotenv import load_dotenv
 
 from haystack import Document, Pipeline
-from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
+from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore, AuthApiKey
 from haystack.components.embedders import OpenAIDocumentEmbedder
 from haystack.components.writers import DocumentWriter
 from haystack.utils import Secret
+from weaviate.embedded import EmbeddedOptions
 
 
 # --- Configurations ---
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 embedding_model_name = "text-embedding-3-small"
@@ -50,7 +51,7 @@ ONBOARDING_FLOWS: dict[str, list[dict[str, any]]] = {
                 "Village",
                 "Rural area"
             ],
-            "collects": "area_type"          
+            "collects": "area_type"
         },
         {
             "question_number": 3,
@@ -195,9 +196,13 @@ def initialize_document_store() -> WeaviateDocumentStore:
     Returns:
         An instance of WeaviateDocumentStore.
     """
-    doc_store = WeaviateDocumentStore(
-        url="http://weaviate:8080"
-    )
+    if weaviate_url := environ.get("WEAVIATE_URL"):
+        if environ.get("WEAVIATE_API_KEY"):
+            doc_store = WeaviateDocumentStore(url=weaviate_url, auth_client_secret=AuthApiKey())
+        else:
+            doc_store = WeaviateDocumentStore(url=weaviate_url)
+    else:
+        doc_store = WeaviateDocumentStore(embedded_options=EmbeddedOptions())
     logger.info(f"Initialized Document Store: {type(doc_store).__name__}")
     return doc_store
 
@@ -277,7 +282,7 @@ def get_remaining_onboarding_questions(user_context: dict[str, any], all_onboard
 def setup_document_store() -> WeaviateDocumentStore:
     """
     Initializes document store and ingests data if needed.
-        
+
     Returns:
         An initialized and populated WeaviateDocumentStore.
     """
@@ -301,5 +306,5 @@ def setup_document_store() -> WeaviateDocumentStore:
 
     final_doc_count = document_store.count_documents()
     logger.info(f"Total documents in store after setup: {final_doc_count}")
-    
+
     return document_store

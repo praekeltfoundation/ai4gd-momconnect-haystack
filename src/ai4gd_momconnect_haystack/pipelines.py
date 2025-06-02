@@ -1,4 +1,6 @@
 import logging
+import json
+from functools import cache
 
 from haystack import Pipeline
 from haystack.components.builders.chat_prompt_builder import ChatPromptBuilder
@@ -9,12 +11,10 @@ from haystack.components.validators import JsonSchemaValidator
 from haystack.tools import Tool
 from haystack.utils import Secret
 
-from doc_store import setup_document_store
-
+from .doc_store import setup_document_store
 
 # --- Configuration ---
 logger = logging.getLogger(__name__)
-document_store = setup_document_store()
 
 # --- JSON Schemas ---
 NEXT_QUESTION_SCHEMA = {
@@ -62,7 +62,7 @@ def extract_onboarding_data(**kwargs) -> dict[str, any]:
 
 def create_onboarding_tool() -> Tool:
     """Creates the data extraction tool for onboarding."""
-    
+
     tool = Tool(
         name="extract_onboarding_data",
         description="""
@@ -114,10 +114,11 @@ def create_onboarding_tool() -> Tool:
             }
         }
     )
-    
+
     return tool
 
 # --- Creation of Pipelines ---
+@cache
 def create_next_onboarding_question_pipeline() -> Pipeline | None:
     """
     Creates a pipeline where an LLM selects the best next onboarding question
@@ -154,9 +155,9 @@ def create_next_onboarding_question_pipeline() -> Pipeline | None:
     You MUST respond with a valid JSON object containing exactly these fields:
     - "chosen_question_number" (integer): The question_number of the chosen question from the list above
     - "contextualized_question" (string): A contextualized version of the question
-    
-    You can reference the existing User Context and Chat History to modify the tonality and/or phrasing, 
-    or even add emojis, but DO NOT change the core meaning of the question nor introduce ambiguity. Ensure that the chat flows 
+
+    You can reference the existing User Context and Chat History to modify the tonality and/or phrasing,
+    or even add emojis, but DO NOT change the core meaning of the question nor introduce ambiguity. Ensure that the chat flows
     smoothly (e.g. the first message in a chat must not start as if there were preceding messages).
 
     JSON Response:
@@ -179,6 +180,7 @@ def create_next_onboarding_question_pipeline() -> Pipeline | None:
     logger.info("Created Next Question Selection Pipeline with JSON schema validation.")
     return pipeline
 
+@cache
 def create_onboarding_data_extraction_pipeline() -> Pipeline | None:
     """
     Creates a pipeline using tools to extract structured data from user responses.
@@ -187,15 +189,15 @@ def create_onboarding_data_extraction_pipeline() -> Pipeline | None:
     if not llm_generator:
         logger.error("LLM Generator is not available. Cannot create Onboarding Data Extraction Pipeline.")
         return None
-    
+
     extraction_tool = create_onboarding_tool()
     llm_generator.tools = [extraction_tool]
-    
+
     pipeline = Pipeline()
 
     prompt_template = """
     You are helping extract onboarding data from a user's response to a maternal health chatbot.
-    
+
     Data already collected:
     {{ user_context }}
 
@@ -203,7 +205,7 @@ def create_onboarding_data_extraction_pipeline() -> Pipeline | None:
     {{ chat_history }}
 
     User's latest message: "{{ user_response }}"
-    
+
     Please use the 'extract_onboarding_data' tool to analyze this message. Pay close attention to these **critical rules**:
     - For the properties 'province', 'area_type', 'relationship_status', 'education_level', 'hunger_days', 'num_children' and 'phone_ownership', extracted data **MUST** adhere strictly to their 'enum' lists. If the user's response for one of these properties does **NOT** contain a word or phrase that *directly and unambiguously* maps to one of the EXACT 'enum' values, **DO NOT include that property in your tool call**. Only store the 'Skip' enum value for these properties if the user explicitly states they want to skip in response to that specific question.
     - **DO NOT GUESS or INFER** an enum value based on sentiment, vague descriptions, or ambiguous terms. Only include a field if you are highly confident that the user's input matches an allowed 'enum' value.
@@ -211,19 +213,20 @@ def create_onboarding_data_extraction_pipeline() -> Pipeline | None:
     - For 'hunger_days' and 'num_children', if the user provides a number that does not match any of the enum values, you **MUST** omit those fields, unless the corresponding enum can reasonably be deduced or inferred e.g. '6' hungry days can be mapped to the enum '5-7 days'.
     - For the open-ended additionalProperties, extract any extra information mentioned AS LONG AS it pertains specifically to maternal health or the use of a maternal health chatbot.
     """
-    
+
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_user(prompt_template)]
     )
 
     pipeline.add_component("prompt_builder", prompt_builder)
     pipeline.add_component("llm", llm_generator)
-    
+
     pipeline.connect("prompt_builder.prompt", "llm.messages")
-    
+
     logger.info("Created Onboarding Data Extraction Pipeline with Tools.")
     return pipeline
 
+@cache
 def create_assessment_contextualization_pipeline() -> Pipeline | None:
     """
     Creates a pipeline to fetch an assessment question based on flow_id and question_number,
@@ -266,6 +269,7 @@ def create_assessment_contextualization_pipeline() -> Pipeline | None:
         template=[ChatMessage.from_user(prompt_template)]
     )
 
+    document_store = setup_document_store()
     retriever = FilterRetriever(document_store=document_store)
     pipeline.add_component("retriever", retriever)
     pipeline.add_component("prompt_builder", prompt_builder)
@@ -278,6 +282,7 @@ def create_assessment_contextualization_pipeline() -> Pipeline | None:
     return pipeline
 
 
+@cache
 def create_assessment_response_validator_pipeline() -> Pipeline | None:
     """
     Creates a pipeline to validate the user's response to an assessment question.
@@ -324,13 +329,13 @@ def create_assessment_response_validator_pipeline() -> Pipeline | None:
 def run_next_onboarding_question_pipeline(pipeline: Pipeline, user_context: dict[str, any], remaining_questions: list[dict], chat_history: list[str]) -> dict[str, any] | None:
     """
     Run the next onboarding question selection pipeline and return the chosen question.
-    
+
     Args:
         pipeline: The configured pipeline
         user_context: Previously collected user data
         remaining_questions: List of remaining questions to choose from
         chat_history: List of chat history messages
-    
+
     Returns:
         Dictionary containing the chosen question number and contextualized question
     """
@@ -344,17 +349,17 @@ def run_next_onboarding_question_pipeline(pipeline: Pipeline, user_context: dict
         })
 
         # Get validated JSON from the validator
-        validated_responses = result.get("json_validator", {}).get("valid_json_objects", [])
-        
+        validated_responses = result.get("json_validator", {}).get("validated", [])
+
         if validated_responses:
             # Get the first (and should be only) validated response
-            chosen_data = validated_responses[0]
+            chosen_data = json.loads(validated_responses[0].text)
             chosen_question_number = chosen_data.get("chosen_question_number")
             contextualized_question = chosen_data.get("contextualized_question")
-            
+
             logger.info(f"LLM chose question with question_number: {chosen_question_number}")
             logger.info(f"LLM contextualized question: {contextualized_question}")
-            
+
             return {
                 "chosen_question_number": chosen_question_number,
                 "contextualized_question": contextualized_question
@@ -362,10 +367,10 @@ def run_next_onboarding_question_pipeline(pipeline: Pipeline, user_context: dict
         else:
             # No valid JSON response was produced
             logger.warning("LLM failed to produce valid JSON response. Using fallback.")
-            
+
     except Exception as e:
         logger.error(f"Unexpected error in pipeline execution: {e}")
-    
+
     # Fallback logic (same as before)
     if remaining_questions:
         chosen_question_number = remaining_questions[0]['question_number']
@@ -382,23 +387,23 @@ def run_next_onboarding_question_pipeline(pipeline: Pipeline, user_context: dict
 def run_onboarding_data_extraction_pipeline(pipeline: Pipeline, user_response: str, user_context: dict[str, any], chat_history: list[str]) -> dict[str, any]:
     """
     Run the onboarding data extraction pipeline and return extracted data.
-    
+
     Args:
         pipeline: The configured pipeline
         user_response: User's latest message
         user_context: Previously collected user data
         chat_history: List of chat history messages
-        
+
     Returns:
         Dictionary containing extracted data points
     """
     try:
         result = pipeline.run({
             "user_response": user_response,
-            "user_context": user_context, 
+            "user_context": user_context,
             "chat_history": chat_history
         })
-        
+
         llm_response = result.get("llm", {})
         replies = llm_response.get("replies", [])
         if replies:
@@ -441,13 +446,13 @@ def run_onboarding_data_extraction_pipeline(pipeline: Pipeline, user_response: s
 def run_assessment_contextualization_pipeline(pipeline: Pipeline, flow_id: str, question_number: int, user_context: dict[str, any]) -> str | None:
     """
     Run the assessment contextualization pipeline to get a contextualized question.
-    
+
     Args:
         pipeline: The configured pipeline
         flow_id: The ID of the assessment flow
         question_number: The question number to contextualize
         user_context: Previously collected user data
-        
+
     Returns:
         Contextualized question string or None if an error occurs
     """
@@ -463,14 +468,14 @@ def run_assessment_contextualization_pipeline(pipeline: Pipeline, flow_id: str, 
             "retriever": {"filters": filters},
             "prompt_builder": {"user_context": user_context}
         })
-        
+
         llm_response = result.get("llm", {})
         if llm_response and llm_response.get("replies"):
             return llm_response["replies"][0].text
         else:
             logger.warning("No replies found in LLM response for contextualization")
             return None
-            
+
     except Exception as e:
         logger.error(f"Error running assessment contextualization pipeline: {e}")
         return None
@@ -478,11 +483,11 @@ def run_assessment_contextualization_pipeline(pipeline: Pipeline, flow_id: str, 
 def run_assessment_response_validator_pipeline(pipeline: Pipeline, user_response: str) -> str | None:
     """
     Run the assessment response validator pipeline to validate a user's response.
-    
+
     Args:
         pipeline: The configured pipeline
         user_response: User's response to validate
-        
+
     Returns:
         Validated response string or "nonsense" if invalid
     """
@@ -492,7 +497,7 @@ def run_assessment_response_validator_pipeline(pipeline: Pipeline, user_response
                 "user_response": user_response
             }
         })
-        
+
         llm_response = result.get("llm", {})
         if llm_response and llm_response.get("replies"):
             # Access the .content attribute of the ChatMessage
