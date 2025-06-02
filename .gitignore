@@ -179,3 +179,8 @@ chroma_store_data
 # evaluation results
 evaluation_outputs/
 .vscode/
+# Weaviate document store
+weaviate_data/
+
+# Other files
+.python-version

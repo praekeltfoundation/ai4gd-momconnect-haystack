@@ -1,14 +1,11 @@
-import os
 import logging
 from dotenv import load_dotenv
 
 from haystack import Document, Pipeline
-from haystack_integrations.document_stores.chroma import ChromaDocumentStore
+from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 from haystack.components.embedders import OpenAIDocumentEmbedder
 from haystack.components.writers import DocumentWriter
 from haystack.utils import Secret
-
-from config import CHROMA_PATH
 
 
 # --- Configurations ---
@@ -191,25 +188,20 @@ ASSESSMENT_FLOWS: dict[str, list[dict[str, any]]] = {
 
 
 # --- Core Functions ---
-def initialize_document_store() -> ChromaDocumentStore:
+def initialize_document_store() -> WeaviateDocumentStore:
     """
-    Initializes the ChromaDocumentStore with the specified path and settings.
+    Initializes the WeaviateDocumentStore with the specified path and settings.
 
     Returns:
-        An instance of ChromaDocumentStore.
+        An instance of WeaviateDocumentStore.
     """
-    if not os.path.exists(CHROMA_PATH):
-        os.makedirs(CHROMA_PATH)
-        logger.info(f"Created ChromaDB storage directory at {CHROMA_PATH}")
-    doc_store = ChromaDocumentStore(
-        collection_name="content_embeddings",
-        persist_path=CHROMA_PATH,
-        distance_function="cosine"
+    doc_store = WeaviateDocumentStore(
+        url="http://weaviate:8080"
     )
-    logger.info(f"Initialized Document Store: {type(doc_store).__name__} with collection '{doc_store._collection_name}'")
+    logger.info(f"Initialized Document Store: {type(doc_store).__name__}")
     return doc_store
 
-def create_embedding_pipeline(doc_store: ChromaDocumentStore) -> Pipeline:
+def create_embedding_pipeline(doc_store: WeaviateDocumentStore) -> Pipeline:
     """
     Creates a Haystack pipeline for embedding and writing documents to the store.
 
@@ -282,24 +274,32 @@ def get_remaining_onboarding_questions(user_context: dict[str, any], all_onboard
     return remaining_questions
 
 # --- Setup ---
-# Document store initialization and population
-logger.info("Initializing document store and ingesting data...")
-document_store = initialize_document_store()
+def setup_document_store() -> WeaviateDocumentStore:
+    """
+    Initializes document store and ingests data if needed.
+        
+    Returns:
+        An initialized and populated WeaviateDocumentStore.
+    """
+    logger.info("Setting up document store...")
+    document_store = initialize_document_store()
 
-# Check if documents already exist in the store
-initial_doc_count = document_store.count_documents()
-logger.info(f"Document store currently contains {initial_doc_count} documents.")
+    # Check if documents already exist in the store
+    initial_doc_count = document_store.count_documents()
+    logger.info(f"Document store currently contains {initial_doc_count} documents.")
 
-# If the document store is empty, ingest the onboarding and assessment content
-if initial_doc_count == 0:
-    indexing_pipe = create_embedding_pipeline(document_store)
-    logger.info("Document store is empty. Proceeding with ingestion.")
-    logger.info("--- Ingesting Onboarding Content ---")
-    ingest_content(indexing_pipe, ONBOARDING_FLOWS)
-    logger.info("--- Ingesting Assessment Content ---")
-    ingest_content(indexing_pipe, ASSESSMENT_FLOWS)
-else:
-    logger.warning("Documents found in the store. Skipping ingestion to avoid duplicates.")
-    logger.warning(f"Delete the '{CHROMA_PATH}' directory to re-ingest.")
+    # If the document store is empty, ingest the content
+    if initial_doc_count == 0:
+        logger.info("Document store is empty. Proceeding with ingestion.")
+        indexing_pipe = create_embedding_pipeline(document_store)
+        logger.info("--- Ingesting Onboarding Content ---")
+        ingest_content(indexing_pipe, ONBOARDING_FLOWS)
+        logger.info("--- Ingesting Assessment Content ---")
+        ingest_content(indexing_pipe, ASSESSMENT_FLOWS)
+    else:
+        logger.info("Documents found in the store. Skipping ingestion to avoid duplicates.")
 
-logger.info(f"Total documents in store after potential ingestion: {document_store.count_documents()}")
+    final_doc_count = document_store.count_documents()
+    logger.info(f"Total documents in store after setup: {final_doc_count}")
+    
+    return document_store
