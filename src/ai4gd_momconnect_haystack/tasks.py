@@ -70,12 +70,11 @@ def extract_onboarding_data_from_response(user_response: str, user_context: dict
     return user_context
 
 def get_assessment_question(flow_id: str, question_number: int, current_assessment_step: int, user_context: dict) -> dict:
-    next_step_data = all_assessment_questions[current_assessment_step+1]
-
-    if not next_step_data:
+    if current_assessment_step >= len(all_assessment_questions):
         logger.info("Assessment flow complete.")
         return {}
 
+    next_step_data = all_assessment_questions[current_assessment_step]
     current_question_number = next_step_data['question_number']
     logger.info(f"Processing step {current_question_number} for flow '{assessment_flow_id}'")
 
