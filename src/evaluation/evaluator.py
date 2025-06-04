@@ -156,12 +156,10 @@ class DataPointValidator:
         return val_str
 
     def _get_haystack_score(self, result: Optional[dict[str, Any]], score_key: str) -> float:
-        # ... (your existing _get_haystack_score logic) ...
-        if not result: return -1.0 # Use -1.0 to indicate error or N/A for scores
-        # Haystack evaluators often return results like {"some_evaluator_name": {"score": 0.0}}
-        # Or directly {"score_key": 0.0}
-        if score_key in result: # Direct key
-            val = result[score_key]
+        if not result:
+            return -1.0
+        if score_key in result:
+            val = result.get(score_key)
             return float(val) if isinstance(val, (int, float)) else -1.0
         # Check for nested structure
         first_key_in_result = next(iter(result), None)
@@ -172,7 +170,10 @@ class DataPointValidator:
         return -1.0
 
     def validate_single_data_point(
-        self, collects_field: str, llm_extracted_value: Any, gt_value: Any,
+        self,
+        collects_field: str,
+        llm_extracted_value: Any,
+        gt_value: Any,
         valid_responses_list: Optional[list[str]] = None,
         is_required: bool = True
     ) -> dict[str, Any]:
@@ -181,46 +182,53 @@ class DataPointValidator:
         norm_gt = self._normalize_value(gt_value, collects_field)
         is_collected = norm_llm is not None
         is_accurate_to_gt = False
-        sas_score = -1.0 # Default for not applicable/not run
+        sas_score = -1.0
 
         if norm_llm is not None and norm_gt is not None:
             if self.exact_match_evaluator:
                 # Haystack evaluators expect list of strings for answers
                 eval_res = self.exact_match_evaluator.run(predicted_answers=[norm_llm], ground_truth_answers=[norm_gt])
-                is_accurate_to_gt = self._get_haystack_score(eval_res, "exact_match") == 1.0
-            elif self.sas_evaluator and collects_field in ["some_narrative_field"]: # Example specific field
-                eval_res = self.sas_evaluator.run(predicted_answers=[norm_llm], ground_truth_answers=[norm_gt])
-                sas_score = self._get_haystack_score(eval_res, "score") # SASEvaluator might use "score"
-                is_accurate_to_gt = sas_score > 0.8 # Example threshold
-            else: # Python fallback
+                print(f"Themba Jonga: is_accurate_to_gt (evals: {eval_res}): {self._get_haystack_score(eval_res, "exact_match")}")
+                is_accurate_to_gt = (
+                    self._get_haystack_score(eval_res, "score") == 1.0
+                )
+            elif self.sas_evaluator and collects_field in ["some_narrative_field"]:
+                eval_res = self.sas_evaluator.run(predicted_answers=[norm_llm],  ground_truth_answers=[norm_gt])
+                sas_score = self._get_haystack_score(eval_res, "score")  # SASEvaluator might use "score"
+                is_accurate_to_gt = sas_score > 0.8  # Example threshold
+            else:  # Python fallback
                 is_accurate_to_gt = (norm_llm == norm_gt)
-        elif norm_llm is None and norm_gt is None: # Both None is considered accurate (e.g., correctly not extracted)
+        elif norm_llm is None and norm_gt is None:  # Both None is considered accurate (e.g., correctly not extracted)
             is_accurate_to_gt = True
         
         is_valid_option = False
         if is_collected:
             if valid_responses_list:
                 norm_valid_responses = [self._normalize_value(vr, collects_field) for vr in valid_responses_list if vr is not None]
-                if self.exact_match_evaluator and norm_valid_responses: # Check if norm_llm is one of norm_valid_responses
+                if self.exact_match_evaluator and norm_valid_responses:
                     # This use of exact_match_evaluator checks if norm_llm is IN norm_valid_responses
                     # by treating norm_valid_responses as multiple ground truths.
                     # It will be 1.0 if norm_llm matches ANY of them.
                     temp_results_valid_option = []
-                    for valid_opt_norm in norm_valid_responses: # Check against each valid option
+                    for valid_opt_norm in norm_valid_responses:
                         eval_result_opt_check = self.exact_match_evaluator.run(
-                            predicted_answers=[norm_llm], ground_truth_answers=[valid_opt_norm]
+                            predicted_answers=[norm_llm],
+                            ground_truth_answers=[valid_opt_norm]
                         )
-                        if self._get_haystack_score(eval_result_opt_check, "exact_match") == 1.0:
+                        if self._get_haystack_score(
+                            eval_result_opt_check,
+                            "score"
+                        ) == 1.0:
                             is_valid_option = True
                             break
-                elif norm_valid_responses : # Python fallback
+                elif norm_valid_responses:
                     is_valid_option = norm_llm in norm_valid_responses
-                else: # No valid responses list provided, assume any collected value is a "valid option" in terms of format
-                    is_valid_option = True 
-            else: # No valid_responses_list means we can't check this, or any non-null is valid
-                is_valid_option = True 
+                else:
+                    is_valid_option = True
+            else:
+                is_valid_option = True
         elif not is_collected and (norm_gt == "skip" or (valid_responses_list and "skip" in [self._normalize_value(vr) for vr in valid_responses_list])):
-            is_valid_option = True # If not collected and GT was skip, it's a "valid" outcome for this check
+            is_valid_option = True  # If not collected and GT was skip, it's a "valid" outcome for this check
 
         is_req_and_missing = is_required and not is_collected and not (norm_gt is None or norm_gt == "skip")
 
@@ -229,11 +237,15 @@ class DataPointValidator:
             "is_collected": is_collected, "is_accurate_to_gt": is_accurate_to_gt,
             "is_valid_option": is_valid_option, "is_required_and_missing": is_req_and_missing
         }
-        if sas_score != -1.0: result_dict["sas_score"] = sas_score
+        if sas_score != -1.0:
+            result_dict["sas_score"] = sas_score
         return result_dict
 
-
-    def analyze_dialogue_metrics(self, dialogue_transcript: list[dict[str, Any]], threshold: int = WHATSAPP_MESSAGE_SIZE_THRESHOLD) -> dict[str, Any]:
+    def analyze_dialogue_metrics(
+        self,
+        dialogue_transcript: list[dict[str, Any]],
+        threshold: int = WHATSAPP_MESSAGE_SIZE_THRESHOLD
+    ) -> dict[str, Any]:
         # ... (your existing analyze_dialogue_metrics logic, ensure it handles empty llm_lengths) ...
         skips, why_asks, llm_over_thresh, total_llm_msgs = 0, 0, 0, 0
         llm_lengths: list[int] = []
@@ -241,20 +253,27 @@ class DataPointValidator:
             speaker, utterance = turn.get("speaker"), str(turn.get("utterance", ""))
             if speaker == "user":
                 utt_low = utterance.lower()
-                if "skip" == utt_low: skips += 1 # This only counts literal "skip"
-                if "why do you ask" in utt_low or "why do you need to know" in utt_low: why_asks += 1
+                if "skip" == utt_low:
+                    skips += 1  # This only counts literal "skip"
+                if "why do you ask" in utt_low or "why do you need to know" in utt_low:
+                    why_asks += 1
             elif speaker == "llm":
                 total_llm_msgs += 1
                 length = turn.get("message_length", len(utterance))
                 llm_lengths.append(length)
-                if length > threshold: llm_over_thresh += 1
+                if length > threshold:
+                    llm_over_thresh += 1
         avg_len = (sum(llm_lengths) / len(llm_lengths)) if llm_lengths else 0.0
         return {
             "total_user_inputs": sum(1 for t in dialogue_transcript if t.get("speaker") == "user"),
             "total_llm_responses": total_llm_msgs,
             "user_hesitancy": {"skips": skips, "why_asks": why_asks},
-            "llm_msg_size": {"avg_len": round(avg_len, 2), "max_len": max(llm_lengths) if llm_lengths else 0,
-                             "min_len": min(llm_lengths) if llm_lengths else 0, "over_thresh": llm_over_thresh, "thresh": threshold}
+            "llm_msg_size": {
+                "avg_len": round(avg_len, 2),
+                "max_len": max(llm_lengths) if llm_lengths else 0,
+                "min_len": min(llm_lengths) if llm_lengths else 0,
+                "over_thresh": llm_over_thresh, "thresh": threshold
+            }
         }
 
 
@@ -273,7 +292,9 @@ class BaseFlowEvaluator:
         self.field_names = [item["collects"] for item in flow_definition if "collects" in item]
         self.llm_interaction_evaluator = llm_interaction_evaluator
 
-    def evaluate_scenario_base(self, scenario: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]], Optional[Any]]:
+    def evaluate_scenario_base(
+        self, scenario: dict[str, Any]
+    ) -> tuple[dict[str, Any], list[dict[str, Any]], Optional[Any]]:
         dialogue_transcript, llm_extracted_data, scenario_trace = self.simulator.run_simulation(scenario)
         gt_data = scenario.get("ground_truth_extracted_data", {})
         validation_results: list[dict[str, Any]] = []
@@ -286,7 +307,7 @@ class BaseFlowEvaluator:
 
             is_req = "skip" not in [
                 self.validator._normalize_value(vr)
-                for vr in item_def.get("valid_responses", []) if vr is not None # Handle None in valid_responses
+                for vr in item_def.get("valid_responses", []) if vr is not None
             ]
             
             # Access llm_extracted_data, considering it might be flat or have 'other'
@@ -296,19 +317,26 @@ class BaseFlowEvaluator:
             #     llm_value_for_field = llm_extracted_data["other"].get(field) # If you expect 'other'
 
             result = self.validator.validate_single_data_point(
-                field, llm_value_for_field, gt_data.get(field),
-                item_def.get("valid_responses"), is_req
+                collects_field=field,
+                llm_extracted_value=llm_value_for_field,
+                gt_value=gt_data.get(field),
+                valid_responses_list=item_def.get("valid_responses"),
+                is_required=is_req
             )
             validation_results.append(result)
-            
+
         initial_report_data = {
             "dialogue_transcript": dialogue_transcript,
-            "llm_extracted_data": llm_extracted_data, "gt_data": gt_data
+            "llm_extracted_data": llm_extracted_data,
+            "gt_data": gt_data
         }
         return initial_report_data, validation_results, scenario_trace
 
-    def _run_qualitative_evaluators(self, dialogue_transcript: list[dict[str,Any]], scenario_trace: Optional[Any]) -> dict[str, Any]:
-        # ... (your existing _run_qualitative_evaluators method) ...
+    def _run_qualitative_evaluators(
+        self,
+        dialogue_transcript: list[dict[str,Any]],
+        scenario_trace: Optional[Any]
+    ) -> dict[str, Any]:
         # Example: if self.llm_interaction_evaluator and scenario_trace:
         #   eval_result = self.llm_interaction_evaluator.run(transcript=dialogue_transcript)
         #   clarity = eval_result.get("clarity_score", -1.0)
@@ -322,11 +350,17 @@ class BaseFlowEvaluator:
         # TODO: Implement actual LLM evaluation logic using dialogue_transcript
         # Example: This would involve formatting the transcript and posing questions to the LLM evaluator
         logger.warning("Placeholder for _run_qualitative_evaluators is active.")
-        qual_scores["avg_llm_clarity_placeholder"] = -1.0 # Default if not evaluated
+        qual_scores["avg_llm_clarity_placeholder"] = -1.0  # Default if not evaluated
         qual_scores["avg_llm_empathy_placeholder"] = -1.0
         if scenario_trace:
-            scenario_trace.score(name="avg_llm_clarity_placeholder", value=qual_scores["avg_llm_clarity_placeholder"])
-            scenario_trace.score(name="avg_llm_empathy_placeholder", value=qual_scores["avg_llm_empathy_placeholder"])
+            scenario_trace.score(
+                name="avg_llm_clarity_placeholder",
+                value=qual_scores["avg_llm_clarity_placeholder"]
+            )
+            scenario_trace.score(
+                name="avg_llm_empathy_placeholder",
+                value=qual_scores["avg_llm_empathy_placeholder"]
+            )
         return qual_scores
 
     def _aggregate_common_metrics(self, reports: list[dict[str, Any]]) -> tuple[dict[str, list[bool]], int, int]:
