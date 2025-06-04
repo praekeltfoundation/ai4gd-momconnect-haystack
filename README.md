@@ -15,10 +15,14 @@ Haystack pipelines for use on the AI4GD study being run on MomConnect
 
 ## Configuration
 The following environment variables control the application configuration:
-OPENAI_API_KEY - (required) the API access key for OpenAI
-API_TOKEN - (required) the token that is to be supplied when accessing the API.
-WEAVIATE_URL - (optional) if supplied, the URL to the weaviate instance. If not supplied, an embedded instance will be used
-WEAVIATE_API_KEY - (optional) if supplied, the API key to use to connect to the weaviate instance. If not supplied, no authentication is provided when connecting
+
+`OPENAI_API_KEY` - (required) the API access key for OpenAI
+
+`API_TOKEN` - (required) the token that is to be supplied when accessing the API.
+
+`WEAVIATE_URL` - (optional) if supplied, the URL to the weaviate instance. If not supplied, an embedded instance will be used
+
+`WEAVIATE_API_KEY` - (optional) if supplied, the API key to use to connect to the weaviate instance. If not supplied, no authentication is provided when connecting
 
 ## API
 
