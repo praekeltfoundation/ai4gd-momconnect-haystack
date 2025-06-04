@@ -179,3 +179,4 @@ weaviate_data/
 # Other files
 .python-version
 .vscode
+evaluation_outputs/

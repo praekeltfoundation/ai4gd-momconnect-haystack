@@ -116,7 +116,7 @@ def create_next_onboarding_question_pipeline() -> Optional[Pipeline]:
     Choose the best single question number from 'Remaining questions' to ask next.
     Contextualize the chosen question naturally.
     Response MUST be valid JSON: {"chosen_question_number": int, "contextualized_question": str}
-    JSON Response:""" # Simplified prompt for brevity
+    JSON Response:"""  # Simplified prompt for brevity
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_user(prompt_template)],
         required_variables=["user_context", "remaining_questions", "chat_history"]
@@ -165,9 +165,10 @@ def create_onboarding_data_extraction_pipeline() -> Optional[Pipeline]:
 
     if llm_generator:
         extraction_tool = create_onboarding_tool()
-        # Create a new llm_generator instance or ensure tools are set on a fresh one if get_llm_generator is cached
+        # Create a new llm_generator instance or ensure tools are set on a
+        # fresh one if get_llm_generator is cached
         # Since get_llm_generator is NOT cached anymore, this is fine.
-        llm_generator_for_tool = get_llm_generator() # Get a potentially fresh instance for tool use
+        llm_generator_for_tool = get_llm_generator()  # Get a potentially fresh instance for tool use
         if llm_generator_for_tool:
             llm_generator_for_tool.tools = [extraction_tool]
             pipeline.add_component("llm", llm_generator_for_tool)
@@ -259,16 +260,17 @@ def run_next_onboarding_question_pipeline(
     global mock_onboarding_question_index
     if USE_MOCK_LLM:
         logger.info("MOCKING: run_next_onboarding_question_pipeline")
-        if not remaining_questions: return None
+        if not remaining_questions:
+            return None
         mock_response = None
-        for i in range(len(MOCK_ONBOARDING_QUESTIONS_CYCLE)): # Try to find a relevant mock
+        for i in range(len(MOCK_ONBOARDING_QUESTIONS_CYCLE)):
             current_mock_idx = (mock_onboarding_question_index + i) % len(MOCK_ONBOARDING_QUESTIONS_CYCLE)
             potential_mock = MOCK_ONBOARDING_QUESTIONS_CYCLE[current_mock_idx]
             if any(q["question_number"] == potential_mock["chosen_question_number"] for q in remaining_questions):
-                mock_response = {**potential_mock, "fallback_used": False} # Ensure all fields
+                mock_response = {**potential_mock, "fallback_used": False}
                 mock_onboarding_question_index = (current_mock_idx + 1) % len(MOCK_ONBOARDING_QUESTIONS_CYCLE)
                 break
-        if not mock_response: # Fallback mock
+        if not mock_response:
             q_def = remaining_questions[0]
             mock_response = {
                 "chosen_question_number": q_def["question_number"],
@@ -279,7 +281,7 @@ def run_next_onboarding_question_pipeline(
         logger.info(f"Mocked next question response: {mock_response}")
         return mock_response
 
-    if not pipeline or not get_llm_generator(): # Handles case where API key might be missing, and not mocking
+    if not pipeline or not get_llm_generator():  # Handles case where API key might be missing, and not mocking
         logger.warning("Actual LLM pipeline not available for next onboarding question. Using fallback.")
         if remaining_questions:
             q_def = remaining_questions[0]
@@ -298,7 +300,7 @@ def run_next_onboarding_question_pipeline(
         })
         validated_responses = result.get("json_validator", {}).get("validated", [])
         if validated_responses and isinstance(validated_responses[0], ChatMessage):
-            chosen_data_str = validated_responses[0].content # Use .content for ChatMessage
+            chosen_data_str = validated_responses[0].text
             chosen_data = json.loads(chosen_data_str)
             chosen_q_num = chosen_data.get("chosen_question_number")
             contextualized_q = chosen_data.get("contextualized_question")
@@ -309,15 +311,17 @@ def run_next_onboarding_question_pipeline(
                         collects_field = q_def.get("collects")
                         break
             logger.info(f"LLM chose question_number: {chosen_q_num}, collects: {collects_field}")
-            return {"chosen_question_number": chosen_q_num,
-                    "contextualized_question": contextualized_q,
-                    "collects_field": collects_field, "fallback_used": False}
+            return {
+                "chosen_question_number": chosen_q_num,
+                "contextualized_question": contextualized_q,
+                "collects_field": collects_field, "fallback_used": False
+            }
         else:
             logger.warning("LLM failed to produce valid JSON. Using fallback.")
     except Exception as e:
         logger.error(f"Error in next_onboarding_question_pipeline: {e}", exc_info=True)
 
-    if remaining_questions: # Fallback for actual LLM path if error or no valid JSON
+    if remaining_questions:  # Fallback for actual LLM path if error or no valid JSON
         q_def = remaining_questions[0]
         logger.warning(f"Falling back to first remaining question (actual path): question_number {q_def['question_number']}")
         return {"chosen_question_number": q_def['question_number'],
@@ -334,38 +338,76 @@ def run_onboarding_data_extraction_pipeline(
     expected_collects_field: Optional[str] = None # NEW PARAMETER
 ) -> dict[str, Any]:
     if USE_MOCK_LLM:
-        logger.info(f"MOCKING: run_onboarding_data_extraction_pipeline, expecting field: {expected_collects_field}")
+        logger.info(
+            f"MOCKING: run_onboarding_data_extraction_pipeline,\
+                expecting field: {expected_collects_field}"
+        )
         mock_extracted_data = {}
 
         if expected_collects_field == "province":
             # Simulate extracting from a phrase like "I'm in the Free State near Bloem"
-            if "free state" in user_response.lower(): mock_extracted_data["province"] = "Free State"
-            elif "gauteng" in user_response.lower(): mock_extracted_data["province"] = "Gauteng"
-            else: mock_extracted_data["province"] = "Mocked Western Cape" # Default mock for province
+            if "free state" in user_response.lower():
+                mock_extracted_data["province"] = "Free State"
+            elif "gauteng" in user_response.lower():
+                mock_extracted_data["province"] = "Gauteng"
+            elif "eastern cape" in user_response.lower():
+                mock_extracted_data["province"] = "Eastern Cape"
+            elif "kwazulu-natal" in user_response.lower():
+                mock_extracted_data["province"] = "KwaZulu-Natal"
+            elif "limpopo" in user_response.lower():
+                mock_extracted_data["province"] = "Limpopo"
+            elif "mpumalanga" in user_response.lower():
+                mock_extracted_data["province"] = "Mpumalanga"
+            elif "northern cape" in user_response.lower():
+                mock_extracted_data["province"] = "Northern Cape"
+            elif "north west" in user_response.lower():
+                mock_extracted_data["province"] = "North West"
+            elif "western cape" in user_response.lower():
+                mock_extracted_data["province"] = "Western Cape"
+            else:
+                mock_extracted_data["province"] = "Mocked Unknown Province"
         elif expected_collects_field == "area_type":
-            if "city" in user_response.lower(): mock_extracted_data["area_type"] = "City"
-            elif "farm" in user_response.lower(): mock_extracted_data["area_type"] = "Farm or smallholding"
-            else: mock_extracted_data["area_type"] = "Mocked Township or suburb"
+            if "city" in user_response.lower():
+                mock_extracted_data["area_type"] = "City"
+            elif "farm" in user_response.lower():
+                mock_extracted_data["area_type"] = "Farm or smallholding"
+            else:
+                mock_extracted_data["area_type"] = "Mocked Township or suburb"
         elif expected_collects_field == "relationship_status":
-            if "single" in user_response.lower(): mock_extracted_data["relationship_status"] = "Single"
-            elif "married" in user_response.lower(): mock_extracted_data["relationship_status"] = "Married"
-            else: mock_extracted_data["relationship_status"] = "Mocked Relationship"
+            if "single" in user_response.lower():
+                mock_extracted_data["relationship_status"] = "Single"
+            elif "married" in user_response.lower():
+                mock_extracted_data["relationship_status"] = "Married"
+            else:
+                mock_extracted_data["relationship_status"] = "Mocked Relationship"
         elif expected_collects_field == "education_level":
-            if "high school" in user_response.lower(): mock_extracted_data["education_level"] = "Finished high school"
-            elif "primary" in user_response.lower(): mock_extracted_data["education_level"] = "Finished primary"
-            else: mock_extracted_data["education_level"] = "Mocked Some high school"
+            if "high school" in user_response.lower():
+                mock_extracted_data["education_level"] = "Finished high school"
+            elif "primary" in user_response.lower():
+                mock_extracted_data["education_level"] = "Finished primary"
+            else:
+                mock_extracted_data["education_level"] = "Mocked Some high school"
         elif expected_collects_field == "hunger_days":
-            if "0 days" in user_response or "never" in user_response.lower(): mock_extracted_data["hunger_days"] = "0 days"
-            elif "1" in user_response or "2" in user_response: mock_extracted_data["hunger_days"] = "1-2 days"
-            else: mock_extracted_data["hunger_days"] = "Mocked 3-4 days"
+            if "0 days" in user_response or "never" in user_response.lower():
+                mock_extracted_data["hunger_days"] = "0 days"
+            elif "1" in user_response or "2" in user_response:
+                mock_extracted_data["hunger_days"] = "1-2 days"
+            else:
+                mock_extracted_data["hunger_days"] = "Mocked 3-4 days"
         elif expected_collects_field == "num_children":
-            if "0" in user_response or "none" in user_response.lower(): mock_extracted_data["num_children"] = "0"
-            elif "1" in user_response or "one" in user_response.lower(): mock_extracted_data["num_children"] = "1"
-            else: mock_extracted_data["num_children"] = "Mocked 2"
+            if "0" in user_response or "none" in user_response.lower():
+                mock_extracted_data["num_children"] = "0"
+            elif "1" in user_response or "one" in user_response.lower():
+                mock_extracted_data["num_children"] = "1"
+            else:
+                mock_extracted_data["num_children"] = "Mocked 2"
         elif expected_collects_field == "phone_ownership":
-            if "yes" in user_response.lower() or "own it" in user_response.lower(): mock_extracted_data["phone_ownership"] = "Yes"
-            elif "no" in user_response.lower() or "share" in user_response.lower(): mock_extracted_data["phone_ownership"] = "No"
-            else: mock_extracted_data["phone_ownership"] = "Mocked Skip"
+            if "yes" in user_response.lower() or "own it" in user_response.lower():
+                mock_extracted_data["phone_ownership"] = "Yes"
+            elif "no" in user_response.lower() or "share" in user_response.lower():
+                mock_extracted_data["phone_ownership"] = "No"
+            else:
+                mock_extracted_data["phone_ownership"] = "Mocked Skip"
         else:
             # Fallback if field is unknown or not specifically mocked yet
             # You could make this even smarter by having a generic response
@@ -386,11 +428,13 @@ def run_onboarding_data_extraction_pipeline(
         
     logger.info(f"CALLING ACTUAL LLM: run_onboarding_data_extraction_pipeline (expecting data for: {expected_collects_field or 'any field'})")
     try:
-        result = pipeline.run(data={
-            "user_response": user_response,
-            "user_context": user_context,
-            "chat_history": chat_history
-        })
+        result = pipeline.run(
+            data={
+                "user_context": user_context,
+                "remaining_questions": remaining_question,
+                "chat_history": chat_history
+            }
+        )
         llm_response = result.get("llm", {})
         replies = llm_response.get("replies", [])
         if replies and isinstance(replies[0], ChatMessage):
@@ -469,7 +513,7 @@ def run_assessment_response_validator_pipeline(
         logger.info("MOCKING: run_assessment_response_validator_pipeline")
         # More sophisticated mock could use valid_responses_options if passed
         processed = f"MockValidated: {user_response.strip().capitalize()}"
-        if "nonsense" in user_response.lower() or len(user_response) < 3: # Basic heuristic for mock
+        if "nonsense" in user_response.lower() or len(user_response) < 3:  # Basic heuristic for mock
             processed = "nonsense"
         logger.info(f"Mocked validated response: {processed}")
         return processed
