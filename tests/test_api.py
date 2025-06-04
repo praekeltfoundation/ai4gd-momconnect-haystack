@@ -3,7 +3,7 @@ from unittest import mock
 
 from fastapi.testclient import TestClient
 
-from ai4gd_momconnect_haystack.api import CHAT_HISTORY, app
+from ai4gd_momconnect_haystack.api import app
 
 
 def test_health():
@@ -49,7 +49,6 @@ def test_onboarding_invalid_auth_token():
 def test_onboarding(
     extract_onboarding_data_from_response, get_next_onboarding_question
 ):
-    CHAT_HISTORY.clear()
     extract_onboarding_data_from_response.return_value = {"area_type": "City"}
     get_next_onboarding_question.return_value = (
         "Which province are you currently living in? 🏡"
@@ -64,19 +63,17 @@ def test_onboarding(
     assert response.json() == {
         "user_context": {"area_type": "City"},
         "question": "Which province are you currently living in? 🏡",
+        "chat_history": [
+            "User to System: Hello!",
+            "System to User: Which province are you currently living in? 🏡",
+        ],
     }
-    chat_history = CHAT_HISTORY["27820001001"]
-    assert chat_history == [
-        "User to System: Hello!",
-        "System to User: Which province are you currently living in? 🏡",
-    ]
 
 
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch("ai4gd_momconnect_haystack.api.get_assessment_question")
 @mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_answer")
 def test_assessment(validate_assessment_answer, get_assessment_question):
-    CHAT_HISTORY.clear()
     get_assessment_question.return_value = {
         "contextualized_question": "How confident are you in discussing your maternal health concerns with your healthcare provider?",
         "current_question_number": 2,
@@ -101,9 +98,8 @@ def test_assessment(validate_assessment_answer, get_assessment_question):
     assert response.json() == {
         "question": "How confident are you in discussing your maternal health concerns with your healthcare provider?",
         "next_question": 2,
+        "chat_history": [
+            "User to System: Hello!",
+            "System to User: How confident are you in discussing your maternal health concerns with your healthcare provider?",
+        ],
     }
-    chat_history = CHAT_HISTORY["27820001001"]
-    assert chat_history == [
-        "User to System: Hello!",
-        "System to User: How confident are you in discussing your maternal health concerns with your healthcare provider?",
-    ]

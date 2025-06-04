@@ -1,4 +1,3 @@
-from collections import defaultdict
 from os import environ
 from typing import Annotated, Any
 
@@ -17,8 +16,6 @@ load_dotenv()
 API_TOKEN = environ["API_TOKEN"]
 
 app = FastAPI()
-
-CHAT_HISTORY = defaultdict(list)
 
 
 @app.get("/health")
@@ -50,16 +47,18 @@ class OnboardingRequest(BaseModel):
     whatsapp_id: str
     user_input: str
     user_context: dict[str, Any]
+    chat_history: list[str] = []
 
 
 class OnboardingResponse(BaseModel):
     question: str
     user_context: dict[str, Any]
+    chat_history: list[str]
 
 
 @app.post("/v1/onboarding")
 def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
-    chat_history = CHAT_HISTORY[request.whatsapp_id]
+    chat_history = request.chat_history
     chat_history.append(f"User to System: {request.user_input}")
     # TODO: Can we run these in parallel for latency?
     user_context = extract_onboarding_data_from_response(
@@ -71,7 +70,9 @@ def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
         user_context=user_context, chat_history=chat_history
     )
     chat_history.append(f"System to User: {question}")
-    return OnboardingResponse(question=question, user_context=user_context)
+    return OnboardingResponse(
+        question=question, user_context=user_context, chat_history=chat_history
+    )
 
 
 class AssessmentRequest(BaseModel):
@@ -80,16 +81,18 @@ class AssessmentRequest(BaseModel):
     user_context: dict[str, Any]
     flow_id: str
     question_number: int
+    chat_history: list[str] = []
 
 
 class AssessmentResponse(BaseModel):
     question: str
     next_question: int
+    chat_history: list[str]
 
 
 @app.post("/v1/assessment")
 def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
-    chat_history = CHAT_HISTORY[request.whatsapp_id]
+    chat_history = request.chat_history
     chat_history.append(f"User to System: {request.user_input}")
     # TODO: Can we run these in parallel for latency?
     validate_assessment_answer(
@@ -106,5 +109,7 @@ def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
     current_question_number = question["current_question_number"]
     chat_history.append(f"System to User: {contextualized_question}")
     return AssessmentResponse(
-        question=contextualized_question, next_question=current_question_number
+        question=contextualized_question,
+        next_question=current_question_number,
+        chat_history=chat_history,
     )
