@@ -1,0 +1,56 @@
+
+{
+    "onboarding": [
+        {
+            "question_number": 1,
+            "content": "Which province do you live in?",
+            "collects": "province",
+            "valid_responses": [
+                "Eastern Cape", "Free State", "Gauteng", "KwaZulu-Natal", 
+                "Limpopo", "Mpumalanga", "Northern Cape", "North West", "Western Cape"
+            ]
+        },
+        {
+            "question_number": 2,
+            "content": "And what kind of area do you live in?",
+            "collects": "area_type",
+            "valid_responses": [
+                "City", "Township or suburb", "Town", 
+                "Farm or smallholding", "Village", "Rural area"
+            ]
+        },
+        {
+            "question_number": 3,
+            "content": "What’s your current relationship status?",
+            "collects": "relationship_status",
+            "valid_responses": ["Single", "Relationship", "Married", "Skip"]
+        },
+        {
+            "question_number": 4,
+            "content": "What’s your highest level of education?",
+            "collects": "education_level",
+            "valid_responses": [
+                "No school", "Some primary", "Finished primary", "Some high school", 
+                "Finished high school", "More than high school", "Don’t know", "Skip"
+            ]
+        },
+        {
+            "question_number": 5,
+            "content": "In the past 7 days, how many days did you not have enough to eat?",
+            "collects": "hunger_days",
+            "valid_responses": ["0 days", "1-2 days", "3-4 days", "5-7 days"]
+        },
+        {
+            "question_number": 6,
+            "content": "How many children do you have? Count all your children of any age.",
+            "collects": "num_children",
+            "valid_responses": ["0", "1", "2", "3", "More than 3", "Why do you ask?"]
+        },
+        {
+            "question_number": 7,
+            "content": "Do you own the phone you’re using right now?",
+            "collects": "phone_ownership",
+            "valid_responses": ["Yes", "No", "Skip"]
+        }
+    ]
+}

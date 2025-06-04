@@ -1,0 +1,96 @@
+
+[
+    {
+      "scenario_id": "onboarding_naledi_001",
+      "flow_type": "onboarding", 
+      "description": "Onboarding for Naledi (Persona 6), an anxious 19-year-old from a farm in North West, seeking guidance.",
+      "user_persona": {
+        "id": "user_persona_06", 
+        "age": 19,
+        "persona_details_from_brief": {
+            "location_description": "Farm in North West",
+            "relationship_status_persona": "Single",
+            "education_level_persona": "Grade 9",
+            "food_security_persona": "Misses meals several times a week",
+            "phone_ownership_persona": "Shares with family",
+            "gestation_weeks_persona": 22,
+            "num_children_persona": 1,
+            "key_needs_motivations": "Anxious about pregnancy, lacks reliable info, seeks guidance and reassurance.",
+            "tone_style_preferences": "Prefers friendly and supportive messages. Needs simple, step-by-step info."
+        }
+      },
+      "initial_user_utterance": "Hi, I'm Naledi. I'm pregnant and feeling a bit worried and need some help.",
+      "simulated_user_responses_map": {
+        "province": "I live on a farm out in the North West.",
+        "area_type": "It's a farm, so I guess that's rural?",
+        "relationship_status": "No, I'm single right now.",
+        "education_level": "I only finished Grade 9 at school.",
+        "hunger_days": "It's been tough... maybe 3 or 4 days this past week I didn't have enough to eat.",
+        "num_children": "I have one little one already.",
+        "phone_ownership": "No, this phone isn't really mine, I share it with my family."
+      },
+      "ground_truth_extracted_data": {
+        "province": "North West",
+        "area_type": "Farm or smallholding", 
+        "relationship_status": "Single",
+        "education_level": "Some high school", 
+        "hunger_days": "3-4 days", 
+        "num_children": "1",     
+        "phone_ownership": "No"
+      },
+      "mock_llm_extracted_data": { 
+        "province": "North West",
+        "area_type": "Farm or smallholding",
+        "relationship_status": "Single",
+        "education_level": "Some high school",
+        "hunger_days": "3-4 days",
+        "num_children": "1",
+        "phone_ownership": "No"
+      },
+      "mock_dialogue_transcript": [ 
+        {"turn": 1, "speaker": "user", "utterance": "Hi, I'm Naledi. I'm pregnant and feeling a bit worried and need some help."},
+        {"turn": 2, "speaker": "llm", "utterance": "Hello Naledi, it's okay to feel worried, I'm here to help. To start, which province do you live in?", "message_length": 120},
+        {"turn": 3, "speaker": "user", "utterance": "I live on a farm out in the North West."},
+        {"turn": 4, "speaker": "llm", "utterance": "Thank you for sharing, Naledi. And what kind of area is that farm in? For example, is it like a village, or more of a rural area?", "message_length": 150}
+      ],
+      "notes_for_human_review": "Check LLM's extraction for 'area_type' from 'farm, so I guess that's rural?'. Ensure supportive tone from LLM if testing qualitative aspects."
+    },
+    {
+      "scenario_id": "assessment_persona_06",
+      "flow_type": "dma-assessment",
+      "description": "Example DMA assessment scenario with full user sentences.",
+      "user_persona": {
+        "id": "user_persona_06"
+      },
+      "initial_user_utterance": "Okay, I'm ready for the assessment questions.",
+      "simulated_user_responses_map": {
+        "confidence_health_decisions": "I feel pretty good about making health decisions, quite confident.",
+        "confidence_discuss_medical_problems": "I'm somewhat confident talking to my doctor, sometimes it's hard.",
+        "confidence_questioning_treatment": "Yes, I definitely feel I can question things if I need to.",
+        "confidence_taking_actions_health": "I'm very confident I can take action for my health.",
+        "confidence_finding_info_other_sources": "Not very confident there, just a little bit."
+      },
+      "ground_truth_extracted_data": {
+        "confidence_health_decisions": "Confident",
+        "confidence_discuss_medical_problems": "Somewhat confident",
+        "confidence_questioning_treatment": "Confident", 
+        "confidence_taking_actions_health": "Very confident",
+        "confidence_finding_info_other_sources": "A little confident"
+      },
+      "mock_llm_extracted_data": {
+        "confidence_health_decisions": "Confident",
+        "confidence_discuss_medical_problems": "Somewhat confident",
+        "confidence_questioning_treatment": "Confident",
+        "confidence_taking_actions_health": "Very confident",
+        "confidence_finding_info_other_sources": "A little confident"
+      },
+      "mock_llm_collection_sequence": [ 
+        "confidence_health_decisions",
+        "confidence_discuss_medical_problems",
+        "confidence_questioning_treatment",
+        "confidence_taking_actions_health",
+        "confidence_finding_info_other_sources"
+      ],
+      "notes_for_human_review": "Check how LLM maps user's narrative confidence statements to the categorical options."
+    }
+]

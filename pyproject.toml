@@ -8,7 +8,8 @@ dependencies = [
     "weaviate-haystack>=6.0.0",
     "haystack-ai>=2.13.2",
     "openai>=1.78.1",
-    "python-dotenv>=1.1.0"
+    "python-dotenv>=1.1.0",
+    "langfuse>=2.6.0",
 ]
 
 [dependency-groups]
