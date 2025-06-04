@@ -49,6 +49,7 @@ def test_onboarding_invalid_auth_token():
 def test_onboarding(
     extract_onboarding_data_from_response, get_next_onboarding_question
 ):
+    CHAT_HISTORY.clear()
     extract_onboarding_data_from_response.return_value = {"area_type": "City"}
     get_next_onboarding_question.return_value = (
         "Which province are you currently living in? 🏡"
@@ -68,4 +69,41 @@ def test_onboarding(
     assert chat_history == [
         "User to System: Hello!",
         "System to User: Which province are you currently living in? 🏡",
+    ]
+
+
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch("ai4gd_momconnect_haystack.api.get_assessment_question")
+@mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_answer")
+def test_assessment(validate_assessment_answer, get_assessment_question):
+    CHAT_HISTORY.clear()
+    get_assessment_question.return_value = {
+        "contextualized_question": "How confident are you in discussing your maternal health concerns with your healthcare provider?",
+        "current_question_number": 2,
+    }
+    validate_assessment_answer.return_value = {
+        "processed_user_response": "testresponse",
+        "current_assessment_step": 1,
+    }
+    client = TestClient(app)
+    response = client.post(
+        "/v1/assessment",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "whatsapp_id": "27820001001",
+            "user_context": {},
+            "user_input": "Hello!",
+            "flow_id": "dma-assessment",
+            "question_number": 1,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "question": "How confident are you in discussing your maternal health concerns with your healthcare provider?",
+        "next_question": 2,
+    }
+    chat_history = CHAT_HISTORY["27820001001"]
+    assert chat_history == [
+        "User to System: Hello!",
+        "System to User: How confident are you in discussing your maternal health concerns with your healthcare provider?",
     ]
