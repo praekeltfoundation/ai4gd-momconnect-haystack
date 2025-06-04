@@ -44,7 +44,6 @@ def verify_token(authorization: Annotated[str, Header()]):
 
 
 class OnboardingRequest(BaseModel):
-    whatsapp_id: str
     user_input: str
     user_context: dict[str, Any]
     chat_history: list[str] = []
@@ -76,7 +75,6 @@ def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
 
 
 class AssessmentRequest(BaseModel):
-    whatsapp_id: str
     user_input: str
     user_context: dict[str, Any]
     flow_id: str

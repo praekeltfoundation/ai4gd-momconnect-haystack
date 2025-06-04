@@ -57,7 +57,7 @@ def test_onboarding(
     response = client.post(
         "/v1/onboarding",
         headers={"Authorization": "Token testtoken"},
-        json={"whatsapp_id": "27820001001", "user_context": {}, "user_input": "Hello!"},
+        json={"user_context": {}, "user_input": "Hello!"},
     )
     assert response.status_code == 200
     assert response.json() == {
@@ -87,7 +87,6 @@ def test_assessment(validate_assessment_answer, get_assessment_question):
         "/v1/assessment",
         headers={"Authorization": "Token testtoken"},
         json={
-            "whatsapp_id": "27820001001",
             "user_context": {},
             "user_input": "Hello!",
             "flow_id": "dma-assessment",
