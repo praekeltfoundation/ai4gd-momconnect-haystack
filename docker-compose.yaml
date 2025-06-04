@@ -19,6 +19,8 @@ services:
       PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
       DEFAULT_VECTORIZER_MODULE: 'none'
       CLUSTER_HOSTNAME: 'node1'
+      USE_MOCK_LLM: 'true'
+      RUN_MODE: "EVALUATION"
     networks:
       - app-network
 

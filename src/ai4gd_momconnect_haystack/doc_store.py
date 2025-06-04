@@ -1,6 +1,7 @@
 import logging
 from os import environ
 from dotenv import load_dotenv
+from typing import Optional, Any
 
 from haystack import Document, Pipeline
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore, AuthApiKey
@@ -16,6 +17,8 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 embedding_model_name = "text-embedding-3-small"
+
+_weaviate_client_to_close: Optional[Any] = None  # Global variable to store the Weaviate client for later closing
 
 
 # --- Data ---
@@ -282,12 +285,31 @@ def get_remaining_onboarding_questions(user_context: dict[str, any], all_onboard
 def setup_document_store() -> WeaviateDocumentStore:
     """
     Initializes document store and ingests data if needed.
-
-    Returns:
-        An initialized and populated WeaviateDocumentStore.
+    Now also stores the client for later closing.
     """
+    global _weaviate_client_to_close  # Global variable to store the Weaviate client
+
     logger.info("Setting up document store...")
     document_store = initialize_document_store()
+
+    # --- ADDED PART: Store the client for later closing ---
+    if document_store and hasattr(document_store, 'client'):
+        # The Haystack WeaviateDocumentStore usually has a .client attribute
+        # which is the actual weaviate.Client instance.
+        if _weaviate_client_to_close is None:  # Store only the first one created
+            _weaviate_client_to_close = document_store.client
+            logger.info("Weaviate client reference stored for later closing.")
+        elif _weaviate_client_to_close != document_store.client:
+            logger.warning(
+                "A new/different Weaviate client instance was created. "
+                "The first one will be targeted for closing."
+            )
+    elif document_store:
+        logger.warning(
+            "Document store initialized, but .client attribute not found or is None. "
+            "Cannot manage closing for this store."
+        )
+    # --- END OF ADDED PART ---
 
     # Check if documents already exist in the store
     initial_doc_count = document_store.count_documents()
@@ -308,3 +330,26 @@ def setup_document_store() -> WeaviateDocumentStore:
     logger.info(f"Total documents in store after setup: {final_doc_count}")
 
     return document_store
+
+
+# --- ADDED FUNCTION: To be called from main.py ---
+def close_weaviate_client_connection():
+    """
+    Closes the stored Weaviate client connection, if one was stored.
+    """
+    global _weaviate_client_to_close
+    if _weaviate_client_to_close and hasattr(_weaviate_client_to_close, 'close'):
+        try:
+            logger.info("Attempting to close Weaviate client connection...")
+            _weaviate_client_to_close.close()
+            logger.info("Weaviate client connection closed successfully.")
+        except Exception as e:
+            logger.error(f"Error while trying to close Weaviate client: {e}", exc_info=True)
+        finally:
+            _weaviate_client_to_close = None # Clear the reference
+    elif _weaviate_client_to_close:
+        logger.warning("A Weaviate client was stored, but it does not have a 'close' method.")
+        _weaviate_client_to_close = None # Clear the reference
+    else:
+        logger.info("No Weaviate client connection was stored to be closed, or already closed.")
+# --- END OF ADDED FUNCTION ---
