@@ -11,4 +11,4 @@ RUN uv sync
 
 COPY . .
 
-CMD ["uv", "run", "main"]
+CMD ["uv", "run", "uvicorn", "ai4gd_momconnect_haystack.api:app"]
