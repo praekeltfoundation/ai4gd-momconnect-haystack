@@ -70,7 +70,7 @@ def run_simulation():
 
         ### Endpoint 3: Turn can call to get an assessment question to send to the user.
         result = tasks.get_assessment_question(
-            flow_id="assessment_flow_id",
+            flow_id="dma_flow_id",
             question_number=current_assessment_step,
             current_assessment_step=current_assessment_step,
             user_context=user_context,
