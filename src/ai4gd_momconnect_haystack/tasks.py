@@ -9,10 +9,10 @@ from . import pipelines
 logger = logging.getLogger(__name__)
 
 onboarding_flow_id = "onboarding"
-assessment_flow_id = "dma-assessment"
+dma_flow_id = "dma-assessment"
 
-all_onboarding_questions = doc_store.ONBOARDING_FLOWS.get(onboarding_flow_id, [])
-all_assessment_questions = doc_store.ASSESSMENT_FLOWS.get(assessment_flow_id, [])
+all_onboarding_questions = doc_store.ONBOARDING_FLOW.get(onboarding_flow_id, [])
+all_dma_questions = doc_store.DMA_FLOW.get(dma_flow_id, [])
 
 
 def get_next_onboarding_question(user_context: dict, chat_history: list) -> str | None:
@@ -101,14 +101,14 @@ def extract_onboarding_data_from_response(
 def get_assessment_question(
     flow_id: str, question_number: int, current_assessment_step: int, user_context: dict
 ) -> dict:
-    if current_assessment_step >= len(all_assessment_questions):
+    if current_assessment_step >= len(all_dma_questions):
         logger.info("Assessment flow complete.")
         return {}
 
-    next_step_data = all_assessment_questions[current_assessment_step]
+    next_step_data = all_dma_questions[current_assessment_step]
     current_question_number = next_step_data["question_number"]
     logger.info(
-        f"Processing step {current_question_number} for flow '{assessment_flow_id}'"
+        f"Processing step {current_question_number} for flow '{dma_flow_id}'"
     )
 
     # Contextualize the current question

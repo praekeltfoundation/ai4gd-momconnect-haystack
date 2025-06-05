@@ -1,5 +1,6 @@
 import logging
 from os import environ
+from pathlib import Path
 from dotenv import load_dotenv
 from typing import Any
 
@@ -13,6 +14,8 @@ from haystack.components.writers import DocumentWriter
 from haystack.utils import Secret
 from weaviate.embedded import EmbeddedOptions
 
+from .utilities import read_json
+
 
 # --- Configurations ---
 load_dotenv()
@@ -24,151 +27,11 @@ embedding_model_name = "text-embedding-3-small"
 
 # --- Data ---
 # Onboarding Flows Data
-ONBOARDING_FLOWS: dict[str, list[dict[str, Any]]] = {
-    "onboarding": [
-        {
-            "question_number": 1,
-            "content": "Which province do you live in?",
-            "content_type": "onboarding_message",
-            "valid_responses": [
-                "Eastern Cape",
-                "Free State",
-                "Gauteng",
-                "KwaZulu-Natal",
-                "Limpopo",
-                "Mpumalanga",
-                "Northern Cape",
-                "North West",
-                "Western Cape",
-            ],
-            "collects": "province",
-        },
-        {
-            "question_number": 2,
-            "content": "And what kind of area do you live in?",
-            "content_type": "onboarding_message",
-            "valid_responses": [
-                "City",
-                "Township or suburb",
-                "Town",
-                "Farm or smallholding",
-                "Village",
-                "Rural area",
-            ],
-            "collects": "area_type",
-        },
-        {
-            "question_number": 3,
-            "content": "What’s your current relationship status?",
-            "content_type": "onboarding_message",
-            "valid_responses": ["Single", "Relationship", "Married", "Skip"],
-            "collects": "relationship_status",
-        },
-        {
-            "question_number": 4,
-            "content": "What’s your highest level of education?",
-            "content_type": "onboarding_message",
-            "valid_responses": [
-                "No school",
-                "Some primary",
-                "Finished primary",
-                "Some high school",
-                "Finished high school",
-                "More than high school",
-                "Don’t know",
-                "Skip",
-            ],
-            "collects": "education_level",
-        },
-        {
-            "question_number": 5,
-            "content": "In the past 7 days, how many days did you not have enough to eat?",
-            "content_type": "onboarding_message",
-            "valid_responses": ["0 days", "1-2 days", "3-4 days", "5-7 days"],
-            "collects": "hunger_days",
-        },
-        {
-            "question_number": 6,
-            "content": "How many children do you have? Count all your children of any age.",
-            "content_type": "onboarding_message",
-            "valid_responses": ["0", "1", "2", "3", "More than 3", "Why do you ask?"],
-            "collects": "num_children",
-        },
-        {
-            "question_number": 7,
-            "content": "Do you own the phone you’re using right now?",
-            "content_type": "onboarding_message",
-            "valid_responses": ["Yes", "No", "Skip"],
-            "collects": "phone_ownership",
-        },
-    ],
-}
+data_dir = Path("src/ai4gd_momconnect_haystack/static_content")
+ONBOARDING_FLOW = read_json(data_dir / "onboarding.json")
 
 # Assessment Questions Data
-ASSESSMENT_FLOWS: dict[str, list[dict[str, Any]]] = {
-    "dma-assessment": [
-        {
-            "question_number": 1,
-            "content": "How confident are you in making decisions about your health?",
-            "content_type": "assessment_question",
-            "valid_responses": [
-                "Not at all confident",
-                "A little confident",
-                "Somewhat confident",
-                "Confident",
-                "Very confident",
-            ],
-        },
-        {
-            "question_number": 2,
-            "content": "How confident are you discussing your medical problems with your doctor/nurse?",
-            "content_type": "assessment_question",
-            "valid_responses": [
-                "Not at all confident",
-                "A little confident",
-                "Somewhat confident",
-                "Confident",
-                "Very confident",
-            ],
-        },
-        {
-            "question_number": 3,
-            "content": "I feel confident questioning my doctor/nurse about my treatment.",
-            "content_type": "assessment_question",
-            "valid_responses": [
-                "Not at all confident",
-                "A little confident",
-                "Somewhat confident",
-                "Confident",
-                "Very confident",
-            ],
-        },
-        {
-            "question_number": 4,
-            "content": "How confident are you in taking actions to improve your health?",
-            "content_type": "assessment_question",
-            "valid_responses": [
-                "Not at all confident",
-                "A little confident",
-                "Somewhat confident",
-                "Confident",
-                "Very confident",
-            ],
-        },
-        {
-            "question_number": 5,
-            "content": "How confident are you in finding information about your health problems from other sources?",
-            "content_type": "assessment_question",
-            "valid_responses": [
-                "Not at all confident",
-                "A little confident",
-                "Somewhat confident",
-                "Confident",
-                "Very confident",
-            ],
-        },
-    ],
-}
+DMA_FLOW = read_json(data_dir / "dma.json")
 
 
 # --- Core Functions ---
@@ -227,7 +90,7 @@ def ingest_content(
     Args:
         indexing_pipeline: The Haystack pipeline for embedding and writing.
         content_flows: A dictionary where keys are flow_ids and values are lists
-                       of content dictionaries (like ONBOARDING_FLOWS or ASSESSMENT_FLOWS).
+                       of content dictionaries (like ONBOARDING_FLOW or DMA_FLOW).
     """
     documents_to_ingest: list[Document] = []
     flow_count = 0
@@ -307,9 +170,9 @@ def setup_document_store() -> WeaviateDocumentStore:
         logger.info("Document store is empty. Proceeding with ingestion.")
         indexing_pipe = create_embedding_pipeline(document_store)
         logger.info("--- Ingesting Onboarding Content ---")
-        ingest_content(indexing_pipe, ONBOARDING_FLOWS)
+        ingest_content(indexing_pipe, ONBOARDING_FLOW)
         logger.info("--- Ingesting Assessment Content ---")
-        ingest_content(indexing_pipe, ASSESSMENT_FLOWS)
+        ingest_content(indexing_pipe, DMA_FLOW)
     else:
         logger.info(
             "Documents found in the store. Skipping ingestion to avoid duplicates."

@@ -1,0 +1,167 @@
+{
+    "behaviour-assessment": [
+        {
+            "question_number": 1,
+            "content": "*So far in this pregnancy, how many times have you gone to the clinic for a pregnancy check-up?* 🫃🏽",
+            "content_type": "assessment_question",
+            "valid_responses": [
+                "0 - None",
+                "1",
+                "2",
+                "3",
+                "4",
+                "5",
+                "6",
+                "7",
+                "More than 7"
+            ]
+        },
+        {
+            "question_number": 2,
+            "content": "*In this pregnancy, have you made any changes to your diet based on information from the health worker?* 🫃🏽",
+            "content_type": "assessment_question",
+            "valid_responses": [
+                "Yes",
+                "No",
+                "Skip"
+            ]
+        },
+        {
+            "question_number": 3,
+            "content": "*So far in this pregnancy, how many doses of the tetanus vaccine (Tdap) have you received?* 🫃🏽",
+            "content_type": "assessment_question",
+            "valid_responses": [
+                "0 - None",
+                "1",
+                "Skip"
+            ]
+        },
+        {
+            "question_number": 4,
+            "pre-content": "*Since becoming pregnant, have you drunk any alcohol or smoked at all?* 🫃🏽",
+            "post-content": "*Since joining MomConnect, have you drunk any alcohol or smoked at all?* 🫃🏽",
+            "content_type": "assessment_question",
+            "valid_responses": [
+                "Yes",
+                "No",
+                "Skip"
+            ]
+        }
+    ],
+    "knowledge-assessment": [
+        {
+            "question_number": 1,
+            "content": "*When do you think a pregnant woman should get her first pregnancy check-up?* 🤰🏽",
+            "content_type": "assessment_question",
+            "valid_responses": [
+                "Before 14 weeks",
+                "At about 16 weeks",
+                "At about 20 weeks",
+                "At about 24 weeks",
+                "At birth",
+                "I don't know",
+                "Skip"
+            ]
+        },
+        {
+            "question_number": 2,
+            "content": "*During a pregnancy, which of these means you need to go to the hospital immediately?* 🤰🏽\n\n• You have contractions that stop when you move\n• Your tummy stays tight, hard and is very painful\n• Your lower back aches all day",
+            "content_type": "assessment_question",
+            "valid_responses": [
+                "Contractions stop",
+                "Tight painful tummy",
+                "Lower back ache",
+                "I don't know",
+                "Skip"
+            ]
+        },
+        {
+            "question_number": 3,
+            "content": "*How many pregnancy check-ups should you go to during your pregnancy?* 🤰🏽",
+            "content_type": "assessment_question",
+            "valid_responses": [
+                "1 to 4 check-ups",
+                "5 to 7 check-ups",
+                "8 or more check-ups",
+                "0 - None",
+                "I don't know",
+                "Skip"
+            ]
+        },
+        {
+            "question_number": 4,
+            "content": "*Should a baby be breastfed within the first hour of birth?* 🤰🏽",
+            "content_type": "assessment_question",
+            "valid_responses": [
+                "Yes",
+                "No",
+                "I don't know",
+                "Skip"
+            ]
+        },
+        {
+            "question_number": 5,
+            "content": "*Who does this vaccine protect?* 🤰🏽",
+            "content_type": "assessment_question",
+            "valid_responses": [
+                "You",
+                "Your baby only",
+                "You and baby",
+                "I don't know",
+                "Skip"
+            ]
+        },
+        {
+            "question_number": 6,
+            "content": "*Are iron and folic acid supplements good for you and your unborn baby?* 🤰🏽",
+            "content_type": "assessment_question",
+            "valid_responses": [
+                "Yes",
+                "No",
+                "I don't know",
+                "Skip"
+            ]
+        }
+    ],
+    "attitude-assessment": [
+        {
+            "question_number": 1,
+            "content": "Do you agree with this statement?\n\n*Pregnancy check-ups are a good way to check that you and your unborn baby are healthy.* 🫄🏽",
+            "content_type": "assessment_question",
+            "valid_responses": [
+                "I strongly agree",
+                "I agree",
+                "I'm not sure",
+                "I disagree",
+                "I strongly disagree",
+                "Skip"
+            ]
+        },
+        {
+            "question_number": 2,
+            "content": "What about this one…\n\n*Home birth is safer than giving birth in a hospital.* 🫄🏽",
+            "content_type": "assessment_question",
+            "valid_responses": [
+                "I strongly agree",
+                "I agree",
+                "I'm not sure",
+                "I disagree",
+                "I strongly disagree",
+                "Skip"
+            ]
+        },
+        {
+            "question_number": 3,
+            "content": "And…\n\n*It’s important for a pregnant woman to get an HIV test when she is pregnant.* 🫄🏽",
+            "content_type": "assessment_question",
+            "valid_responses": [
+                "I strongly agree",
+                "I agree",
+                "I'm not sure",
+                "I disagree",
+                "I strongly disagree",
+                "Skip"
+            ]
+        }
+    ]
+}
