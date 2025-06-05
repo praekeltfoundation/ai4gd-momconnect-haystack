@@ -107,9 +107,7 @@ def get_assessment_question(
 
     next_step_data = all_dma_questions[current_assessment_step]
     current_question_number = next_step_data["question_number"]
-    logger.info(
-        f"Processing step {current_question_number} for flow '{dma_flow_id}'"
-    )
+    logger.info(f"Processing step {current_question_number} for flow '{dma_flow_id}'")
 
     # Contextualize the current question
     logger.info("Running contextualization pipeline...")
@@ -119,7 +117,7 @@ def get_assessment_question(
     )
     contextualized_question = pipelines.run_assessment_contextualization_pipeline(
         assessment_contextualization_pipe,
-        assessment_flow_id,
+        dma_flow_id,
         current_question_number,
         user_context,
     )
