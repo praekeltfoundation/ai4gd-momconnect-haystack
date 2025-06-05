@@ -1,6 +1,7 @@
 import logging
 import json
 from functools import cache
+from typing import Any
 
 from haystack import Pipeline
 from haystack.components.builders.chat_prompt_builder import ChatPromptBuilder
@@ -22,16 +23,17 @@ NEXT_QUESTION_SCHEMA = {
     "properties": {
         "chosen_question_number": {
             "type": "integer",
-            "description": "The question number selected from the remaining questions list"
+            "description": "The question number selected from the remaining questions list",
         },
         "contextualized_question": {
             "type": "string",
-            "description": "The contextualized version of the chosen question"
-        }
+            "description": "The contextualized version of the chosen question",
+        },
     },
     "required": ["chosen_question_number", "contextualized_question"],
-    "additionalProperties": False
+    "additionalProperties": False,
 }
+
 
 # --- LLM Generator ---
 def get_llm_generator() -> OpenAIChatGenerator | None:
@@ -40,18 +42,23 @@ def get_llm_generator() -> OpenAIChatGenerator | None:
     """
     try:
         openai_api_key = Secret.from_env_var("OPENAI_API_KEY")
-        llm_generator = OpenAIChatGenerator(api_key=openai_api_key, model="gpt-3.5-turbo")
+        llm_generator = OpenAIChatGenerator(
+            api_key=openai_api_key, model="gpt-3.5-turbo"
+        )
         logger.info("OpenAI Chat Generator instance created for pipelines.")
     except ValueError:
-        logger.error("OPENAI_API_KEY environment variable not found. Cannot create OpenAI Chat Generator.")
+        logger.error(
+            "OPENAI_API_KEY environment variable not found. Cannot create OpenAI Chat Generator."
+        )
         return None
     if not llm_generator:
         logger.error("OpenAI Chat Generator not available. Cannot create pipelines.")
         return None
     return llm_generator
 
+
 # --- Tools ---
-def extract_onboarding_data(**kwargs) -> dict[str, any]:
+def extract_onboarding_data(**kwargs) -> dict[str, Any]:
     """
     Receives extracted data from the LLM tool call via its arguments.
     This function acts as a placeholder; its primary role is to define
@@ -59,6 +66,7 @@ def extract_onboarding_data(**kwargs) -> dict[str, any]:
     """
     logger.info(f"Tool 'extract_onboarding_data' would be called with: {kwargs}")
     return kwargs
+
 
 def create_onboarding_tool() -> Tool:
     """Creates the data extraction tool for onboarding."""
@@ -75,47 +83,74 @@ def create_onboarding_tool() -> Tool:
                 "province": {
                     "type": "string",
                     "description": "The user's province.",
-                    "enum": ["Eastern Cape","Free State","Gauteng","KwaZulu-Natal","Limpopo","Mpumalanga","Northern Cape","North West","Western Cape"]
+                    "enum": [
+                        "Eastern Cape",
+                        "Free State",
+                        "Gauteng",
+                        "KwaZulu-Natal",
+                        "Limpopo",
+                        "Mpumalanga",
+                        "Northern Cape",
+                        "North West",
+                        "Western Cape",
+                    ],
                 },
                 "area_type": {
                     "type": "string",
                     "description": "The type of area the user lives in.",
-                    "enum": ["City","Township or suburb","Town","Farm or smallholding","Village","Rural area"]
+                    "enum": [
+                        "City",
+                        "Township or suburb",
+                        "Town",
+                        "Farm or smallholding",
+                        "Village",
+                        "Rural area",
+                    ],
                 },
                 "relationship_status": {
                     "type": "string",
                     "description": "The user's relationship status.",
-                    "enum": ["Single","Relationship","Married","Skip"]
+                    "enum": ["Single", "Relationship", "Married", "Skip"],
                 },
                 "education_level": {
                     "type": "string",
                     "description": "The user's highest education level.",
-                    "enum": ["No school","Some primary","Finished primary","Some high school","Finished high school","More than high school","Don't know","Skip"]
+                    "enum": [
+                        "No school",
+                        "Some primary",
+                        "Finished primary",
+                        "Some high school",
+                        "Finished high school",
+                        "More than high school",
+                        "Don't know",
+                        "Skip",
+                    ],
                 },
                 "hunger_days": {
                     "type": "string",
                     "description": "Number of days in the past 7 days the user didn't have enough to eat.",
-                     "enum": ["0 days","1-2 days","3-4 days","5-7 days"]
+                    "enum": ["0 days", "1-2 days", "3-4 days", "5-7 days"],
                 },
                 "num_children": {
                     "type": "string",
                     "description": "The number of children the user has.",
-                    "enum": ["0","1","2","3","More than 3","Why do you ask?"]
+                    "enum": ["0", "1", "2", "3", "More than 3", "Why do you ask?"],
                 },
                 "phone_ownership": {
                     "type": "string",
                     "description": "Whether the user owns their phone.",
-                    "enum": ["Yes","No","Skip"]
-                }
+                    "enum": ["Yes", "No", "Skip"],
+                },
             },
             "additionalProperties": {
                 "type": "string",
-                "description": "Any other valuable maternal health-related information extracted."
-            }
-        }
+                "description": "Any other valuable maternal health-related information extracted.",
+            },
+        },
     )
 
     return tool
+
 
 # --- Creation of Pipelines ---
 @cache
@@ -126,7 +161,9 @@ def create_next_onboarding_question_pipeline() -> Pipeline | None:
     """
     llm_generator = get_llm_generator()
     if not llm_generator:
-        logger.error("LLM Generator is not available. Cannot create Next Onboarding Question Pipeline.")
+        logger.error(
+            "LLM Generator is not available. Cannot create Next Onboarding Question Pipeline."
+        )
         return None
     pipeline = Pipeline()
 
@@ -164,12 +201,10 @@ def create_next_onboarding_question_pipeline() -> Pipeline | None:
     """
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_user(prompt_template)],
-        required_variables=["user_context", "chat_history", "remaining_questions"]
+        required_variables=["user_context", "chat_history", "remaining_questions"],
     )
 
-    json_validator = JsonSchemaValidator(
-        json_schema=NEXT_QUESTION_SCHEMA
-    )
+    json_validator = JsonSchemaValidator(json_schema=NEXT_QUESTION_SCHEMA)
 
     pipeline.add_component("prompt_builder", prompt_builder)
     pipeline.add_component("llm", llm_generator)
@@ -181,6 +216,7 @@ def create_next_onboarding_question_pipeline() -> Pipeline | None:
     logger.info("Created Next Question Selection Pipeline with JSON schema validation.")
     return pipeline
 
+
 @cache
 def create_onboarding_data_extraction_pipeline() -> Pipeline | None:
     """
@@ -188,7 +224,9 @@ def create_onboarding_data_extraction_pipeline() -> Pipeline | None:
     """
     llm_generator = get_llm_generator()
     if not llm_generator:
-        logger.error("LLM Generator is not available. Cannot create Onboarding Data Extraction Pipeline.")
+        logger.error(
+            "LLM Generator is not available. Cannot create Onboarding Data Extraction Pipeline."
+        )
         return None
 
     extraction_tool = create_onboarding_tool()
@@ -217,7 +255,7 @@ def create_onboarding_data_extraction_pipeline() -> Pipeline | None:
 
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_user(prompt_template)],
-        required_variables=["user_context", "chat_history", "user_response"]
+        required_variables=["user_context", "chat_history", "user_response"],
     )
 
     pipeline.add_component("prompt_builder", prompt_builder)
@@ -228,6 +266,7 @@ def create_onboarding_data_extraction_pipeline() -> Pipeline | None:
     logger.info("Created Onboarding Data Extraction Pipeline with Tools.")
     return pipeline
 
+
 @cache
 def create_assessment_contextualization_pipeline() -> Pipeline | None:
     """
@@ -236,7 +275,9 @@ def create_assessment_contextualization_pipeline() -> Pipeline | None:
     """
     llm_generator = get_llm_generator()
     if not llm_generator:
-        logger.error("LLM Generator is not available. Cannot create Assessment Contextualization Pipeline.")
+        logger.error(
+            "LLM Generator is not available. Cannot create Assessment Contextualization Pipeline."
+        )
         return None
     pipeline = Pipeline()
 
@@ -269,7 +310,7 @@ def create_assessment_contextualization_pipeline() -> Pipeline | None:
     """
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_user(prompt_template)],
-        required_variables=["user_context", "documents"]
+        required_variables=["user_context", "documents"],
     )
 
     document_store = setup_document_store()
@@ -292,7 +333,9 @@ def create_assessment_response_validator_pipeline() -> Pipeline | None:
     """
     llm_generator = get_llm_generator()
     if not llm_generator:
-        logger.error("LLM Generator is not available. Cannot create Assessment Response Validation Pipeline.")
+        logger.error(
+            "LLM Generator is not available. Cannot create Assessment Response Validation Pipeline."
+        )
         return None
     pipeline = Pipeline()
 
@@ -318,7 +361,7 @@ def create_assessment_response_validator_pipeline() -> Pipeline | None:
     """
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_user(prompt_template)],
-        required_variables=["user_response"]
+        required_variables=["user_response"],
     )
 
     pipeline.add_component("prompt_builder", prompt_builder)
@@ -329,8 +372,14 @@ def create_assessment_response_validator_pipeline() -> Pipeline | None:
     logger.info("Created Assessment Response Validation Pipeline.")
     return pipeline
 
+
 # --- Running Pipelines ---
-def run_next_onboarding_question_pipeline(pipeline: Pipeline, user_context: dict[str, any], remaining_questions: list[dict], chat_history: list[str]) -> dict[str, any] | None:
+def run_next_onboarding_question_pipeline(
+    pipeline: Pipeline,
+    user_context: dict[str, Any],
+    remaining_questions: list[dict],
+    chat_history: list[str],
+) -> dict[str, Any] | None:
     """
     Run the next onboarding question selection pipeline and return the chosen question.
 
@@ -344,13 +393,15 @@ def run_next_onboarding_question_pipeline(pipeline: Pipeline, user_context: dict
         Dictionary containing the chosen question number and contextualized question
     """
     try:
-        result = pipeline.run({
-            "prompt_builder": {
-                "user_context": user_context,
-                "remaining_questions": remaining_questions,
-                "chat_history": chat_history
+        result = pipeline.run(
+            {
+                "prompt_builder": {
+                    "user_context": user_context,
+                    "remaining_questions": remaining_questions,
+                    "chat_history": chat_history,
+                }
             }
-        })
+        )
 
         # Get validated JSON from the validator
         validated_responses = result.get("json_validator", {}).get("validated", [])
@@ -361,12 +412,14 @@ def run_next_onboarding_question_pipeline(pipeline: Pipeline, user_context: dict
             chosen_question_number = chosen_data.get("chosen_question_number")
             contextualized_question = chosen_data.get("contextualized_question")
 
-            logger.info(f"LLM chose question with question_number: {chosen_question_number}")
+            logger.info(
+                f"LLM chose question with question_number: {chosen_question_number}"
+            )
             logger.info(f"LLM contextualized question: {contextualized_question}")
 
             return {
                 "chosen_question_number": chosen_question_number,
-                "contextualized_question": contextualized_question
+                "contextualized_question": contextualized_question,
             }
         else:
             # No valid JSON response was produced
@@ -377,18 +430,26 @@ def run_next_onboarding_question_pipeline(pipeline: Pipeline, user_context: dict
 
     # Fallback logic (same as before)
     if remaining_questions:
-        chosen_question_number = remaining_questions[0]['question_number']
-        contextualized_question = remaining_questions[0]['content']
-        logger.warning(f"Falling back to first remaining question: question_number {chosen_question_number}")
+        chosen_question_number = remaining_questions[0]["question_number"]
+        contextualized_question = remaining_questions[0]["content"]
+        logger.warning(
+            f"Falling back to first remaining question: question_number {chosen_question_number}"
+        )
         return {
             "chosen_question_number": chosen_question_number,
-            "contextualized_question": contextualized_question
+            "contextualized_question": contextualized_question,
         }
     else:
         logger.error("No remaining questions available to fall back on.")
         return None
 
-def run_onboarding_data_extraction_pipeline(pipeline: Pipeline, user_response: str, user_context: dict[str, any], chat_history: list[str]) -> dict[str, any]:
+
+def run_onboarding_data_extraction_pipeline(
+    pipeline: Pipeline,
+    user_response: str,
+    user_context: dict[str, Any],
+    chat_history: list[str],
+) -> dict[str, Any]:
     """
     Run the onboarding data extraction pipeline and return extracted data.
 
@@ -402,20 +463,22 @@ def run_onboarding_data_extraction_pipeline(pipeline: Pipeline, user_response: s
         Dictionary containing extracted data points
     """
     try:
-        result = pipeline.run({
-            "user_response": user_response,
-            "user_context": user_context,
-            "chat_history": chat_history
-        })
+        result = pipeline.run(
+            {
+                "user_response": user_response,
+                "user_context": user_context,
+                "chat_history": chat_history,
+            }
+        )
 
         llm_response = result.get("llm", {})
         replies = llm_response.get("replies", [])
         if replies:
             first_reply = replies[0]
-            tool_calls = getattr(first_reply, 'tool_calls', []) or []
+            tool_calls = getattr(first_reply, "tool_calls", []) or []
 
             if tool_calls:
-                arguments = getattr(tool_calls[0], 'arguments', {})
+                arguments = getattr(tool_calls[0], "arguments", {})
                 if isinstance(arguments, dict):
                     validated_args = {}
                     tool_schema = create_onboarding_tool().parameters
@@ -440,14 +503,17 @@ def run_onboarding_data_extraction_pipeline(pipeline: Pipeline, user_response: s
                 logger.warning("No tool calls found in LLM response")
                 return {}
         else:
-             logger.warning("No replies found in LLM response")
-             return {}
+            logger.warning("No replies found in LLM response")
+            return {}
 
     except Exception as e:
         logger.error(f"Error running extraction pipeline: {e}")
         return {}
 
-def run_assessment_contextualization_pipeline(pipeline: Pipeline, flow_id: str, question_number: int, user_context: dict[str, any]) -> str | None:
+
+def run_assessment_contextualization_pipeline(
+    pipeline: Pipeline, flow_id: str, question_number: int, user_context: dict[str, Any]
+) -> str | None:
     """
     Run the assessment contextualization pipeline to get a contextualized question.
 
@@ -465,13 +531,19 @@ def run_assessment_contextualization_pipeline(pipeline: Pipeline, flow_id: str, 
             "operator": "AND",
             "conditions": [
                 {"field": "meta.flow_id", "operator": "==", "value": flow_id},
-                {"field": "meta.question_number", "operator": "==", "value": question_number},
-            ]
+                {
+                    "field": "meta.question_number",
+                    "operator": "==",
+                    "value": question_number,
+                },
+            ],
         }
-        result = pipeline.run({
-            "retriever": {"filters": filters},
-            "prompt_builder": {"user_context": user_context}
-        })
+        result = pipeline.run(
+            {
+                "retriever": {"filters": filters},
+                "prompt_builder": {"user_context": user_context},
+            }
+        )
 
         llm_response = result.get("llm", {})
         if llm_response and llm_response.get("replies"):
@@ -484,7 +556,10 @@ def run_assessment_contextualization_pipeline(pipeline: Pipeline, flow_id: str, 
         logger.error(f"Error running assessment contextualization pipeline: {e}")
         return None
 
-def run_assessment_response_validator_pipeline(pipeline: Pipeline, user_response: str) -> str | None:
+
+def run_assessment_response_validator_pipeline(
+    pipeline: Pipeline, user_response: str
+) -> str | None:
     """
     Run the assessment response validator pipeline to validate a user's response.
 
@@ -496,11 +571,7 @@ def run_assessment_response_validator_pipeline(pipeline: Pipeline, user_response
         Validated response string or "nonsense" if invalid
     """
     try:
-        result = pipeline.run({
-            "prompt_builder": {
-                "user_response": user_response
-            }
-        })
+        result = pipeline.run({"prompt_builder": {"user_response": user_response}})
 
         llm_response = result.get("llm", {})
         if llm_response and llm_response.get("replies"):

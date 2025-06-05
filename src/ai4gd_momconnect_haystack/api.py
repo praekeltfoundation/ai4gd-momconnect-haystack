@@ -13,7 +13,6 @@ from .tasks import (
 )
 
 load_dotenv()
-API_TOKEN = environ["API_TOKEN"]
 
 app = FastAPI()
 
@@ -35,7 +34,7 @@ def verify_token(authorization: Annotated[str, Header()]):
             detail="Invalid authentication format. Expected 'Token <token>'",
         )
 
-    if credential != API_TOKEN:
+    if credential != environ["API_TOKEN"]:
         raise HTTPException(
             status_code=401,
             detail="Invalid authentication token",
@@ -71,7 +70,7 @@ def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
     )
     chat_history.append(f"System to User: {question}")
     return OnboardingResponse(
-        question=question, user_context=user_context, chat_history=chat_history
+        question=question or "", user_context=user_context, chat_history=chat_history
     )
 
 
@@ -104,7 +103,7 @@ def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
         current_assessment_step=request.question_number,
         user_context=request.user_context,
     )
-    contextualized_question = question["contextualized_question"]
+    contextualized_question = question["contextualized_question"] or ""
     current_question_number = question["current_question_number"]
     chat_history.append(f"System to User: {contextualized_question}")
     return AssessmentResponse(
