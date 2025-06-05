@@ -2,7 +2,7 @@
 import os
 import sys
 from pathlib import Path
-from dotenv import load_dotenv # If you use dotenv for local runs outside Docker
+from dotenv import load_dotenv  # If you use dotenv for local runs outside Docker
 
 # Optional: Add src to sys.path if it's not automatically found,
 # though running from project root usually makes 'src' importable.

@@ -112,8 +112,8 @@ def extract_onboarding_data_from_response(
 @observe()
 def get_assessment_question(
     flow_id: str,
-    question_number: int, # The question_number from the flow definition
-    current_assessment_step: int, # 0-based index
+    question_number: int,  # The question_number from the flow definition
+    current_assessment_step: int,  # 0-based index
     user_context: dict[str, Any],
     question_to_contextualize: str # Raw question content, used as fallback
 ) -> Optional[dict[str, Any]]:

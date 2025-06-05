@@ -11,4 +11,5 @@ RUN uv sync
 
 COPY . .
 
-CMD ["uv", "run", "main"]
+# CMD ["uv", "run", "python", "-m", "src.ai4gd_momconnect_haystack.main"]
+CMD ["uv", "run", "python", "-m", "run_evaluations"]

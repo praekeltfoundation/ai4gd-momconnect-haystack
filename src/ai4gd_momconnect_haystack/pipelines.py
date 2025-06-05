@@ -31,7 +31,7 @@ NEXT_QUESTION_SCHEMA = {
         "contextualized_question": {"type": "string"},
     },
     "required": ["chosen_question_number", "contextualized_question"],
-    "additionalProperties": False, # Usually false for strict schema
+    "additionalProperties": False,  # Usually false for strict schema
 }
 
 # --- Mock Data Examples ---
@@ -124,7 +124,7 @@ def create_next_onboarding_question_pipeline() -> Optional[Pipeline]:
     json_validator = JsonSchemaValidator(json_schema=NEXT_QUESTION_SCHEMA)
 
     pipeline.add_component("prompt_builder", prompt_builder)
-    if llm_generator: # Only add if available (might be None if API key missing, even in mock if create fails)
+    if llm_generator:  # Only add if available (might be None if API key missing, even in mock if create fails)
         pipeline.add_component("llm", llm_generator)
         pipeline.add_component("json_validator", json_validator)
         pipeline.connect("prompt_builder.prompt", "llm.messages")
@@ -133,6 +133,7 @@ def create_next_onboarding_question_pipeline() -> Optional[Pipeline]:
         logger.info("Next Onboarding Question Pipeline created without LLM (likely mock mode or no API key).")
     logger.info("Created Next Question Selection Pipeline.")
     return pipeline
+
 
 @cache
 def create_onboarding_data_extraction_pipeline() -> Optional[Pipeline]:
@@ -159,7 +160,7 @@ def create_onboarding_data_extraction_pipeline() -> Optional[Pipeline]:
     """
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_user(prompt_template)],
-        required_variables=["user_context", "remaining_questions", "chat_history"]
+        required_variables=["user_context", "user_response", "chat_history"]
     )
     pipeline.add_component("prompt_builder", prompt_builder)
 
@@ -177,6 +178,7 @@ def create_onboarding_data_extraction_pipeline() -> Optional[Pipeline]:
             logger.warning("LLM generator not available for tool use in extraction pipeline (OK if mocking).")
     logger.info("Created Onboarding Data Extraction Pipeline.")
     return pipeline
+
 
 @cache
 def create_assessment_contextualization_pipeline() -> Optional[Pipeline]:
@@ -202,7 +204,7 @@ def create_assessment_contextualization_pipeline() -> Optional[Pipeline]:
     Contextualized Question:"""
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_user(prompt_template)],
-        required_variables=["user_context", "remaining_questions", "chat_history"]
+        required_variables=["user_context", "user_response", "chat_history"]
     )
     
     # Document store setup should be robust
@@ -220,6 +222,7 @@ def create_assessment_contextualization_pipeline() -> Optional[Pipeline]:
         pipeline.connect("prompt_builder.prompt", "llm.messages")
     logger.info("Created Assessment Contextualization Pipeline.")
     return pipeline
+
 
 @cache
 def create_assessment_response_validator_pipeline() -> Optional[Pipeline]:
@@ -240,7 +243,7 @@ def create_assessment_response_validator_pipeline() -> Optional[Pipeline]:
     Validated Response:"""
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_user(prompt_template)],
-        required_variables=["user_context", "remaining_questions", "chat_history"]
+        required_variables=["user_context", "user_response", "chat_history"]
     )
     pipeline.add_component("prompt_builder", prompt_builder)
     if llm_generator:
@@ -249,8 +252,8 @@ def create_assessment_response_validator_pipeline() -> Optional[Pipeline]:
     logger.info("Created Assessment Response Validation Pipeline.")
     return pipeline
 
-# --- Running Pipelines (with Mocking Logic and Corrected Returns) ---
 
+# --- Running Pipelines (with Mocking Logic and Corrected Returns) ---
 def run_next_onboarding_question_pipeline(
     pipeline: Optional[Pipeline],
     user_context: dict[str, Any],
@@ -300,7 +303,7 @@ def run_next_onboarding_question_pipeline(
         })
         validated_responses = result.get("json_validator", {}).get("validated", [])
         if validated_responses and isinstance(validated_responses[0], ChatMessage):
-            chosen_data_str = validated_responses[0].text
+            chosen_data_str = validated_responses[0].content
             chosen_data = json.loads(chosen_data_str)
             chosen_q_num = chosen_data.get("chosen_question_number")
             contextualized_q = chosen_data.get("contextualized_question")
@@ -335,7 +338,7 @@ def run_onboarding_data_extraction_pipeline(
     user_response: str,
     user_context: dict[str, Any],
     chat_history: list[str],
-    expected_collects_field: Optional[str] = None # NEW PARAMETER
+    expected_collects_field: Optional[str] = None  # NEW PARAMETER
 ) -> dict[str, Any]:
     if USE_MOCK_LLM:
         logger.info(
@@ -425,13 +428,13 @@ def run_onboarding_data_extraction_pipeline(
     if not pipeline or not get_llm_generator(): # Guard clause
         logger.warning("Actual LLM pipeline not available for data extraction. Returning empty dict.")
         return {}
-        
+
     logger.info(f"CALLING ACTUAL LLM: run_onboarding_data_extraction_pipeline (expecting data for: {expected_collects_field or 'any field'})")
     try:
         result = pipeline.run(
             data={
                 "user_context": user_context,
-                "remaining_questions": remaining_question,
+                "user_response": user_response,
                 "chat_history": chat_history
             }
         )
@@ -493,7 +496,7 @@ def run_assessment_contextualization_pipeline(
             {"field": "meta.question_number", "operator": "==", "value": question_number}]}
         # CORRECTED pipeline.run call structure
         result = pipeline.run(data={
-            "retriever": {"filters": filters}, # Data for retriever component
+            "retriever": {"filters": filters},  # Data for retriever component
             "user_context": user_context      # Data for prompt_builder component
         })
         llm_response = result.get("llm", {})

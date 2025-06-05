@@ -209,6 +209,7 @@ def initialize_document_store() -> WeaviateDocumentStore:
     logger.info(f"Initialized Document Store: {type(doc_store).__name__}")
     return doc_store
 
+
 def create_embedding_pipeline(doc_store: WeaviateDocumentStore) -> Pipeline:
     """
     Creates a Haystack pipeline for embedding and writing documents to the store.
