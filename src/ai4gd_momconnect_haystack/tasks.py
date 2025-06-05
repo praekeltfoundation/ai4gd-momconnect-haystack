@@ -1,5 +1,6 @@
 import logging
 import json
+from typing import Any
 
 from . import doc_store
 from . import pipelines
@@ -138,7 +139,7 @@ def get_assessment_question(
 
 def validate_assessment_answer(
     user_response: str, current_question_number: int
-) -> str | None:
+) -> dict[str, Any]:
     validator_pipe = pipelines.create_assessment_response_validator_pipeline()
     processed_user_response = pipelines.run_assessment_response_validator_pipeline(
         validator_pipe, user_response

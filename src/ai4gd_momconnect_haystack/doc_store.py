@@ -1,6 +1,7 @@
 import logging
 from os import environ
 from dotenv import load_dotenv
+from typing import Any
 
 from haystack import Document, Pipeline
 from haystack_integrations.document_stores.weaviate import (
@@ -23,7 +24,7 @@ embedding_model_name = "text-embedding-3-small"
 
 # --- Data ---
 # Onboarding Flows Data
-ONBOARDING_FLOWS: dict[str, list[dict[str, any]]] = {
+ONBOARDING_FLOWS: dict[str, list[dict[str, Any]]] = {
     "onboarding": [
         {
             "question_number": 1,
@@ -104,7 +105,7 @@ ONBOARDING_FLOWS: dict[str, list[dict[str, any]]] = {
 }
 
 # Assessment Questions Data
-ASSESSMENT_FLOWS: dict[str, list[dict[str, any]]] = {
+ASSESSMENT_FLOWS: dict[str, list[dict[str, Any]]] = {
     "dma-assessment": [
         {
             "question_number": 1,
@@ -217,7 +218,7 @@ def create_embedding_pipeline(doc_store: WeaviateDocumentStore) -> Pipeline:
 
 
 def ingest_content(
-    indexing_pipeline: Pipeline, content_flows: dict[str, list[dict[str, any]]]
+    indexing_pipeline: Pipeline, content_flows: dict[str, list[dict[str, Any]]]
 ):
     """
     Processes content data, converts to Haystack Documents, and ingests them
@@ -260,8 +261,8 @@ def ingest_content(
 
 
 def get_remaining_onboarding_questions(
-    user_context: dict[str, any], all_onboarding_questions: list[dict[str, any]]
-) -> list[dict[str, any]]:
+    user_context: dict[str, Any], all_onboarding_questions: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     """
     Identifies which onboarding questions still need to be asked based on user_context.
     """

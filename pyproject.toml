@@ -14,6 +14,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "mypy>=1.16.0",
     "pytest>=8.3.5",
     "ruff>=0.11.12",
 ]
@@ -23,3 +24,11 @@ main = "ai4gd_momconnect_haystack:main.main"
 
 [tool.uv]
 package = true
+
+[[tool.mypy.overrides]]
+module = "haystack.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "haystack_integrations.*"
+ignore_missing_imports = true

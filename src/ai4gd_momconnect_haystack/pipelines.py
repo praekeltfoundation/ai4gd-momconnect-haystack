@@ -1,6 +1,7 @@
 import logging
 import json
 from functools import cache
+from typing import Any
 
 from haystack import Pipeline
 from haystack.components.builders.chat_prompt_builder import ChatPromptBuilder
@@ -57,7 +58,7 @@ def get_llm_generator() -> OpenAIChatGenerator | None:
 
 
 # --- Tools ---
-def extract_onboarding_data(**kwargs) -> dict[str, any]:
+def extract_onboarding_data(**kwargs) -> dict[str, Any]:
     """
     Receives extracted data from the LLM tool call via its arguments.
     This function acts as a placeholder; its primary role is to define
@@ -375,10 +376,10 @@ def create_assessment_response_validator_pipeline() -> Pipeline | None:
 # --- Running Pipelines ---
 def run_next_onboarding_question_pipeline(
     pipeline: Pipeline,
-    user_context: dict[str, any],
+    user_context: dict[str, Any],
     remaining_questions: list[dict],
     chat_history: list[str],
-) -> dict[str, any] | None:
+) -> dict[str, Any] | None:
     """
     Run the next onboarding question selection pipeline and return the chosen question.
 
@@ -446,9 +447,9 @@ def run_next_onboarding_question_pipeline(
 def run_onboarding_data_extraction_pipeline(
     pipeline: Pipeline,
     user_response: str,
-    user_context: dict[str, any],
+    user_context: dict[str, Any],
     chat_history: list[str],
-) -> dict[str, any]:
+) -> dict[str, Any]:
     """
     Run the onboarding data extraction pipeline and return extracted data.
 
@@ -511,7 +512,7 @@ def run_onboarding_data_extraction_pipeline(
 
 
 def run_assessment_contextualization_pipeline(
-    pipeline: Pipeline, flow_id: str, question_number: int, user_context: dict[str, any]
+    pipeline: Pipeline, flow_id: str, question_number: int, user_context: dict[str, Any]
 ) -> str | None:
     """
     Run the assessment contextualization pipeline to get a contextualized question.
