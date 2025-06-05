@@ -13,7 +13,6 @@ from .tasks import (
 )
 
 load_dotenv()
-API_TOKEN = environ["API_TOKEN"]
 
 app = FastAPI()
 
@@ -35,7 +34,7 @@ def verify_token(authorization: Annotated[str, Header()]):
             detail="Invalid authentication format. Expected 'Token <token>'",
         )
 
-    if credential != API_TOKEN:
+    if credential != environ["API_TOKEN"]:
         raise HTTPException(
             status_code=401,
             detail="Invalid authentication token",
