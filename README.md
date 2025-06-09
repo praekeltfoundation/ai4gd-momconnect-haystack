@@ -111,3 +111,46 @@ for example,
   ]
 }
 ```
+
+### ANC Survey
+The ANC (Antenatal Care) survey is handled through the `/v1/anc-survey` endpoint. It receives a POST request with a JSON body, with the following fields:
+
+`user_input`: The message that the user sent to us, as a string
+
+`user_context`: A dictionary of contact fields that we want to send to the LLM
+
+`chat_history`: (optional) a list of strings of the chat history up until this point (not including `user_input`)
+
+for example:
+```json
+{
+  "user_input": "I am 20 weeks pregnant",
+  "user_context": {},
+  "chat_history": []
+}
+```
+
+The API will respond with the following fields:
+
+`question`: The next question to ask the user, as a string. If the survey is complete, this may contain a final thank you message.
+
+`user_context`: An updated dictionary of contact fields based on the user's answers.
+
+`chat_history`: A list of strings of the updated chat history. You can pass this directly to the next request to maintain chat history.
+
+`survey_complete`: A boolean flag indicating if the survey has been completed.
+
+for example:
+```json
+{
+  "question": "Have you had any health problems during this pregnancy?",
+  "user_context": {
+    "weeks_pregnant": 20
+  },
+  "chat_history": [
+    "User to System: I am 20 weeks pregnant",
+    "System to User: Have you had any health problems during this pregnancy?"
+  ],
+  "survey_complete": false
+}
+```

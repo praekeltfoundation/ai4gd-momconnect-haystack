@@ -2,7 +2,7 @@
     "faqs": [
         {
             "title": "FAQ_menu_launch",
-            "body": "*About this MomConnect study*\n\nThis is a research study to find out how MomConnect can make it quicker and easier for moms to answer questions and get support on WhatsApp.\n\nYou can stop these messages or leave the study at any time.\n\nTo learn more, ask a question from the list 👇🏽",
+            "content": "*About this MomConnect study*\n\nThis is a research study to find out how MomConnect can make it quicker and easier for moms to answer questions and get support on WhatsApp.\n\nYou can stop these messages or leave the study at any time.\n\nTo learn more, ask a question from the list 👇🏽",
             "valid_responses": [
                 "What is this study?",
                 "How does it work?",
@@ -18,49 +18,49 @@
         },
         {
             "title": "About_this_study",
-            "body": "*This research study is testing 2 ways of asking questions on WhatsApp.*\n\nWe want to see what moms find easier and quicker\n\n1. Using multiple-choice questions with buttons ✅\n_or_\n2. Chatting to a chatbot that uses artificial intelligence (AI) 💬\n\n*What is AI?*\nAI is a technology that can understand questions and give helpful answers, like a real person.\n\n*Who is doing the study?*\nIt's being run by Reach Digital Health with support from OpenAi. It has the approval of the National Department of Health.\n\nYou can ask for more information about the study 👇🏽",
+            "content": "*This research study is testing 2 ways of asking questions on WhatsApp.*\n\nWe want to see what moms find easier and quicker\n\n1. Using multiple-choice questions with buttons ✅\n_or_\n2. Chatting to a chatbot that uses artificial intelligence (AI) 💬\n\n*What is AI?*\nAI is a technology that can understand questions and give helpful answers, like a real person.\n\n*Who is doing the study?*\nIt's being run by Reach Digital Health with support from OpenAi. It has the approval of the National Department of Health.\n\nYou can ask for more information about the study 👇🏽",
             "valid_responses": [
                 "More about the study"
             ]
         },
         {
             "title": "How_it_works",
-            "body": "*How the study works*\n\nWhen you join MomConnect, you may be invited to join this study. All moms who join are randomly put into a group.\n\n• Group 1: Gets the usual multiple-choice questions ✅\n• Group 2: Chats with an AI chatbot 💬\n\nYou get sent questions up until week 37 of pregnancy or until baby is born. In that time you'll get between 4 and 7 surveys (sets of questions).\n\nTap to see more information about the study 👇🏽",
+            "content": "*How the study works*\n\nWhen you join MomConnect, you may be invited to join this study. All moms who join are randomly put into a group.\n\n• Group 1: Gets the usual multiple-choice questions ✅\n• Group 2: Chats with an AI chatbot 💬\n\nYou get sent questions up until week 37 of pregnancy or until baby is born. In that time you'll get between 4 and 7 surveys (sets of questions).\n\nTap to see more information about the study 👇🏽",
             "valid_responses": [
                 "More about the study"
             ]
         },
         {
             "title": "Why_do_it",
-            "body": "*Why do the study?*\n\nThe aim of the study is to learn what can make MomConnect easier and quicker for moms to use.\n\nBy taking part, you're helping give women in South Africa better pregnancy support in the future. Every answer teaches us about what works best for moms like you.\n\nTap to see more information about the study 👇🏽",
+            "content": "*Why do the study?*\n\nThe aim of the study is to learn what can make MomConnect easier and quicker for moms to use.\n\nBy taking part, you're helping give women in South Africa better pregnancy support in the future. Every answer teaches us about what works best for moms like you.\n\nTap to see more information about the study 👇🏽",
             "valid_responses": [
                 "More about the study"
             ]
         },
         {
             "title": "Study_questions",
-            "body": "*Questions in the study*\n\nYou'll get different sets of questions asking about:\n• yourself 💕\n• a healthy pregnancy 🤰🏾\n• how your pregnancy check-ups at the clinic have been 🏥\n\nYou may be asked some questions more than once.\n\nThe only personal information we collect is the name you give on MomConnect and your telephone number.\n\nYou won't get asked for any other personal information.\n\nTap to see more information about the study 👇🏽",
+            "content": "*Questions in the study*\n\nYou'll get different sets of questions asking about:\n• yourself 💕\n• a healthy pregnancy 🤰🏾\n• how your pregnancy check-ups at the clinic have been 🏥\n\nYou may be asked some questions more than once.\n\nThe only personal information we collect is the name you give on MomConnect and your telephone number.\n\nYou won't get asked for any other personal information.\n\nTap to see more information about the study 👇🏽",
             "valid_responses": [
                 "More about the study"
             ]
         },
         {
             "title": "Who_sees_answers",
-            "body": "*Who can see your answers*\n\nA small team at Reach Digital Health will be able to fetch and see your answers, but these answers can't be linked to you or your phone number.\n\nAll chats in WhatsApp are secure, and your answers are stored on protected computers 🖥️\n\nTap to see more information about the study 👇🏽",
+            "content": "*Who can see your answers*\n\nA small team at Reach Digital Health will be able to fetch and see your answers, but these answers can't be linked to you or your phone number.\n\nAll chats in WhatsApp are secure, and your answers are stored on protected computers 🖥️\n\nTap to see more information about the study 👇🏽",
             "valid_responses": [
                 "More about the study"
             ]
         },
         {
             "title": "Study_payment",
-            "body": "*Study payment*\n\nYou don't get paid to take part. But you do get *R30 airtime* when you join to say thank you.\n\nSending and receiving messages on the study number uses data like any other chat in WhatsApp. But we don't use any videos, or big images that use lots of data.\n\nTap to see more information about the study 👇🏽",
+            "content": "*Study payment*\n\nYou don't get paid to take part. But you do get *R30 airtime* when you join to say thank you.\n\nSending and receiving messages on the study number uses data like any other chat in WhatsApp. But we don't use any videos, or big images that use lots of data.\n\nTap to see more information about the study 👇🏽",
             "valid_responses": [
                 "More about the study"
             ]
         },
         {
             "title": "About_airtime",
-            "body": "*Getting the R30 airtime*\n\nWhen you replied `Yes` to the first message on this WhatsApp number, you should automatically have been sent R30 airtime 📱\n\nYou only get airtime *once* for taking part in the study.\n\nPlease check your SMS history for a message about the R30 airtime. If you didn't get it, tell us and we can check for you.\n\nTap to see more information about the study 👇🏽",
+            "content": "*Getting the R30 airtime*\n\nWhen you replied `Yes` to the first message on this WhatsApp number, you should automatically have been sent R30 airtime 📱\n\nYou only get airtime *once* for taking part in the study.\n\nPlease check your SMS history for a message about the R30 airtime. If you didn't get it, tell us and we can check for you.\n\nTap to see more information about the study 👇🏽",
             "valid_responses": [
                 "I didn't get airtime",
                 "More about the study"
@@ -68,14 +68,14 @@
         },
         {
             "title": "No_airtime_received",
-            "body": "We're sorry you haven't got your airtime yet. Our team will check what went wrong and someone will contact you.\n\nPlease keep checking your SMSs for the voucher 💬\n\nTap to see more information about the study 👇🏽",
+            "content": "We're sorry you haven't got your airtime yet. Our team will check what went wrong and someone will contact you.\n\nPlease keep checking your SMSs for the voucher 💬\n\nTap to see more information about the study 👇🏽",
             "valid_responses": [
                 "More about the study"
             ]
         },
         {
             "title": "Stop_messages",
-            "body": "*How to stop messages or leave the study*\n\nYou can stop messages from this number or leave the study at any time.\n\n*How to stop messages* 🛑\nTo stop getting messages from this WhatsApp number, type `Stop messages`. You will still get your MomConnect messages on the 0796312456 number 💕\n\n*How to leave the study* 👋🏽\nIf you don't want your answers to be part of this research, you can leave the study by typing `Delete my data`. Your answers won't be used and you won't get messages on this number anymore.",
+            "content": "*How to stop messages or leave the study*\n\nYou can stop messages from this number or leave the study at any time.\n\n*How to stop messages* 🛑\nTo stop getting messages from this WhatsApp number, type `Stop messages`. You will still get your MomConnect messages on the 0796312456 number 💕\n\n*How to leave the study* 👋🏽\nIf you don't want your answers to be part of this research, you can leave the study by typing `Delete my data`. Your answers won't be used and you won't get messages on this number anymore.",
             "valid_responses": [
                 "Stop messages",
                 "Delete my data",
@@ -84,7 +84,7 @@
         },
         {
             "title": "Opt_out_reason",
-            "body": "We're sorry to see you leave this study! Please could you tell us *why you're leaving*. Choose one of these answers:\n\n• I don't feel like it anymore 👎🏽\n• It uses too much data 🌐\n• I don't have time 🕘\n• I get too many messages 📳\n• There are too many questions❓\n• Something else 💬\n• I don't want to leave - stay on the study 👍🏽",
+            "content": "We're sorry to see you leave this study! Please could you tell us *why you're leaving*. Choose one of these answers:\n\n• I don't feel like it anymore 👎🏽\n• It uses too much data 🌐\n• I don't have time 🕘\n• I get too many messages 📳\n• There are too many questions❓\n• Something else 💬\n• I don't want to leave - stay on the study 👍🏽",
             "valid_responses": [
                 "Don’t feel like it 👎🏽",
                 "Too much data 🌐",
@@ -97,29 +97,29 @@
         },
         {
             "title": "Opt_out_reason_other",
-            "body": "Please tell us why you're leaving. Type and send in your answer."
+            "content": "Please tell us why you're leaving. Type and send in your answer."
         },
         {
             "title": "Opt_out_thanks",
-            "body": "Thanks for telling us. We won't send any more messages from this number. You will still get your messages from MomConnect (0796312456).\n\nWishing you a happy, health pregnancy! 💕"
+            "content": "Thanks for telling us. We won't send any more messages from this number. You will still get your messages from MomConnect (0796312456).\n\nWishing you a happy, health pregnancy! 💕"
         },
         {
             "title": "Rejoin",
-            "body": "Thank you for staying with us. You're helping moms all over South Africa by taking part 💕\n\nTap to see more information about the study 👇🏽",
+            "content": "Thank you for staying with us. You're helping moms all over South Africa by taking part 💕\n\nTap to see more information about the study 👇🏽",
             "valid_responses": [
                 "More about the study"
             ]
         },
         {
             "title": "Complaints",
-            "body": "*How to make a complaint*\n\nTo make a complaint about this study, please send a message to the MomConnect helpdesk.\n\nTo do this:\n\n1. Go to the MomConnect WhatsApp line (0796312456) and send in the word ASK\n\n2. Then type your complaint and send it\n\nOr you can email your complaint to momconnect@reachdigitalhealth.org\n\nTap to see more information about the study 👇🏽",
+            "content": "*How to make a complaint*\n\nTo make a complaint about this study, please send a message to the MomConnect helpdesk.\n\nTo do this:\n\n1. Go to the MomConnect WhatsApp line (0796312456) and send in the word ASK\n\n2. Then type your complaint and send it\n\nOr you can email your complaint to momconnect@reachdigitalhealth.org\n\nTap to see more information about the study 👇🏽",
             "valid_responses": [
                 "More about the study"
             ]
         },
         {
             "title": "FAQ_menu_general",
-            "body": "*About this MomConnect study*\n\nThis is a research study to find out how MomConnect can make it quicker and easier for moms to answer questions and get support on WhatsApp.\n\nTo learn more about it, ask a question from the list 👇🏽",
+            "content": "*About this MomConnect study*\n\nThis is a research study to find out how MomConnect can make it quicker and easier for moms to answer questions and get support on WhatsApp.\n\nTo learn more about it, ask a question from the list 👇🏽",
             "valid_responses": [
                 "What is this study?",
                 "How does it work?",
