@@ -99,7 +99,7 @@ def run_batch_evaluation(scenarios_to_evaluate: list) -> None:
             actual_output = actual_trace.output
             is_match = (actual_output == ground_truth_delta)
             score_value = 1 if is_match else 0
-            comment = (f"SUCCESS: Match." if is_match
+            comment = ("SUCCESS: Match." if is_match
                        else f"FAILURE on user utterance: '{user_utterance}'. Expected {ground_truth_delta}, but got {actual_output}")
 
             score_name = f"{flow_type}_accuracy"
