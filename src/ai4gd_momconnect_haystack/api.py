@@ -6,7 +6,9 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
 from .tasks import (
+    extract_anc_data_from_response,
     extract_onboarding_data_from_response,
+    get_anc_survey_question,
     get_assessment_question,
     get_next_onboarding_question,
     validate_assessment_answer,
@@ -110,4 +112,61 @@ def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
         question=contextualized_question,
         next_question=current_question_number,
         chat_history=chat_history,
+    )
+
+
+class ANCSurveyRequest(BaseModel):
+    user_input: str
+    user_context: dict[str, Any]
+    chat_history: list[str] = []
+
+
+class ANCSurveyResponse(BaseModel):
+    question: str
+    user_context: dict[str, Any]
+    chat_history: list[str]
+    survey_complete: bool
+
+
+@app.post("/v1/anc-survey", response_model=ANCSurveyResponse)
+def anc_survey(request: ANCSurveyRequest, token: str = Depends(verify_token)):
+    """
+    Handles the conversation flow for the ANC (Antenatal Care) survey.
+    It extracts data from the user's response and determines the next question.
+    """
+    chat_history = request.chat_history
+    chat_history.append(f"User to System: {request.user_input}")
+
+    # First, extract data from the user's last response to update the context
+    user_context = extract_anc_data_from_response(
+        user_response=request.user_input,
+        user_context=request.user_context,
+        chat_history=chat_history,
+    )
+
+    # Then, get the next logical question based on the updated context
+    question_result = get_anc_survey_question(
+        user_context=user_context, chat_history=chat_history
+    )
+
+    question = ""
+    survey_complete = True  # Default to True if no further question is found
+
+    if question_result:
+        question = question_result.get("contextualized_question", "")
+        survey_complete = question_result.get("is_final_step", False)
+
+    # Add the new question or a completion message to the history
+    if question:
+        chat_history.append(f"System to User: {question}")
+    elif survey_complete:
+        completion_message = "Thank you for completing the survey!"
+        chat_history.append(f"System to User: {completion_message}")
+        question = completion_message
+
+    return ANCSurveyResponse(
+        question=question,
+        user_context=user_context,
+        chat_history=chat_history,
+        survey_complete=survey_complete,
     )

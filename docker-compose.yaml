@@ -38,10 +38,12 @@ services:
     # To use `docker-compose run python-app` without rebuilding the image after code changes:
     volumes:
       - .:/app
+      - python_venv:/app/.venv
     command: uv run main
 
 volumes:
   weaviate_data: {}
+  python_venv: {}
 
 networks:
   app-network:

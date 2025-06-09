@@ -102,3 +102,43 @@ def test_assessment(validate_assessment_answer, get_assessment_question):
             "System to User: How confident are you in discussing your maternal health concerns with your healthcare provider?",
         ],
     }
+
+
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch("ai4gd_momconnect_haystack.api.get_anc_survey_question")
+@mock.patch("ai4gd_momconnect_haystack.api.extract_anc_data_from_response")
+def test_anc_survey(extract_anc_data_from_response, get_anc_survey_question):
+    """
+    Tests the ANC survey endpoint.
+    It mocks the data extraction and question generation to ensure the API
+    correctly processes the request and constructs the response.
+    """
+    extract_anc_data_from_response.return_value = {"visit_status": "Yes, I went"}
+    get_anc_survey_question.return_value = {
+        "contextualized_question": "Great! Did you see a nurse or a doctor?",
+        "is_final_step": False,
+    }
+    client = TestClient(app)
+    initial_chat_history = ["System to User: Hi! Did you go for your clinic visit?"]
+
+    response = client.post(
+        "/v1/anc-survey",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_context": {},
+            "user_input": "Yes I did",
+            "chat_history": initial_chat_history,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "question": "Great! Did you see a nurse or a doctor?",
+        "user_context": {"visit_status": "Yes, I went"},
+        "chat_history": [
+            "System to User: Hi! Did you go for your clinic visit?",
+            "User to System: Yes I did",
+            "System to User: Great! Did you see a nurse or a doctor?",
+        ],
+        "survey_complete": False,
+    }
