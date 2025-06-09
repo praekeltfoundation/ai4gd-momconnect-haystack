@@ -34,7 +34,7 @@ assessment_flow_map = {
     kab_b_post_flow_id: all_kab_b_post_questions,
 }
 
-ANC_SURVEY_MAP = {item['title']: item for item in all_anc_survey_questions}
+ANC_SURVEY_MAP = {item["title"]: item for item in all_anc_survey_questions}
 
 
 def get_next_onboarding_question(user_context: dict, chat_history: list) -> str | None:
@@ -191,10 +191,10 @@ def validate_assessment_answer(
             f"Storing validated response for question_number {current_question_number}: {processed_user_response}"
         )
         current_assessment_step = current_question_number
-    
+
     # Ensure current_assessment_step is defined even if validation fails
     else:
-        current_assessment_step = current_question_number -1 # Or handle as needed
+        current_assessment_step = current_question_number - 1  # Or handle as needed
 
     return {
         "processed_user_response": processed_user_response,
@@ -230,7 +230,7 @@ def get_anc_survey_question(user_context: dict, chat_history: list) -> dict | No
     if not question_data:
         logger.error(f"Could not find question content for step_id: '{next_step_id}'")
         return None
-    
+
     original_question_content = question_data.get("content", "")
     valid_responses = question_data.get("valid_respnses", [])
 
@@ -243,7 +243,11 @@ def get_anc_survey_question(user_context: dict, chat_history: list) -> dict | No
         contextualized_question = original_question_content
     else:
         contextualized_question = pipelines.run_anc_survey_contextualization_pipeline(
-            contextualizer_pipe, user_context, chat_history, original_question_content, valid_responses
+            contextualizer_pipe,
+            user_context,
+            chat_history,
+            original_question_content,
+            valid_responses,
         )
 
     # 4. Append valid responses to the final question, if they exist
@@ -281,5 +285,5 @@ def extract_anc_data_from_response(
             logger.info(f"Updated user_context for {key}: {value}")
     else:
         logger.warning("ANC data extraction pipeline did not produce a result.")
-    
+
     return user_context

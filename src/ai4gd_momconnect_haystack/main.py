@@ -54,7 +54,6 @@ def run_simulation():
             print("-" * 20)
             logger.info(f"Onboarding Question Attempt: {attempt + 1}")
 
-            ### Endpoint 1: Turn can call to get the next question to send to a user.
             contextualized_question = tasks.get_next_onboarding_question(
                 user_context, chat_history
             )
@@ -67,7 +66,6 @@ def run_simulation():
             user_response = input(contextualized_question + "\n> ")
             chat_history.append("User to System: " + user_response + "\n> ")
 
-            ### Endpoint 2: Turn can call to get extracted data from a user response.
             user_context = tasks.extract_onboarding_data_from_response(
                 user_response, user_context, chat_history
             )
@@ -93,9 +91,10 @@ def run_simulation():
         # Simulate Assessment
         while current_assessment_step < max_assessment_steps:
             print("-" * 20)
-            logger.info(f"Assessment Step: Requesting step after {current_assessment_step}")
+            logger.info(
+                f"Assessment Step: Requesting step after {current_assessment_step}"
+            )
 
-            ### Endpoint 3: Turn can call to get an assessment question to send to the user.
             result = tasks.get_assessment_question(
                 flow_id="dma-assessment",
                 current_assessment_step=current_assessment_step,
@@ -110,7 +109,6 @@ def run_simulation():
             # Simulate User Response
             user_response = input(contextualized_question + "\n> ")
 
-            ### Endpoint 4: Turn can call to validate a user's response to an assessment question.
             result = tasks.validate_assessment_answer(
                 user_response, current_assessment_step
             )
@@ -119,9 +117,8 @@ def run_simulation():
                     f"Response validation failed for step {current_assessment_step}."
                 )
                 continue
-            # processed_user_response = result['processed_user_response']
             current_assessment_step = result["current_assessment_step"]
-    
+
     # ** KAB Scenario **
     print("")
     while True:
@@ -135,7 +132,11 @@ def run_simulation():
             print("Please enter 'Y' or 'N'.")
 
     if sim_kab:
-        for flow_id in ["knowledge-assessment", "attitude-assessment", "behaviour-pre-assessment"]:
+        for flow_id in [
+            "knowledge-assessment",
+            "attitude-assessment",
+            "behaviour-pre-assessment",
+        ]:
             logger.info("\n--- Simulating KAB ---")
             current_assessment_step = 0
             user_context["goal"] = "Complete the assessment"
@@ -144,9 +145,10 @@ def run_simulation():
             # Simulate Assessments
             while current_assessment_step < max_assessment_steps:
                 print("-" * 20)
-                logger.info(f"Assessment Step: Requesting step after {current_assessment_step}")
+                logger.info(
+                    f"Assessment Step: Requesting step after {current_assessment_step}"
+                )
 
-                ### Endpoint 3: Turn can call to get an assessment question to send to the user.
                 result = tasks.get_assessment_question(
                     flow_id=flow_id,
                     current_assessment_step=current_assessment_step,
@@ -161,7 +163,6 @@ def run_simulation():
                 # Simulate User Response
                 user_response = input(contextualized_question + "\n> ")
 
-                ### Endpoint 4: Turn can call to validate a user's response to an assessment question.
                 result = tasks.validate_assessment_answer(
                     user_response, current_assessment_step
                 )
@@ -170,9 +171,8 @@ def run_simulation():
                         f"Response validation failed for step {current_assessment_step}."
                     )
                     continue
-                # processed_user_response = result['processed_user_response']
                 current_assessment_step = result["current_assessment_step"]
-    
+
     # ** ANC Survey Scenario **
     print("")
     while True:
@@ -198,7 +198,7 @@ def run_simulation():
         # Simulate ANC Survey
         while not survey_complete:
             print("-" * 20)
-            logger.info(f"ANC Survey Step: Requesting next question...")
+            logger.info("ANC Survey Step: Requesting next question...")
 
             result = tasks.get_anc_survey_question(
                 user_context=anc_user_context, chat_history=anc_chat_history
@@ -207,20 +207,21 @@ def run_simulation():
             if not result or not result.get("contextualized_question"):
                 logger.info("Could not get next survey question. Ending flow.")
                 break
-            
+
             contextualized_question = result["contextualized_question"]
             survey_complete = result.get("is_final_step", False)
 
             # Simulate User Response
-            anc_chat_history.append("System to User: " + contextualized_question + "\n> ")
+            anc_chat_history.append(
+                "System to User: " + contextualized_question + "\n> "
+            )
             user_response = input(contextualized_question + "\n> ")
             anc_chat_history.append("User to System: " + user_response + "\n> ")
 
             if survey_complete:
                 logger.info("Survey flow complete.")
                 break
-            
-            # Endpoint to extract data from the user's response
+
             anc_user_context = tasks.extract_anc_data_from_response(
                 user_response, anc_user_context, anc_chat_history
             )

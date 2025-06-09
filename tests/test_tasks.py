@@ -112,7 +112,9 @@ def test_get_next_onboarding_question_no_more_questions(pipelines_mock, doc_stor
 
 @mock.patch("ai4gd_momconnect_haystack.tasks.doc_store")
 @mock.patch("ai4gd_momconnect_haystack.tasks.pipelines")
-def test_extract_onboarding_data_from_response_updates_context(pipelines_mock, doc_store_mock):
+def test_extract_onboarding_data_from_response_updates_context(
+    pipelines_mock, doc_store_mock
+):
     """
     Tests that the user_context is correctly updated with data
     extracted from the user's response.
@@ -126,7 +128,7 @@ def test_extract_onboarding_data_from_response_updates_context(pipelines_mock, d
         "education_level": "More than high school",
         "some_other_info": "extra detail",
     }
-    
+
     pipelines_mock.run_onboarding_data_extraction_pipeline.return_value = (
         mock_extracted_data
     )
@@ -139,9 +141,7 @@ def test_extract_onboarding_data_from_response_updates_context(pipelines_mock, d
     }
 
     result_context = extract_onboarding_data_from_response(
-        user_response="some response",
-        user_context=user_context,
-        chat_history=[]
+        user_response="some response", user_context=user_context, chat_history=[]
     )
-    
+
     assert result_context == expected_context
