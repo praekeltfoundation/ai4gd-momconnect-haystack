@@ -56,7 +56,7 @@ SURVEY_NAVIGATOR_SCHEMA = {
         "is_final_step": {
             "type": "boolean",
             "description": "True if the survey is complete according to the logic, otherwise false.",
-        }
+        },
     },
     "required": ["next_step", "is_final_step"],
 }
@@ -105,6 +105,7 @@ def extract_onboarding_data(**kwargs) -> dict[str, Any]:
     """
     logger.info(f"Tool 'extract_onboarding_data' would be called with: {kwargs}")
     return kwargs
+
 
 def extract_clinic_visit_data(**kwargs) -> dict[str, Any]:
     """
@@ -198,6 +199,7 @@ def create_onboarding_tool() -> Tool:
 
     return tool
 
+
 def create_clinic_visit_tool() -> Tool:
     """Creates the data extraction tool for the ANC survey."""
     tool = Tool(
@@ -225,7 +227,7 @@ def create_clinic_visit_tool() -> Tool:
                         "No support 🤝",
                         "Getting there is hard 🚌",
                         "I forgot 😧",
-                        "Something else 😞"
+                        "Something else 😞",
                     ],
                 },
                 "reason_for_not_attending_other": {
@@ -247,7 +249,7 @@ def create_clinic_visit_tool() -> Tool:
                         "Asked to pay 💰",
                         "Told to come back 📅",
                         "Staff disrespectful 🤬",
-                        "Something else 😞"
+                        "Something else 😞",
                     ],
                 },
                 "reason_for_not_seeing_professional_other": {
@@ -276,7 +278,7 @@ def create_clinic_visit_tool() -> Tool:
                         "Staff disespectful 🤬",
                         "Asked to pay 💰",
                         "Waited a long time ⌛",
-                        "Something else 😞"
+                        "Something else 😞",
                     ],
                 },
                 "good_experience_challenge_other": {
@@ -294,7 +296,7 @@ def create_clinic_visit_tool() -> Tool:
                         "Staff disrespectful 🤬",
                         "Asked to pay 💰",
                         "Waited a long time ⌛",
-                        "Something else 😞"
+                        "Something else 😞",
                     ],
                 },
                 "bad_experience_challenge_other": {
@@ -309,7 +311,7 @@ def create_clinic_visit_tool() -> Tool:
                         "Transport 🚌",
                         "No support 🤝",
                         "Clinic opening hours 🏥",
-                        "Something else 😞"
+                        "Something else 😞",
                     ],
                 },
                 "biggest_challenge_of_the_visit_other": {
@@ -329,7 +331,7 @@ def create_clinic_visit_tool() -> Tool:
                         "A little easy",
                         "OK",
                         "A little difficult",
-                        "Very difficult"
+                        "Very difficult",
                     ],
                 },
             },
@@ -577,7 +579,9 @@ def create_clinic_visit_navigator_pipeline() -> Pipeline | None:
     """
     llm_generator = get_llm_generator()
     if not llm_generator:
-        logger.error("LLM Generator not available. Cannot create Clinic Visit Navigator Pipeline.")
+        logger.error(
+            "LLM Generator not available. Cannot create Clinic Visit Navigator Pipeline."
+        )
         return None
 
     pipeline = Pipeline()
@@ -643,7 +647,9 @@ def create_anc_survey_contextualization_pipeline() -> Pipeline | None:
     """
     llm_generator = get_llm_generator()
     if not llm_generator:
-        logger.error("LLM Generator not available. Cannot create ANC Survey Contextualization Pipeline.")
+        logger.error(
+            "LLM Generator not available. Cannot create ANC Survey Contextualization Pipeline."
+        )
         return None
 
     pipeline = Pipeline()
@@ -687,7 +693,10 @@ def create_anc_survey_contextualization_pipeline() -> Pipeline | None:
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_user(prompt_template)],
         required_variables=[
-            "user_context", "chat_history", "original_question", "valid_responses"
+            "user_context",
+            "chat_history",
+            "original_question",
+            "valid_responses",
         ],
     )
 
@@ -924,15 +933,17 @@ def run_assessment_contextualization_pipeline(
                 "retriever": {"filters": filters},
                 "prompt_builder": {"user_context": user_context},
             },
-            include_outputs_from=["retriever"]
+            include_outputs_from=["retriever"],
         )
 
         # Get the original document to access the valid_responses
         retrieved_docs = result.get("retriever", {}).get("documents", [])
         if not retrieved_docs:
-            logger.error(f"Could not retrieve document for flow '{flow_id}' and question {question_number}.")
+            logger.error(
+                f"Could not retrieve document for flow '{flow_id}' and question {question_number}."
+            )
             return None
-        
+
         valid_responses = retrieved_docs[0].meta.get("valid_responses", [])
 
         # Get validated JSON from the validator
@@ -943,9 +954,11 @@ def run_assessment_contextualization_pipeline(
             contextualized_question_text = question_data.get("contextualized_question")
 
             # Combine the parts using Python
-            final_question = f"{contextualized_question_text}\n\n" + "\n".join(valid_responses)
+            final_question = f"{contextualized_question_text}\n\n" + "\n".join(
+                valid_responses
+            )
             return final_question.strip()
-            
+
         else:
             logger.error("LLM failed to produce valid JSON.")
             return None
@@ -1022,24 +1035,28 @@ def run_anc_survey_contextualization_pipeline(
     Runs the ANC survey contextualization pipeline.
     """
     try:
-        result = pipeline.run({
-            "prompt_builder": {
-                "user_context": user_context,
-                "chat_history": chat_history,
-                "original_question": original_question,
-                "valid_responses": valid_responses
+        result = pipeline.run(
+            {
+                "prompt_builder": {
+                    "user_context": user_context,
+                    "chat_history": chat_history,
+                    "original_question": original_question,
+                    "valid_responses": valid_responses,
+                }
             }
-        })
+        )
         validated_responses = result.get("json_validator", {}).get("validated", [])
         if validated_responses:
             question_data = json.loads(validated_responses[0].text)
             return question_data.get("contextualized_question")
         else:
-            logger.warning("Contextualization pipeline failed to produce valid JSON. Falling back to original question.")
+            logger.warning(
+                "Contextualization pipeline failed to produce valid JSON. Falling back to original question."
+            )
             return original_question
     except Exception as e:
         logger.error(f"Error running ANC survey contextualization pipeline: {e}")
-        return original_question # Fallback
+        return original_question  # Fallback
 
 
 def run_clinic_visit_data_extraction_pipeline(
