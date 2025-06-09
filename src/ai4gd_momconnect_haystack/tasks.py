@@ -15,7 +15,9 @@ all_onboarding_questions = doc_store.ONBOARDING_FLOW.get(onboarding_flow_id, [])
 all_dma_questions = doc_store.DMA_FLOW.get(dma_flow_id, [])
 
 
-def get_next_onboarding_question(user_context: dict, chat_history: list) -> dict[str, Any] | None:
+def get_next_onboarding_question(
+    user_context: dict, chat_history: list
+) -> dict[str, Any] | None:
     # Get remaining questions
     remaining_questions_list = doc_store.get_remaining_onboarding_questions(
         user_context, all_onboarding_questions
