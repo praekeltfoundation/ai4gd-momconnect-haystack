@@ -19,7 +19,7 @@ def run_simulation():
     # --- LANGFUSE: Initialize the client ---
     langfuse = Langfuse()
     session_id = f"interactive-session-{datetime.datetime.now().isoformat()}"
-    
+
     logger.info("--- Starting Haystack POC Simulation  (Session: {session_id}) ---")
 
     # --- Simulation ---
@@ -48,9 +48,7 @@ def run_simulation():
 
         # --- UPDATED LOGIC 1: Handle the dictionary returned by the task ---
         # We now expect a dictionary containing the question and its number.
-        question_data = tasks.get_next_onboarding_question(
-            user_context, chat_history
-        )
+        question_data = tasks.get_next_onboarding_question(user_context, chat_history)
 
         # Add a robust check in case the task returns None or an incomplete dictionary.
         if not question_data or not question_data.get("question_number"):
@@ -58,7 +56,9 @@ def run_simulation():
             break
 
         # Unpack the dictionary into the variables we need.
-        contextualized_question = question_data.get("question", "Error: No question text found.")
+        contextualized_question = question_data.get(
+            "question", "Error: No question text found."
+        )
         question_number = question_data.get("question_number")
 
         # --- UPDATED LOGIC 2: Create the trace with the dynamic name ---
@@ -66,7 +66,7 @@ def run_simulation():
         trace = langfuse.trace(
             name=f"onboarding-q{question_number}",
             session_id=session_id,
-            metadata={"initial_context": context_before}
+            metadata={"initial_context": context_before},
         )
 
         # Simulate User Response & Data Extraction
@@ -76,10 +76,7 @@ def run_simulation():
 
         # --- LANGFUSE: Update trace ---
         trace.update(
-            input={
-                "question": contextualized_question,
-                "user_response": user_response
-            }
+            input={"question": contextualized_question, "user_response": user_response}
         )
 
         ### Endpoint 2: Turn can call to get extracted data from a user response.
@@ -95,7 +92,8 @@ def run_simulation():
         )
         # --- LANGFUSE: Find what was newly extracted and log it as the output ---
         newly_extracted_data = {
-            k: user_context[k] for k in user_context
+            k: user_context[k]
+            for k in user_context
             if user_context.get(k) != context_before.get(k)
         }
         generation_extract.end(output={"extracted_data": newly_extracted_data})
@@ -135,8 +133,7 @@ def run_simulation():
 
         # Unpack the results
         contextualized_question = result_q["contextualized_question"]
-        question_number = result_q["current_question_number"] # This is the step number
-
+        question_number = result_q["current_question_number"]  # This is the step number
 
         # --- LANGFUSE: Capture the "before" state for the assessment turn ---
         # --- LANGFUSE: Create a trace for the assessment turn ---
@@ -144,7 +141,7 @@ def run_simulation():
         trace = langfuse.trace(
             name=f"assessment-q{question_number}",
             session_id=session_id,
-            metadata={"initial_context": context_before}
+            metadata={"initial_context": context_before},
         )
 
         ### Endpoint 3: Turn can call to get an assessment question to send to the user.
@@ -156,10 +153,7 @@ def run_simulation():
 
         # --- LANGFUSE: Update trace with user input and bot question ---
         trace.update(
-            input={
-                "question": contextualized_question,
-                "user_response": user_response
-            }
+            input={"question": contextualized_question, "user_response": user_response}
         )
 
         ### Endpoint 4: Turn can call to validate a user's response to an assessment question.
@@ -167,21 +161,17 @@ def run_simulation():
         generation_validate = trace.generation(
             name="validate-assessment-answer",
             input=user_response,
-            model="your-validation-model"  # IMPORTANT: Replace with your model name
+            model="your-validation-model",  # IMPORTANT: Replace with your model name
         )
 
-        result_v = tasks.validate_assessment_answer(
-            user_response, question_number
-        )
+        result_v = tasks.validate_assessment_answer(user_response, question_number)
         # --- LANGFUSE: Log the output of the generation ---
         # --- LANGFUSE: Update trace with the final result ---
         generation_validate.end(output=result_v)
         trace.update(output=result_v)
 
         if not result_v:
-            logger.warning(
-                f"Response validation failed for step {question_number}."
-            )
+            logger.warning(f"Response validation failed for step {question_number}.")
             continue
         # processed_user_response = result['processed_user_response']
         current_assessment_step = result_v["current_assessment_step"]

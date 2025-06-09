@@ -61,8 +61,8 @@ def get_next_onboarding_question(user_context: dict, chat_history: list) -> str 
 
     return {
         "question": contextualized_question,
-        "question_number": chosen_question_number
-        }
+        "question_number": chosen_question_number,
+    }
 
 
 def extract_onboarding_data_from_response(
