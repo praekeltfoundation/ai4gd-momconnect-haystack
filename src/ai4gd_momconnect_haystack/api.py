@@ -101,7 +101,6 @@ def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
     )
     question = get_assessment_question(
         flow_id=request.flow_id,
-        question_number=request.question_number,
         current_assessment_step=request.question_number,
         user_context=request.user_context,
     )
