@@ -59,7 +59,10 @@ def get_next_onboarding_question(user_context: dict, chat_history: list) -> str 
     else:
         logger.info(f"Original question was: '{current_step_data['content']}'")
 
-    return contextualized_question
+    return {
+        "question": contextualized_question,
+        "question_number": chosen_question_number
+        }
 
 
 def extract_onboarding_data_from_response(

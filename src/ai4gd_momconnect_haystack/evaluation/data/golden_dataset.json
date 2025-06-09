@@ -1,0 +1,85 @@
+[
+    {
+      "scenario_id": "LATEST",
+      "flow_type": "onboarding",
+      "description": "A rich, hybrid evaluation for Naledi (Persona 6), an anxious 19-year-old from a farm in North West, seeking guidance.",
+      "notes_for_human_review": "Check if the model's tone is supportive. Verify that 'grade 9' is correctly normalized to 'Some high school'.",
+      "user_persona": {
+        "id": "user_persona_06"
+      },
+      "turns": [
+        {
+          "question_number": 1,
+          "llm_utterance": "Which province do you currently reside in? 🏞️",
+          "user_utterance": "I live on a farm out in the North West.",
+          "ground_truth_delta": { "province": "North West" }
+        },
+        {
+          "question_number": 4,
+          "llm_utterance": "What level of education have you completed or are currently pursuing? 📚",
+          "user_utterance": "I only finished Grade 9 at school.",
+          "ground_truth_delta": { "education_level": "Some high school" }
+        },
+        {
+          "question_number": 6,
+          "llm_utterance": "How many children do you have, if any? Please count all your children of any age. 👶🏽",
+          "user_utterance": "I have one little one already.",
+          "ground_truth_delta": { "num_children": "1" }
+        }
+      ],
+      "expected_end_state": {
+        "province": "North West",
+        "area_type": "Farm or smallholding",
+        "relationship_status": "Single",
+        "education_level": "Some high school",
+        "hunger_days": "3-4 days",
+        "num_children": "1",
+        "phone_ownership": "No"
+      }
+    },
+    {
+      "scenario_id": "interactive-session-2025-06-09T04%3A05%3A27.360781",
+      "flow_type": "assessment",
+      "description": "An assessment for Naledi (Persona 6), testing how the system handles conversational answers to scaled questions.",
+      "notes_for_human_review": "Check how the model handles 'I guess a 4' and 'I don't know'. The validation should correctly map these to 'Confident' and 'skipped' respectively.",
+      "user_persona": {
+        "id": "user_persona_06"
+      },
+      "turns": [
+        {
+          "question_number": 1,
+          "llm_utterance": "How confident are you in making decisions about your health, especially as a single mother?",
+          "user_utterance": "I guess I'm pretty confident, so a 4.",
+          "ground_truth_delta": {
+              "processed_user_response": "Confident",
+              "current_assessment_step": 2
+          }
+        },
+        {
+          "question_number": 2,
+          "llm_utterance": "How confident are you discussing your medical problems with your healthcare provider, such as a doctor or nurse?",
+          "user_utterance": "Only a little bit, maybe a 2",
+          "ground_truth_delta": {
+              "processed_user_response": "A little confident",
+              "current_assessment_step": 3
+          }
+        },
+        {
+          "question_number": 3,
+          "llm_utterance": "I feel confident questioning my healthcare provider about my treatment.",
+          "user_utterance": "I don't know about that one.",
+          "ground_truth_delta": {
+              "processed_user_response": "skipped",
+              "current_assessment_step": 4
+          }
+        }
+      ],
+      "expected_end_state": {
+         "assessment_results": {
+             "1": "Confident",
+             "2": "A little confident",
+             "3": "skipped"
+         }
+      }
+    }
+  ]
