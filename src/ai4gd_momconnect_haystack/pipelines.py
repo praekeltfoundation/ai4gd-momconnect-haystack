@@ -1109,3 +1109,4 @@ def run_clinic_visit_data_extraction_pipeline(
     except Exception as e:
         logger.error(f"Error running ANC survey extraction pipeline: {e}")
         return {}
+    return {}
