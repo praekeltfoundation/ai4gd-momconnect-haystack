@@ -64,53 +64,52 @@ def run_evaluation_suite(
     print("\n--- Running Per-Turn Evaluations (this may take a moment) ---")
 
     for key, gt_turn in gt_lookup.items():
-        if llm_result_turn := llm_results_lookup.get(key):
-            try:
-                # Run all three tests for the current turn
-                q_consistency_result = evaluate(
-                    test_cases=[
-                        LLMTestCase(
-                            input=gt_turn.get("llm_utterance", ""),
-                            actual_output=llm_result_turn.get("llm_utterance", ""),
-                        )
-                    ],
-                    metrics=[relevancy_metric],
-                )
-                r_appropriateness_result = evaluate(
-                    test_cases=[
-                        LLMTestCase(
-                            input=llm_result_turn.get("llm_utterance", ""),
-                            actual_output=gt_turn.get("user_utterance", ""),
-                        )
-                    ],
-                    metrics=[relevancy_metric],
-                )
-
-                # Collate results for the current turn
-                collated_results[key] = {
-                    "exact_match_passed": (
-                        llm_result_turn.get("actual_output", {})
-                        == gt_turn.get("ground_truth_delta", {})
-                    ),
-                    "extraction_details": f"Expected: {json.dumps(gt_turn.get('ground_truth_delta', {}))}, Got: {json.dumps(llm_result_turn.get('actual_output', {}))}",
-                    "question_consistency_score": q_consistency_result.test_results[0]
-                    .metrics_data[0]
-                    .score,
-                    "response_appropriateness_score": r_appropriateness_result.test_results[
-                        0
-                    ]
-                    .metrics_data[0]
-                    .score,
-                }
-            except Exception as e:
-                logging.error(
-                    f"An unexpected error occurred during evaluation for turn {key}: {e}"
-                )
-                collated_results[key] = {}  # Mark as unevaluated
-        else:
+        llm_result_turn = llm_results_lookup.get(key)
+        if not llm_result_turn:
             logging.warning(f"No LLM result found for key: {key}")
-            collated_results[key] = {}
+            continue
 
+        try:
+            # Run all three tests for the current turn
+            q_consistency_result = evaluate(
+                test_cases=[
+                    LLMTestCase(
+                        input=gt_turn.get("llm_utterance", ""),
+                        actual_output=llm_result_turn.get("llm_utterance", ""),
+                    )
+                ],
+                metrics=[relevancy_metric],
+            )
+            r_appropriateness_result = evaluate(
+                test_cases=[
+                    LLMTestCase(
+                        input=llm_result_turn.get("llm_utterance", ""),
+                        actual_output=gt_turn.get("user_utterance", ""),
+                    )
+                ],
+                metrics=[relevancy_metric],
+            )
+
+            # Collate results for the current turn
+            collated_results[key] = {
+                "exact_match_passed": (
+                    llm_result_turn.get("actual_output", {})
+                    == gt_turn.get("ground_truth_delta", {})
+                ),
+                "extraction_details": f"Expected: {json.dumps(gt_turn.get('ground_truth_delta', {}))}, Got: {json.dumps(llm_result_turn.get('actual_output', {}))}",
+                "question_consistency_score": q_consistency_result.test_results[0]
+                .metrics_data[0]
+                .score,
+                "response_appropriateness_score": r_appropriateness_result.test_results[
+                    0
+                ]
+                .metrics_data[0]
+                .score,
+            }
+        except Exception as e:
+            logging.error(
+                f"An unexpected error occurred during evaluation for turn {key}: {e}"
+            )
     present_results(collated_results)
 
 
@@ -122,16 +121,13 @@ def present_results(all_results: dict[tuple, dict]):
     print("              DETAILED TURN-BY-TURN REPORT")
     print("=" * 50)
     for (scenario_id, flow_type, question_name), res in all_results.items():
-        if not res:
-            continue  # Skip turns that were not found or failed evaluation
-
         print(f"\n--- Turn: {scenario_id} ({flow_type}) | {question_name} ---")
 
-        if res["exact_match_passed"]:
+        if res.get("exact_match_passed"):
             print("  [✅] Extraction Accuracy: PASSED")
         else:
             print("  [❌] Extraction Accuracy: FAILED")
-            print(f"       {res['extraction_details']}")
+            print("       No LLM result found")
 
         print(
             f"  [ score: {res['question_consistency_score']:.2f} ] Question Consistency"
