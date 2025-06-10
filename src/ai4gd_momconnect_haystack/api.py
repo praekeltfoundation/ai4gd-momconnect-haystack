@@ -1,6 +1,7 @@
 from os import environ
 from typing import Annotated, Any
 
+import sentry_sdk
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel
@@ -13,6 +14,14 @@ from .tasks import (
 )
 
 load_dotenv()
+
+
+def setup_sentry():
+    if dsn := environ.get("SENTRY_DSN"):
+        sentry_sdk.init(dsn=dsn, send_default_pii=True)
+
+
+setup_sentry()
 
 app = FastAPI()
 

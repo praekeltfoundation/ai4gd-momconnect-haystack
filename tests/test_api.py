@@ -2,8 +2,9 @@ import os
 from unittest import mock
 
 from fastapi.testclient import TestClient
+from sentry_sdk import get_client as get_sentry_client
 
-from ai4gd_momconnect_haystack.api import app
+from ai4gd_momconnect_haystack.api import app, setup_sentry
 
 
 def test_health():
@@ -102,3 +103,17 @@ def test_assessment(validate_assessment_answer, get_assessment_question):
             "System to User: How confident are you in discussing your maternal health concerns with your healthcare provider?",
         ],
     }
+
+
+@mock.patch.dict(
+    os.environ,
+    {"SENTRY_DSN": "https://testdsn@testdsn.example.org/12345"},
+    clear=True,
+)
+def test_sentry_setup():
+    """
+    Sentry is setup with the correct DSN found in the env var
+    """
+    setup_sentry()
+    assert get_sentry_client().is_active()
+    assert get_sentry_client().dsn == "https://testdsn@testdsn.example.org/12345"
