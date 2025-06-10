@@ -30,6 +30,8 @@ services:
     environment:
       WEAVIATE_URL: http://weaviate:8080
       # OPENAI_API_KEY: 'your_openai_api_key_if_needed_by_haystack' # Add other necessary ENV VARS
+    env_file:
+      - .env
     networks:
       - app-network
     # If your main.py needs to be interactive (uses input()), you need these:

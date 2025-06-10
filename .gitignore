@@ -178,3 +178,5 @@ weaviate_data/
 
 # Other files
 .python-version
+evaluation_outputs/
+.deepeval/
