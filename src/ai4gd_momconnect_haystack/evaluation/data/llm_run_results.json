@@ -1,0 +1,44 @@
+[
+  {
+    "scenario_id": "onboarding_naledi_v1",
+    "flow_type": "onboarding",
+    "turns": [
+      {
+        "question_name": "ask_province",
+        "llm_utterance": "Which province do you currently reside in? 🏞️",
+        "actual_output": { "province": "North West" }
+      },
+      {
+        "question_name": "ask_education_level",
+        "llm_utterance": "What level of education have you completed? 📚",
+        "actual_output": { "education_level": "Some high school" }
+      },
+      {
+        "question_name": "ask_num_children",
+        "llm_utterance": "How many children do you have, if any? 👶🏽",
+        "actual_output": { "num_children": "one" }
+      }
+    ]
+  },
+  {
+    "scenario_id": "assessment_naledi_v1",
+    "flow_type": "assessment",
+    "turns": [
+      {
+        "question_name": "ask_confidence_health_decisions",
+        "llm_utterance": "How confident are you making decisions about your health?",
+        "actual_output": { "processed_user_response": "Confident" }
+      },
+      {
+        "question_name": "ask_confidence_discussing_problems",
+        "llm_utterance": "How confident are you discussing medical problems with a doctor?",
+        "actual_output": { "processed_user_response": "A little confident" }
+      },
+      {
+        "question_name": "ask_confidence_questioning_provider",
+        "llm_utterance": "I feel confident questioning my provider about my treatment.",
+        "actual_output": { "processed_user_response": "skipped" }
+      }
+    ]
+  }
+]
