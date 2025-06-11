@@ -10,6 +10,7 @@ dependencies = [
     "openai>=1.78.1",
     "python-dotenv>=1.1.0",
     "fastapi[standard]>=0.115.12",
+    "sentry-sdk[fastapi]>=2.29.1",
 ]
 
 [dependency-groups]
