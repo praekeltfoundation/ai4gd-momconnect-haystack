@@ -70,7 +70,9 @@ def test_validate_assessment_answer_success(pipelines_mock):
     )
 
     result = validate_assessment_answer(
-        user_response="This is my answer.", current_question_number=3
+        user_response="This is my answer.",
+        current_question_number=3,
+        current_flow_id="dma-assessment",
     )
 
     assert result == {
@@ -87,7 +89,9 @@ def test_validate_assessment_answer_failure(pipelines_mock):
     pipelines_mock.run_assessment_response_validator_pipeline.return_value = None
 
     result = validate_assessment_answer(
-        user_response="I don't know.", current_question_number=3
+        user_response="I don't know.",
+        current_question_number=3,
+        current_flow_id="dma-assessment",
     )
 
     # Check that the response is None and the step is decremented to repeat the question

@@ -5,8 +5,6 @@ from . import tasks
 
 logger = logging.getLogger(__name__)
 
-# TODO: Add confirmation outputs telling the user what we understood their response to be, before sending them a next message.
-
 
 def run_simulation():
     """
@@ -63,7 +61,36 @@ def run_simulation():
 
             # Simulate User Response & Data Extraction
             chat_history.append("System to User: " + contextualized_question + "\n> ")
-            user_response = input(contextualized_question + "\n> ")
+            # Keep getting a user response until it is one that continues the journey:
+            intent = None
+            while intent != "JOURNEY_RESPONSE":
+                user_response = input(contextualized_question + "\n> ")
+
+                # Classify user's intent and act accordingly
+                intent, message_to_user = tasks.handle_user_message(
+                    contextualized_question, user_response
+                )
+                # If a question about the study or about health was asked, print the
+                # response that would be sent to users
+                if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
+                    print(message_to_user)
+                elif intent in [
+                    "ASKING_TO_STOP_MESSAGES",
+                    "ASKING_TO_DELETE_DATA",
+                    "REPORTING_AIRTIME_NOT_RECEIVED",
+                ]:
+                    print(f"Turn must be notified that user is {intent}")
+                elif intent == "CHITCHAT":
+                    print(message_to_user)
+                    print(
+                        (
+                            f"User is chitchatting and needs to still respond to "
+                            f"the previous question: {contextualized_question}"
+                        )
+                    )
+                else:
+                    # intent must be JOURNEY_RESPONSE
+                    pass
             chat_history.append("User to System: " + user_response + "\n> ")
 
             user_context = tasks.extract_onboarding_data_from_response(
@@ -110,7 +137,7 @@ def run_simulation():
             user_response = input(contextualized_question + "\n> ")
 
             result = tasks.validate_assessment_answer(
-                user_response, current_assessment_step
+                user_response, current_assessment_step, "dma-assessment"
             )
             if not result:
                 logger.warning(
@@ -164,7 +191,7 @@ def run_simulation():
                 user_response = input(contextualized_question + "\n> ")
 
                 result = tasks.validate_assessment_answer(
-                    user_response, current_assessment_step
+                    user_response, current_assessment_step, flow_id
                 )
                 if not result:
                     logger.warning(

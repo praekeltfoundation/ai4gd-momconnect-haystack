@@ -170,14 +170,36 @@ def get_assessment_question(
 
 
 def validate_assessment_answer(
-    user_response: str, current_question_number: int
+    user_response: str, current_question_number: int, current_flow_id: str
 ) -> dict[str, Any]:
     """
     Validates a user's response to an assessment question.
     """
+    current_question = None
+    for q in assessment_flow_map[current_flow_id]:
+        if q["question_number"] == current_question_number:
+            current_question = q
+    if not current_question:
+        logger.error(
+            f"Could not find question number {current_question_number} in flow '{current_flow_id}'."
+        )
+        return {
+            "processed_user_response": None,
+            "current_assessment_step": current_question_number - 1,
+        }
+    valid_responses = current_question.get("valid_responses", [])
+    if not valid_responses:
+        logger.error(
+            f"No valid_responses found for question {current_question_number}."
+        )
+        return {
+            "processed_user_response": None,
+            "current_assessment_step": current_question_number - 1,
+        }
+
     validator_pipe = pipelines.create_assessment_response_validator_pipeline()
     processed_user_response = pipelines.run_assessment_response_validator_pipeline(
-        validator_pipe, user_response
+        validator_pipe, user_response, valid_responses
     )
 
     if not processed_user_response:
@@ -287,3 +309,58 @@ def extract_anc_data_from_response(
         logger.warning("ANC data extraction pipeline did not produce a result.")
 
     return user_context
+
+
+def detect_user_intent(last_question: str, user_response: str) -> str | None:
+    """Runs the intent detection pipeline."""
+    logger.info("Running intent detection pipeline...")
+    intent_pipeline = pipelines.create_intent_detection_pipeline()
+    result = pipelines.run_intent_detection_pipeline(
+        intent_pipeline, last_question, user_response
+    )
+    return result.get("intent") if result else None
+
+
+def get_faq_answer(user_question: str) -> str | None:
+    """Runs the FAQ answering pipeline."""
+    logger.info("Running FAQ answering pipeline...")
+    faq_pipeline = pipelines.create_faq_answering_pipeline()
+    result = pipelines.run_faq_pipeline(
+        faq_pipeline,
+        user_question,
+        filters={"field": "meta.flow_id", "operator": "==", "value": "faqs"},
+    )
+    return result.get("answer") if result else None
+
+
+def handle_user_message(
+    last_question_asked: str, user_message: str
+) -> tuple[str | None, str | None]:
+    """
+    Orchestrates the process of handling a new user message.
+    """
+    intent = detect_user_intent(last_question_asked, user_message)
+    response = None
+
+    if intent == "QUESTION_ABOUT_STUDY":
+        response = get_faq_answer(user_question=user_message)
+        if not response:
+            response = "Sorry, I don't have information about that right now."
+    elif intent == "HEALTH_QUESTION":
+        response = "Please consider first finishing the current survey, but we may have an answer to your question on MomConnect: https://wa.me/27796312456?text=menu"
+    elif intent == "CHITCHAT":
+        if last_question_asked and last_question_asked != "":
+            response = "Please try answering the previous question again."
+        else:
+            response = "Thank you for reaching out! We will let you know if we have more questions for you. You can also click on this link to go to MomConnect: https://wa.me/27796312456?text=menu"
+    elif intent in [
+        "JOURNEY_RESPONSE",
+        "ASKING_TO_STOP_MESSAGES",
+        "ASKING_TO_DELETE_DATA",
+        "REPORTING_AIRTIME_NOT_RECEIVED",
+    ]:
+        pass
+    else:
+        logger.error(f"Intent detected: {intent}. No specific action defined.")
+
+    return intent, response
