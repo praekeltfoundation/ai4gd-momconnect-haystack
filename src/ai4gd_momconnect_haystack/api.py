@@ -80,6 +80,7 @@ def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
         )
         chat_history.append(f"System to User: {question}")
     else:
+        user_context = request.user_context
         question = ""
     return OnboardingResponse(
         question=question or "",
@@ -130,6 +131,7 @@ def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
         current_question_number = question["current_question_number"]
         chat_history.append(f"System to User: {contextualized_question}")
     else:
+        current_question_number = request.question_number
         contextualized_question = ""
     return AssessmentResponse(
         question=contextualized_question,
@@ -191,7 +193,9 @@ def anc_survey(request: ANCSurveyRequest, token: str = Depends(verify_token)):
             chat_history.append(f"System to User: {completion_message}")
             question = completion_message
     else:
+        user_context = request.user_context
         question = ""
+        survey_complete = False
     return ANCSurveyResponse(
         question=question,
         user_context=user_context,

@@ -44,15 +44,19 @@ def test_onboarding_invalid_auth_token():
 
 
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
 @mock.patch("ai4gd_momconnect_haystack.api.get_next_onboarding_question")
 @mock.patch("ai4gd_momconnect_haystack.api.extract_onboarding_data_from_response")
 def test_onboarding(
-    extract_onboarding_data_from_response, get_next_onboarding_question
+    extract_onboarding_data_from_response,
+    get_next_onboarding_question,
+    handle_user_message,
 ):
     extract_onboarding_data_from_response.return_value = {"area_type": "City"}
     get_next_onboarding_question.return_value = (
         "Which province are you currently living in? 🏡"
     )
+    handle_user_message.return_value = "CHITCHAT", "User is chitchatting"
     client = TestClient(app)
     response = client.post(
         "/v1/onboarding",
@@ -61,19 +65,21 @@ def test_onboarding(
     )
     assert response.status_code == 200
     assert response.json() == {
-        "user_context": {"area_type": "City"},
-        "question": "Which province are you currently living in? 🏡",
-        "chat_history": [
-            "User to System: Hello!",
-            "System to User: Which province are you currently living in? 🏡",
-        ],
+        "question": "",
+        "user_context": {},
+        "chat_history": ["User to System: Hello!"],
+        "intent": "CHITCHAT",
+        "intent_related_response": "User is chitchatting",
     }
 
 
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
 @mock.patch("ai4gd_momconnect_haystack.api.get_assessment_question")
 @mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_answer")
-def test_assessment(validate_assessment_answer, get_assessment_question):
+def test_assessment(
+    validate_assessment_answer, get_assessment_question, handle_user_message
+):
     get_assessment_question.return_value = {
         "contextualized_question": "How confident are you in discussing your maternal health concerns with your healthcare provider?",
         "current_question_number": 2,
@@ -82,6 +88,7 @@ def test_assessment(validate_assessment_answer, get_assessment_question):
         "processed_user_response": "testresponse",
         "current_assessment_step": 1,
     }
+    handle_user_message.return_value = "CHITCHAT", "User is chitchatting"
     client = TestClient(app)
     response = client.post(
         "/v1/assessment",
@@ -95,19 +102,21 @@ def test_assessment(validate_assessment_answer, get_assessment_question):
     )
     assert response.status_code == 200
     assert response.json() == {
-        "question": "How confident are you in discussing your maternal health concerns with your healthcare provider?",
-        "next_question": 2,
-        "chat_history": [
-            "User to System: Hello!",
-            "System to User: How confident are you in discussing your maternal health concerns with your healthcare provider?",
-        ],
+        "question": "",
+        "next_question": 1,
+        "chat_history": ["User to System: Hello!"],
+        "intent": "CHITCHAT",
+        "intent_related_response": "User is chitchatting",
     }
 
 
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
 @mock.patch("ai4gd_momconnect_haystack.api.get_anc_survey_question")
 @mock.patch("ai4gd_momconnect_haystack.api.extract_anc_data_from_response")
-def test_anc_survey(extract_anc_data_from_response, get_anc_survey_question):
+def test_anc_survey(
+    extract_anc_data_from_response, get_anc_survey_question, handle_user_message
+):
     """
     Tests the ANC survey endpoint.
     It mocks the data extraction and question generation to ensure the API
@@ -118,6 +127,7 @@ def test_anc_survey(extract_anc_data_from_response, get_anc_survey_question):
         "contextualized_question": "Great! Did you see a nurse or a doctor?",
         "is_final_step": False,
     }
+    handle_user_message.return_value = "JOURNEY_RESPONSE", None
     client = TestClient(app)
     initial_chat_history = ["System to User: Hi! Did you go for your clinic visit?"]
 
@@ -141,4 +151,6 @@ def test_anc_survey(extract_anc_data_from_response, get_anc_survey_question):
             "System to User: Great! Did you see a nurse or a doctor?",
         ],
         "survey_complete": False,
+        "intent": "JOURNEY_RESPONSE",
+        "intent_related_response": None,
     }
