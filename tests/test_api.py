@@ -117,3 +117,13 @@ def test_sentry_setup():
     setup_sentry()
     assert get_sentry_client().is_active()
     assert get_sentry_client().dsn == "https://testdsn@testdsn.example.org/12345"
+
+
+def test_prometheus_metrics():
+    """
+    Prometheus metrics are exposed on the /metrics endpoint
+    """
+    client = TestClient(app)
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    assert "python_info" in response.text

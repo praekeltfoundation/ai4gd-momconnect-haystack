@@ -4,6 +4,7 @@ from typing import Annotated, Any
 import sentry_sdk
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel
 
 from .tasks import (
@@ -24,6 +25,8 @@ def setup_sentry():
 setup_sentry()
 
 app = FastAPI()
+
+Instrumentator().instrument(app).expose(app)
 
 
 @app.get("/health")
