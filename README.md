@@ -154,3 +154,9 @@ for example:
   "survey_complete": false
 }
 ```
+
+## Linting
+Run the following commands from the root directory:
+- `uv run ruff check --fix`
+- `uv run ruff format`
+- `uv run mypy .`

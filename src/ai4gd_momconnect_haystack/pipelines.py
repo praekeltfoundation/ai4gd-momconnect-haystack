@@ -73,6 +73,26 @@ SURVEY_QUESTION_CONTEXT_SCHEMA = {
     "additionalProperties": False,
 }
 
+INTENT_DETECTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "intent": {
+            "type": "string",
+            "description": "The classified intent of the user's message.",
+            "enum": [
+                "JOURNEY_RESPONSE",
+                "QUESTION_ABOUT_STUDY",
+                "HEALTH_QUESTION",
+                "ASKING_TO_STOP_MESSAGES",
+                "ASKING_TO_DELETE_DATA",
+                "REPORTING_AIRTIME_NOT_RECEIVED",
+                "CHITCHAT",
+            ],
+        }
+    },
+    "required": ["intent"],
+}
+
 
 # --- LLM Generator ---
 def get_llm_generator() -> OpenAIChatGenerator | None:
@@ -528,7 +548,8 @@ def create_assessment_contextualization_pipeline() -> Pipeline | None:
 @cache
 def create_assessment_response_validator_pipeline() -> Pipeline | None:
     """
-    Creates a pipeline to validate the user's response to an assessment question.
+    Creates a pipeline to validate the user's response to an assessment question
+    against a dynamic list of valid responses.
     """
     llm_generator = get_llm_generator()
     if not llm_generator:
@@ -539,19 +560,19 @@ def create_assessment_response_validator_pipeline() -> Pipeline | None:
     pipeline = Pipeline()
 
     prompt_template = """
-    You are an assistant helping to validate user responses to an assessment question on a maternal health chatbot service.
-    The valid possible responses are:
-    1 - Not at all confident
-    2 - A little confident
-    3 - Somewhat confident
-    4 - Confident
-    5 - Very confident
+    You are an assistant validating a user's response to a question. The only valid possible responses are in the list below.
+    Your task is to determine if the user's answer maps to one of these valid options.
 
-    User responses are unpredictable. They might reply with a number, or with text, or with both, corresponding to a valid response.
-    Or, they might respond with nonsense or gibberish.
+    Valid Responses:
+    {% for response in valid_responses %}
+    - "{{ response }}"
+    {% endfor %}
 
-    If you think that the user response maps to one of the valid responses, your output must be the text corresponding to that valid response (i.e. without the number).
-    If you think that the user response is nonsense or gibberish instead, return "nonsense".
+    User responses can be unpredictable. They might reply with a number, an exact phrase from the list, or something similar in meaning.
+    Your job is to find the best match.
+
+    - If the user's response clearly and unambiguously corresponds to one of the valid responses, your output MUST be the exact text of that valid response from the list.
+    - If the user's response is ambiguous, does not match any valid response, or is nonsense/gibberish, you MUST return the single word: "nonsense".
 
     User Response:
     {{ user_response }}
@@ -560,7 +581,7 @@ def create_assessment_response_validator_pipeline() -> Pipeline | None:
     """
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_user(prompt_template)],
-        required_variables=["user_response"],
+        required_variables=["user_response", "valid_responses"],
     )
 
     pipeline.add_component("prompt_builder", prompt_builder)
@@ -763,6 +784,103 @@ def create_clinic_visit_data_extraction_pipeline() -> Pipeline | None:
     return pipeline
 
 
+@cache
+def create_intent_detection_pipeline() -> Pipeline | None:
+    """
+    Creates a pipeline to classify the user's intent.
+    """
+    llm_generator = get_llm_generator()
+    if not llm_generator:
+        logger.error(
+            "LLM Generator is not available. Cannot create Intent Detection Pipeline."
+        )
+        return None
+    pipeline = Pipeline()
+
+    prompt_template = """
+    You are an intent classifier for a maternal health chatbot. Your task is to analyze the user's latest message and classify it into ONE of the following categories based on its intent.
+
+    Last question the user was asked:
+    "{{ last_question }}"
+
+    User's response:
+    "{{ user_response }}"
+
+    Please classify the user's message into one of these intents:
+    - 'JOURNEY_RESPONSE': The user is directly answering or attempting to answer the question asked.
+    - 'QUESTION_ABOUT_STUDY': The user is asking a question about the research study itself (e.g., "who are you?", "why are you asking this?").
+    - 'HEALTH_QUESTION': The user is asking a new question related to health, pregnancy, or their wellbeing, instead of answering the question.
+    - 'ASKING_TO_STOP_MESSAGES': The user expresses a desire to stop receiving messages.
+    - 'ASKING_TO_DELETE_DATA': The user wants to leave the study and have their data deleted.
+    - 'REPORTING_AIRTIME_NOT_RECEIVED': The user is reporting that they have not received their airtime incentive.
+    - 'CHITCHAT': The user is making a conversational comment that is not a direct answer, a question, or a request.
+
+    You MUST respond with a valid JSON object containing exactly one key: "intent".
+
+    JSON Response:
+    """
+    prompt_builder = ChatPromptBuilder(
+        template=[ChatMessage.from_user(prompt_template)],
+        required_variables=["last_question", "user_response"],
+    )
+
+    json_validator = JsonSchemaValidator(json_schema=INTENT_DETECTION_SCHEMA)
+
+    pipeline.add_component("prompt_builder", prompt_builder)
+    pipeline.add_component("llm", llm_generator)
+    pipeline.add_component("json_validator", json_validator)
+
+    pipeline.connect("prompt_builder.prompt", "llm.messages")
+    pipeline.connect("llm.replies", "json_validator.messages")
+
+    logger.info("Created Intent Detection Pipeline.")
+    return pipeline
+
+
+@cache
+def create_faq_answering_pipeline() -> Pipeline | None:
+    """
+    Creates a RAG pipeline to answer user questions using the FAQ documents.
+    """
+    llm_generator = get_llm_generator()
+    if not llm_generator:
+        logger.error(
+            "LLM Generator is not available. Cannot create FAQ Answering Pipeline."
+        )
+        return None
+    pipeline = Pipeline()
+
+    prompt_template = """
+    You are a helpful assistant for a maternal health chatbot. Answer the user's question based ONLY on the provided context information.
+    If the context does not contain the answer, say that you do not have that information.
+
+    Context:
+    {% for doc in documents %}
+    - {{ doc.content }}
+    {% endfor %}
+
+    User's Question: {{ user_question }}
+
+    Answer:
+    """
+    prompt_builder = ChatPromptBuilder(
+        template=[ChatMessage.from_user(prompt_template)],
+    )
+
+    document_store = setup_document_store()
+    retriever = FilterRetriever(document_store=document_store)
+
+    pipeline.add_component("retriever", retriever)
+    pipeline.add_component("prompt_builder", prompt_builder)
+    pipeline.add_component("llm", llm_generator)
+
+    pipeline.connect("retriever.documents", "prompt_builder.documents")
+    pipeline.connect("prompt_builder.prompt", "llm.messages")
+
+    logger.info("Created FAQ Answering Pipeline.")
+    return pipeline
+
+
 # --- Running Pipelines ---
 def run_next_onboarding_question_pipeline(
     pipeline: Pipeline,
@@ -812,13 +930,12 @@ def run_next_onboarding_question_pipeline(
                 "contextualized_question": contextualized_question,
             }
         else:
-            # No valid JSON response was produced
             logger.warning("LLM failed to produce valid JSON response. Using fallback.")
 
     except Exception as e:
         logger.error(f"Unexpected error in pipeline execution: {e}")
 
-    # Fallback logic (same as before)
+    # Fallback logic
     if remaining_questions:
         chosen_question_number = remaining_questions[0]["question_number"]
         contextualized_question = remaining_questions[0]["content"]
@@ -953,7 +1070,6 @@ def run_assessment_contextualization_pipeline(
             question_data = json.loads(validated_json_list[0].text)
             contextualized_question_text = question_data.get("contextualized_question")
 
-            # Combine the parts using Python
             final_question = f"{contextualized_question_text}\n\n" + "\n".join(
                 valid_responses
             )
@@ -969,24 +1085,41 @@ def run_assessment_contextualization_pipeline(
 
 
 def run_assessment_response_validator_pipeline(
-    pipeline: Pipeline, user_response: str
+    pipeline: Pipeline, user_response: str, valid_responses: list[str]
 ) -> str | None:
     """
     Run the assessment response validator pipeline to validate a user's response.
 
     Args:
-        pipeline: The configured pipeline
-        user_response: User's response to validate
+        pipeline: The configured pipeline.
+        user_response: User's response to validate.
+        valid_responses: A list of valid string responses for the current question.
 
     Returns:
-        Validated response string or "nonsense" if invalid
+        The validated response string, or None if the response is invalid/nonsense.
     """
     try:
-        result = pipeline.run({"prompt_builder": {"user_response": user_response}})
+        result = pipeline.run(
+            {
+                "prompt_builder": {
+                    "user_response": user_response,
+                    "valid_responses": valid_responses,
+                }
+            }
+        )
 
         llm_response = result.get("llm", {})
         if llm_response and llm_response.get("replies"):
-            return llm_response["replies"][0].text
+            validated_text = llm_response["replies"][0].text.strip()
+            if validated_text.lower() == "nonsense":
+                return None
+            if validated_text in valid_responses:
+                return validated_text
+            else:
+                logger.warning(
+                    f"LLM returned a response ('{validated_text}') not in the valid list. Treating as invalid."
+                )
+                return None
         else:
             logger.warning("No replies found in LLM response for validation")
             return None
@@ -1110,3 +1243,57 @@ def run_clinic_visit_data_extraction_pipeline(
         logger.error(f"Error running ANC survey extraction pipeline: {e}")
         return {}
     return {}
+
+
+def run_intent_detection_pipeline(
+    pipeline: Pipeline, last_question: str, user_response: str
+) -> dict[str, Any] | None:
+    """
+    Runs the intent detection pipeline.
+    """
+    try:
+        result = pipeline.run(
+            {
+                "prompt_builder": {
+                    "last_question": last_question,
+                    "user_response": user_response,
+                }
+            }
+        )
+        validated_responses = result.get("json_validator", {}).get("validated", [])
+        if validated_responses:
+            intent_data = json.loads(validated_responses[0].text)
+            logger.info(f"LLM classified intent as: {intent_data}")
+            return intent_data
+        else:
+            logger.warning("Intent pipeline failed to produce valid JSON response.")
+            return None
+    except Exception as e:
+        logger.error(f"Error running intent detection pipeline: {e}")
+        return None
+
+
+def run_faq_pipeline(
+    pipeline: Pipeline, user_question: str, filters: dict
+) -> dict[str, Any] | None:
+    """
+    Runs the FAQ answering pipeline.
+    """
+    try:
+        result = pipeline.run(
+            {
+                "retriever": {"filters": filters},
+                "prompt_builder": {"user_question": user_question},
+            }
+        )
+        llm_response = result.get("llm", {})
+        if llm_response and llm_response.get("replies"):
+            answer = llm_response["replies"][0].text
+            return {"answer": answer}
+        else:
+            logger.warning("No replies found in LLM response for FAQ pipeline")
+            return None
+
+    except Exception as e:
+        logger.error(f"Error running FAQ pipeline: {e}")
+        return None
