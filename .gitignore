@@ -180,3 +180,4 @@ weaviate_data/
 .python-version
 evaluation_outputs/
 .deepeval/
+.vscode/

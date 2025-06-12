@@ -2,68 +2,73 @@
     "dma-assessment": [
         {
             "question_number": 1,
+            "question_name": "confident_in_making_health_decisions",
             "content": "How much do you agree or disagree with this statement:\n\n*I feel like I can make decisions about my health.*",
             "content_type": "assessment_question",
-            "valid_responses": [
-                "I strongly disagree",
-                "I disagree",
-                "I'm not sure",
-                "I agree",
-                "I strongly agree",
-                "Skip"
-            ]
+            "valid_responses": {
+                "I strongly disagree": 0,
+                "I disagree": 1,
+                "I'm not sure": 2,
+                "I agree": 3,
+                "I strongly agree": 4,
+                "Skip": 0
+            }
         },
         {
             "question_number": 2,
+            "question_name": "confident_in_talking_to_health_worker",
             "content": "How about this one?\n\n*I feel like I can talk about my health issues with a health worker.*",
             "content_type": "assessment_question",
-            "valid_responses": [
-                "I strongly disagree",
-                "I disagree",
-                "I'm not sure",
-                "I agree",
-                "I strongly agree",
-                "Skip"
-            ]
+            "valid_responses": {
+                "I strongly disagree": 0,
+                "I disagree": 1,
+                "I'm not sure": 2,
+                "I agree": 3,
+                "I strongly agree": 4,
+                "Skip": 0
+            }
         },
         {
             "question_number": 3,
+            "question_name": "confident_in_disagreeing_with_health_worker",
             "content": "Here’s the next one 👇🏽\n\n*I feel that I can disagree with a health worker about my treatment plan.*",
             "content_type": "assessment_question",
-            "valid_responses": [
-                "I strongly disagree",
-                "I disagree",
-                "I'm not sure",
-                "I agree",
-                "I strongly agree",
-                "Skip"
-            ]
+            "valid_responses": {
+                "I strongly disagree": 0,
+                "I disagree": 1,
+                "I'm not sure": 2,
+                "I agree": 3,
+                "I strongly agree": 4,
+                "Skip": 0
+            }
         },
         {
             "question_number": 4,
+            "question_name": "confident_in_ability_to_improve_health",
             "content": "Almost done!\n\n*I feel that I can do things to improve my health.*",
             "content_type": "assessment_question",
-            "valid_responses": [
-                "I strongly disagree",
-                "I disagree",
-                "I'm not sure",
-                "I agree",
-                "I strongly agree",
-                "Skip"
-            ]
+            "valid_responses": {
+                "I strongly disagree": 0,
+                "I disagree": 1,
+                "I'm not sure": 2,
+                "I agree": 3,
+                "I strongly agree": 4,
+                "Skip": 0
+            }
         },
         {
             "question_number": 5,
+            "question_name": "confident_in_finding_external_health_info",
             "content": "And the last one ⭐\n\n*I feel that I can find information about my health from other places, not just a health worker.*",
             "content_type": "assessment_question",
-            "valid_responses": [
-                "I strongly disagree",
-                "I disagree",
-                "I'm not sure",
-                "I agree",
-                "I strongly agree",
-                "Skip"
-            ]
+            "valid_responses": {
+                "I strongly disagree": 0,
+                "I disagree": 1,
+                "I'm not sure": 2,
+                "I agree": 3,
+                "I strongly agree": 4,
+                "Skip": 0
+            }
         }
     ]
 }
