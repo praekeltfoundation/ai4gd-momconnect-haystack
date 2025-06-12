@@ -4,7 +4,7 @@ from ai4gd_momconnect_haystack.tasks import (
     get_assessment_question,
     _score_and_format_turn,
     _calculate_assessment_score_range,
-    score_assessment_from_simulation
+    score_assessment_from_simulation,
 )
 
 # --- Test Data Fixtures ---
@@ -128,7 +128,7 @@ def test_score_and_format_turn(
 ):
     """Tests various scenarios for scoring a single turn using parametrization."""
     question_lookup = {q["question_number"]: q for q in mock_assessment_questions}
-    
+
     _score_and_format_turn(turn_input, question_lookup)
 
     assert turn_input["score"] == expected_score
@@ -143,6 +143,7 @@ def test_score_assessment_from_simulation_end_to_end(
 ):
     """Tests the full scoring process and the new output format."""
     import copy
+
     simulation_output_copy = copy.deepcopy(mock_simulation_output)
 
     result = score_assessment_from_simulation(

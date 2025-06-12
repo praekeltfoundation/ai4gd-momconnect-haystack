@@ -161,7 +161,7 @@ def validate_assessment_answer(
 
 
 def _calculate_assessment_score_range(
-    assessment_questions: list[dict[str, Any]]
+    assessment_questions: list[dict[str, Any]],
 ) -> tuple[int, int]:
     """
     Calculates the minimum and maximum possible scores for an assessment.
@@ -227,7 +227,9 @@ def _score_and_format_turn(
 
     if score_val is None:
         turn["score_error"] = "User's answer is not a valid, scorable option."
-        logger.warning(f"{turn['score_error']} (q_num: {q_num}, answer: '{user_answer}')")
+        logger.warning(
+            f"{turn['score_error']} (q_num: {q_num}, answer: '{user_answer}')"
+        )
         return
 
     try:
@@ -235,7 +237,9 @@ def _score_and_format_turn(
         turn["score_error"] = None
     except (ValueError, TypeError):
         turn["score_error"] = f"Invalid score value '{score_val}' in master file."
-        logger.warning(f"{turn['score_error']} (q_num: {q_num}, answer: '{user_answer}')")
+        logger.warning(
+            f"{turn['score_error']} (q_num: {q_num}, answer: '{user_answer}')"
+        )
 
 
 def score_assessment_from_simulation(
@@ -246,24 +250,37 @@ def score_assessment_from_simulation(
     """
     Calculates the final score from a raw simulation output for a specific assessment.
     """
-    logger.info(f"Calculating final score for '{assessment_id}' from simulation output...")
+    logger.info(
+        f"Calculating final score for '{assessment_id}' from simulation output..."
+    )
 
     assessment_run = next(
-        (run for run in simulation_output if run.get("flow_type") == assessment_id), None
+        (run for run in simulation_output if run.get("flow_type") == assessment_id),
+        None,
     )
-    if not assessment_run or not isinstance(assessment_turns := assessment_run.get("turns"), list):
-        logger.error(f"Could not find a valid run for '{assessment_id}' in the simulation output.")
+    if not assessment_run or not isinstance(
+        assessment_turns := assessment_run.get("turns"), list
+    ):
+        logger.error(
+            f"Could not find a valid run for '{assessment_id}' in the simulation output."
+        )
         return None
 
-    question_lookup = {q["question_number"]: q for q in assessment_questions if "question_number" in q}
+    question_lookup = {
+        q["question_number"]: q for q in assessment_questions if "question_number" in q
+    }
 
     for turn in assessment_turns:
         if isinstance(turn, dict):
             _score_and_format_turn(turn, question_lookup)
 
     # --- New Score Calculation Logic ---
-    min_possible_score, max_possible_score = _calculate_assessment_score_range(assessment_questions)
-    valid_user_scores = [turn["score"] for turn in assessment_turns if isinstance(turn.get("score"), int)]
+    min_possible_score, max_possible_score = _calculate_assessment_score_range(
+        assessment_questions
+    )
+    valid_user_scores = [
+        turn["score"] for turn in assessment_turns if isinstance(turn.get("score"), int)
+    ]
     user_total_score = sum(valid_user_scores)
 
     user_score_percentage = 0.0

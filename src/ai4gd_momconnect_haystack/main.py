@@ -65,27 +65,32 @@ def run_simulation():
 
         # Identify what changed in user_context
         diff_keys = [
-            k for k in user_context
-            if user_context[k] != previous_context.get(k)
+            k for k in user_context if user_context[k] != previous_context.get(k)
         ]
         if len(diff_keys) == 1:
             updated_field = diff_keys[0]
-            onboarding_turns.append({
-                "question_name": updated_field,
-                "llm_utterance": contextualized_question,
-                "user_utterance": user_response,
-                "llm_extracted_user_response": user_context[updated_field]
-            })
+            onboarding_turns.append(
+                {
+                    "question_name": updated_field,
+                    "llm_utterance": contextualized_question,
+                    "user_utterance": user_response,
+                    "llm_extracted_user_response": user_context[updated_field],
+                }
+            )
         else:
-            logger.warning(f"Unexpected diff in context at step {attempt + 1}: {diff_keys}")
+            logger.warning(
+                f"Unexpected diff in context at step {attempt + 1}: {diff_keys}"
+            )
 
-    simulation_results.append({
-        "scenario_id": generate_scenario_id(
-            flow_type=flow_type, username="user_123"
-        ),   # TODO: Find a way to pass the username dynamically
-        "flow_type": flow_type,
-        "turns": onboarding_turns
-    })
+    simulation_results.append(
+        {
+            "scenario_id": generate_scenario_id(
+                flow_type=flow_type, username="user_123"
+            ),  # TODO: Find a way to pass the username dynamically
+            "flow_type": flow_type,
+            "turns": onboarding_turns,
+        }
+    )
 
     # ** Assessment Scenario **
     print("")
@@ -129,28 +134,30 @@ def run_simulation():
         # processed_user_response = result['processed_user_response']
         current_assessment_step = result["current_assessment_step"]
         processed_user_response = result["processed_user_response"]
-        assessment_turns.append({
-            "question_name": current_assessment_step,
-            "llm_utterance": contextualized_question,
-            "user_utterance": user_response,
-            "llm_extracted_user_response": processed_user_response
-        })
+        assessment_turns.append(
+            {
+                "question_name": current_assessment_step,
+                "llm_utterance": contextualized_question,
+                "user_utterance": user_response,
+                "llm_extracted_user_response": processed_user_response,
+            }
+        )
 
-    simulation_results.append({
-        "scenario_id": generate_scenario_id(
-            flow_type=flow_type, username="user_123"
-        ),   # TODO: Find a way to pass the username dynamically
-        "flow_type": flow_type,
-        "turns": assessment_turns
-    })
+    simulation_results.append(
+        {
+            "scenario_id": generate_scenario_id(
+                flow_type=flow_type, username="user_123"
+            ),  # TODO: Find a way to pass the username dynamically
+            "flow_type": flow_type,
+            "turns": assessment_turns,
+        }
+    )
 
     logger.info("--- Simulation Complete ---")
     return simulation_results
 
 
-def generate_scenario_id(
-    flow_type: str, username: str
-) -> str:
+def generate_scenario_id(flow_type: str, username: str) -> str:
     """
     Generates a unique scenario ID based on flow type, name, version,
     and current timestamp.
@@ -162,7 +169,7 @@ def generate_scenario_id(
 def _score_single_run(
     run_result: dict[str, Any],
     scorable_assessments_map: dict[str, list],
-    full_simulation_output: list[dict[str, Any]]
+    full_simulation_output: list[dict[str, Any]],
 ) -> None:
     """
     Scores a single run from the simulation if it's a scorable assessment.
@@ -199,9 +206,11 @@ def _score_single_run(
 
     except Exception as e:
         # Robustly catch any unexpected errors during the scoring process
-        logging.error(f"An unexpected error occurred while scoring '{flow_type}': {e}", exc_info=True)
-        run_result['scoring_error'] = str(e)
-
+        logging.error(
+            f"An unexpected error occurred while scoring '{flow_type}': {e}",
+            exc_info=True,
+        )
+        run_result["scoring_error"] = str(e)
 
 
 def main():
