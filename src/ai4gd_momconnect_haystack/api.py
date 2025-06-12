@@ -31,7 +31,6 @@ Instrumentator().instrument(app).expose(app)
 
 @app.get("/health")
 def health():
-    # TODO: Proper health check
     return {"health": "ok"}
 
 
