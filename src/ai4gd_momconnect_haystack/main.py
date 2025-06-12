@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime
 
 from . import tasks
 
@@ -35,6 +36,7 @@ def run_simulation():
     max_onboarding_steps = 10  # Safety break
     chat_history = []
     onboarding_turns = []
+    flow_type = "onboarding"
 
     # Simulate Onboarding
     for attempt in range(max_onboarding_steps):
@@ -61,7 +63,10 @@ def run_simulation():
         )
 
         # Identify what changed in user_context
-        diff_keys = [k for k in user_context if user_context[k] != previous_context.get(k)]
+        diff_keys = [
+            k for k in user_context
+            if user_context[k] != previous_context.get(k)
+        ]
         if len(diff_keys) == 1:
             updated_field = diff_keys[0]
             onboarding_turns.append({
@@ -74,8 +79,10 @@ def run_simulation():
             logger.warning(f"Unexpected diff in context at step {attempt + 1}: {diff_keys}")
 
     simulation_results.append({
-        "scenario_id": "onboarding_naledi_v1",  # TODO: Define scenario ID
-        "flow_type": "onboarding",
+        "scenario_id": generate_scenario_id(
+            flow_type=flow_type, username="user_123"
+        ),   # TODO: Find a way to pass the username dynamically
+        "flow_type": flow_type,
         "turns": onboarding_turns
     })
 
@@ -86,6 +93,7 @@ def run_simulation():
     user_context["goal"] = "Complete the assessment"
     max_assessment_steps = 10  # Safety break
     assessment_turns = []
+    flow_type = "dma_assessment"
 
     # Simulate Assessment
     while current_assessment_step < max_assessment_steps:
@@ -128,13 +136,26 @@ def run_simulation():
         })
 
     simulation_results.append({
-        "scenario_id": "assessment_naledi_v1",  # TODO: Define scenario ID
-        "flow_type": "dma_assessment",
+        "scenario_id": generate_scenario_id(
+            flow_type=flow_type, username="user_123"
+        ),   # TODO: Find a way to pass the username dynamically
+        "flow_type": flow_type,
         "turns": assessment_turns
     })
 
     logger.info("--- Simulation Complete ---")
     return simulation_results
+
+
+def generate_scenario_id(
+    flow_type: str, username: str
+) -> str:
+    """
+    Generates a unique scenario ID based on flow type, name, version,
+    and current timestamp.
+    """
+    timestamp = datetime.now().strftime("%y%m%d-%H%M")
+    return f"{flow_type}_{username}_{timestamp}"
 
 
 def main():
