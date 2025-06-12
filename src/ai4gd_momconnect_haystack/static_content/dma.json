@@ -5,12 +5,12 @@
             "content": "How much do you agree or disagree with this statement:\n\n*I feel like I can make decisions about my health.*",
             "content_type": "assessment_question",
             "valid_responses": [
-                "I strongly disagree",
-                "I disagree",
-                "I'm not sure",
-                "I agree",
-                "I strongly agree",
-                "Skip"
+                "1 - I strongly disagree",
+                "2 - I disagree",
+                "3 - I'm not sure",
+                "4 - I agree",
+                "5 - I strongly agree",
+                "6 - Skip"
             ]
         },
         {
@@ -18,25 +18,25 @@
             "content": "How about this one?\n\n*I feel like I can talk about my health issues with a health worker.*",
             "content_type": "assessment_question",
             "valid_responses": [
-                "I strongly disagree",
-                "I disagree",
-                "I'm not sure",
-                "I agree",
-                "I strongly agree",
-                "Skip"
+                "1 - I strongly disagree",
+                "2 - I disagree",
+                "3 - I'm not sure",
+                "4 - I agree",
+                "5 - I strongly agree",
+                "6 - Skip"
             ]
         },
         {
             "question_number": 3,
-            "content": "Here’s the next one 👇🏽\n\n*I feel that I can disagree with a health worker about my treatment plan.*",
+            "content": "Here's the next one 👇🏽\n\n*I feel that I can disagree with a health worker about my treatment plan.*",
             "content_type": "assessment_question",
             "valid_responses": [
-                "I strongly disagree",
-                "I disagree",
-                "I'm not sure",
-                "I agree",
-                "I strongly agree",
-                "Skip"
+                "1 - I strongly disagree",
+                "2 - I disagree",
+                "3 - I'm not sure",
+                "4 - I agree",
+                "5 - I strongly agree",
+                "6 - Skip"
             ]
         },
         {
@@ -44,12 +44,12 @@
             "content": "Almost done!\n\n*I feel that I can do things to improve my health.*",
             "content_type": "assessment_question",
             "valid_responses": [
-                "I strongly disagree",
-                "I disagree",
-                "I'm not sure",
-                "I agree",
-                "I strongly agree",
-                "Skip"
+                "1 - I strongly disagree",
+                "2 - I disagree",
+                "3 - I'm not sure",
+                "4 - I agree",
+                "5 - I strongly agree",
+                "6 - Skip"
             ]
         },
         {
@@ -57,12 +57,12 @@
             "content": "And the last one ⭐\n\n*I feel that I can find information about my health from other places, not just a health worker.*",
             "content_type": "assessment_question",
             "valid_responses": [
-                "I strongly disagree",
-                "I disagree",
-                "I'm not sure",
-                "I agree",
-                "I strongly agree",
-                "Skip"
+                "1 - I strongly disagree",
+                "2 - I disagree",
+                "3 - I'm not sure",
+                "4 - I agree",
+                "5 - I strongly agree",
+                "6 - Skip"
             ]
         }
     ]

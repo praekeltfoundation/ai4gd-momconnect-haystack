@@ -1,5 +1,5 @@
 {
-    "behaviour-assessment": [
+    "behaviour-pre-assessment": [
         {
             "question_number": 1,
             "content": "*So far in this pregnancy, how many times have you gone to the clinic for a pregnancy check-up?* 🫃🏽",
@@ -38,8 +38,55 @@
         },
         {
             "question_number": 4,
-            "pre-content": "*Since becoming pregnant, have you drunk any alcohol or smoked at all?* 🫃🏽",
-            "post-content": "*Since joining MomConnect, have you drunk any alcohol or smoked at all?* 🫃🏽",
+            "content": "*Since becoming pregnant, have you drunk any alcohol or smoked at all?* 🫃🏽",
+            "content_type": "assessment_question",
+            "valid_responses": [
+                "Yes",
+                "No",
+                "Skip"
+            ]
+        }
+    ],
+    "behaviour-post-assessment": [
+        {
+            "question_number": 1,
+            "content": "*So far in this pregnancy, how many times have you gone to the clinic for a pregnancy check-up?* 🫃🏽",
+            "content_type": "assessment_question",
+            "valid_responses": [
+                "0 - None",
+                "1",
+                "2",
+                "3",
+                "4",
+                "5",
+                "6",
+                "7",
+                "More than 7"
+            ]
+        },
+        {
+            "question_number": 2,
+            "content": "*In this pregnancy, have you made any changes to your diet based on information from the health worker?* 🫃🏽",
+            "content_type": "assessment_question",
+            "valid_responses": [
+                "Yes",
+                "No",
+                "Skip"
+            ]
+        },
+        {
+            "question_number": 3,
+            "content": "*So far in this pregnancy, how many doses of the tetanus vaccine (Tdap) have you received?* 🫃🏽",
+            "content_type": "assessment_question",
+            "valid_responses": [
+                "0 - None",
+                "1",
+                "Skip"
+            ]
+        },
+        {
+            "question_number": 4,
+            "content": "*Since joining MomConnect, have you drunk any alcohol or smoked at all?* 🫃🏽",
             "content_type": "assessment_question",
             "valid_responses": [
                 "Yes",
@@ -129,12 +176,12 @@
             "content": "Do you agree with this statement?\n\n*Pregnancy check-ups are a good way to check that you and your unborn baby are healthy.* 🫄🏽",
             "content_type": "assessment_question",
             "valid_responses": [
-                "I strongly agree",
-                "I agree",
-                "I'm not sure",
-                "I disagree",
-                "I strongly disagree",
-                "Skip"
+                "1 - I strongly agree",
+                "2 - I agree",
+                "3 - I'm not sure",
+                "4 - I disagree",
+                "5 - I strongly disagree",
+                "6 - Skip"
             ]
         },
         {
@@ -142,25 +189,25 @@
             "content": "What about this one…\n\n*Home birth is safer than giving birth in a hospital.* 🫄🏽",
             "content_type": "assessment_question",
             "valid_responses": [
-                "I strongly agree",
-                "I agree",
-                "I'm not sure",
-                "I disagree",
-                "I strongly disagree",
-                "Skip"
+                "1 - I strongly agree",
+                "2 - I agree",
+                "3 - I'm not sure",
+                "4 - I disagree",
+                "5 - I strongly disagree",
+                "6 - Skip"
             ]
         },
         {
             "question_number": 3,
-            "content": "And…\n\n*It’s important for a pregnant woman to get an HIV test when she is pregnant.* 🫄🏽",
+            "content": "And…\n\n*It's important for a pregnant woman to get an HIV test when she is pregnant.* 🫄🏽",
             "content_type": "assessment_question",
             "valid_responses": [
-                "I strongly agree",
-                "I agree",
-                "I'm not sure",
-                "I disagree",
-                "I strongly disagree",
-                "Skip"
+                "1 - I strongly agree",
+                "2 - I agree",
+                "3 - I'm not sure",
+                "4 - I disagree",
+                "5 - I strongly disagree",
+                "6 - Skip"
             ]
         }
     ]

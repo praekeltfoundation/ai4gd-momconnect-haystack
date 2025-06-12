@@ -1,5 +1,5 @@
 {
-    "anc_survey": [
+    "anc-survey": [
         {
             "title": "start",
             "content": "Hi <name> 👋🏽\n\nDid you go to your *<n'th> pregnancy check-up* this week? 🏥",
@@ -20,7 +20,7 @@
             ]
         },
         {
-            "title": "check_in",
+            "title": "start_going_soon",
             "content": "OK, that's great! We'll check in a few days to see how it went 💕",
             "content_type": "follow_up_question"
         },
@@ -103,7 +103,7 @@
             ]
         },
         {
-            "title": "visit_other",
+            "title": "Q_visit_other",
             "content": "Can you tell us a bit more about what made you the most uncomfortable or caused you *the biggest problem* at the check-up?\n\nPlease type your reply",
             "content_type": "follow_up_question"
         },
@@ -120,12 +120,12 @@
             ]
         },
         {
-            "title": "challenges_other",
+            "title": "Q_challenges_other",
             "content": "Can you tell us a bit more about this? Please type a reply with some more information.",
             "content_type": "follow_up_question"
         },
         {
-            "title": "seen_no",
+            "title": "Q_seen_no",
             "content": "We're sorry to hear that. Do you have time to tell us what happened?",
             "content_type": "follow_up_question",
             "valid_responses": [
@@ -134,7 +134,7 @@
             ]
         },
         {
-            "title": "not_going",
+            "title": "start_not_going",
             "content": "We're sorry to hear that. Can you tell us a bit more about why you're not going?",
             "content_type": "follow_up_question",
             "valid_responses": [
@@ -143,7 +143,7 @@
             ]
         },
         {
-            "title": "q_why_no_visit",
+            "title": "Q_why_no_visit",
             "content": "Can you tell us the main reason you didn't see a health worker when you went to the clinic? \n\n• The clinic was closed ⛔\n• I had to wait too long⌛\n• I didn't have my maternity record 📝\n• They asked me to pay💰\n• I was told to come back another day 📅\n• I left because the staff were disrespectful 🤬\n• Something else 😞",
             "content_type": "follow_up_question",
             "valid_responses": [
@@ -174,7 +174,7 @@
             ]
         },
         {
-            "title": "why_no_visit_other",
+            "title": "Q_why_no_visit_other",
             "content": "Can you please tell us what the most important thing was that stopped you from getting to your pregnancy check-up? \n\nType and send your answer👇🏽",
             "content_type": "follow_up_question"
         },
