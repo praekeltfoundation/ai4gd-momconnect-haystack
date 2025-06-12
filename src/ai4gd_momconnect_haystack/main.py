@@ -1,6 +1,7 @@
 import json
 import logging
 from datetime import datetime
+from typing import Any
 
 from . import tasks
 
@@ -158,14 +159,83 @@ def generate_scenario_id(
     return f"{flow_type}_{username}_{timestamp}"
 
 
+def _score_single_run(
+    run_result: dict[str, Any],
+    scorable_assessments_map: dict[str, list],
+    full_simulation_output: list[dict[str, Any]]
+) -> None:
+    """
+    Scores a single run from the simulation if it's a scorable assessment.
+    This function modifies the run_result dictionary in-place.
+
+    Args:
+        run_result: A single dictionary from the list of simulation outputs.
+        scorable_assessments_map: A mapping of assessment IDs to their questions.
+        full_simulation_output: The complete list of all simulation runs.
+    """
+    flow_type = run_result.get("flow_type")
+
+    # Exit early if the flow_type isn't in our map of scorable assessments
+    if flow_type not in scorable_assessments_map:
+        return
+
+    logging.info(f"Found scorable assessment: '{flow_type}'. Scoring now...")
+    assessment_questions = scorable_assessments_map[flow_type]
+
+    try:
+        # Pass the full simulation output so the scoring function can
+        # find the run it needs internally.
+        scoring_summary = tasks.score_assessment_from_simulation(
+            simulation_output=full_simulation_output,
+            assessment_id=flow_type,
+            assessment_questions=assessment_questions,
+        )
+
+        if scoring_summary:
+            # Merge the summary scores (e.g., 'user_total_score')
+            # back into the original run dictionary.
+            run_result.update(scoring_summary)
+            logging.info(f"Successfully scored and updated '{flow_type}'.")
+
+    except Exception as e:
+        # Robustly catch any unexpected errors during the scoring process
+        logging.error(f"An unexpected error occurred while scoring '{flow_type}': {e}", exc_info=True)
+        run_result['scoring_error'] = str(e)
+
+
+
 def main():
+    """
+    Runs the simulation, scores all applicable assessments, and logs the
+    final, augmented output.
+    """
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-    run_output = run_simulation()
 
-    # Pretty-print to screen
-    pretty_output = json.dumps(run_output, indent=2)
-    print("\n--- Simulation Output ---")
-    print(pretty_output)
+    # 1. Define all scorable assessments and their corresponding questions.
+    # This mapping makes the process scalable and easy to maintain.
+    scorable_assessments_map = {
+        "dma_assessment": tasks.all_dma_questions,
+        # "behaviour-assessment": tasks.all_behaviour_questions, # Uncomment if needed
+        # "knowledge-assessment": tasks.all_knowledge_questions,
+        # "attitude-assessment": tasks.all_attitude_questions,
+    }
+
+    # 2. Run the simulation to get the raw output.
+    logging.info("Starting simulation...")
+    run_output = run_simulation()
+    logging.info("Simulation complete.")
+
+    # 3. Score each result in the simulation output.
+    logging.info("Scoring all applicable assessments...")
+    for run in run_output:
+        _score_single_run(run, scorable_assessments_map, run_output)
+
+    # 4. Log the final, augmented output.
+    print("\n--- Final Augmented Simulation Output ---")
+    final_output_json = json.dumps(run_output, indent=2)
+    print(final_output_json)
+
+    logging.info("Processing complete. Final output generated.")
