@@ -1,9 +1,13 @@
 import pytest
 from unittest import mock
+from typing import Any
+
+# Import the Pydantic models and the functions to be tested
+from ai4gd_momconnect_haystack.models import AssessmentRun, Question, Turn
 from ai4gd_momconnect_haystack.tasks import (
     get_assessment_question,
-    _score_and_format_turn,
     _calculate_assessment_score_range,
+    _score_single_turn,
     score_assessment_from_simulation,
 )
 
@@ -11,8 +15,8 @@ from ai4gd_momconnect_haystack.tasks import (
 
 
 @pytest.fixture
-def mock_assessment_questions():
-    """Provides a sample list of assessment questions for scoring tests."""
+def raw_assessment_questions() -> list[dict[str, Any]]:
+    """Provides a sample list of raw question dictionaries."""
     return [
         {
             "question_number": 1,
@@ -28,128 +32,107 @@ def mock_assessment_questions():
         },
         {
             "question_number": 3,
-            "question_name": "has_invalid_score_value",
-            "content": "This question has a bad score value.",
-            "valid_responses": {"Yes": "two", "No": 0},  # Contains an invalid score
-        },
-        {
-            "question_number": 4,
             "question_name": "no_valid_responses",
             "content": "This question has no score options.",
+            "valid_responses": {},  # Empty dict is valid, just not scorable
         },
     ]
 
 
 @pytest.fixture
-def mock_simulation_output():
-    """Provides a sample simulation output for scoring tests."""
+def validated_assessment_questions(raw_assessment_questions) -> list[Question]:
+    """Provides a list of validated Pydantic Question models."""
+    return [Question.model_validate(q) for q in raw_assessment_questions]
+
+
+@pytest.fixture
+def raw_simulation_output() -> list[dict[str, Any]]:
+    """Provides a sample raw simulation output."""
     return [
         {
-            "flow_type": "dma_assessment",
+            "scenario_id": "dma_test_run",
+            "flow_type": "dma-assessment",
             "turns": [
                 # Valid turn
-                {"question_name": 1, "llm_extracted_user_response": "Yes"},
+                {"question_number": 1, "llm_extracted_user_response": "Yes"},
                 # Answer not in options
-                {"question_name": 2, "llm_extracted_user_response": "Maybe"},
+                {"question_number": 2, "llm_extracted_user_response": "Maybe"},
                 # Question number doesn't exist in master file
-                {"question_name": 99, "llm_extracted_user_response": "Yes"},
-                # Malformed turn (missing identifier)
-                {
-                    "some_other_key": "value",
-                    "llm_extracted_user_response": "Yes",
-                },
+                {"question_number": 99, "llm_extracted_user_response": "Yes"},
             ],
         }
     ]
 
 
 @pytest.fixture
-def mock_dma_flow_for_get_question():
-    """Provides a minimal DMA flow for get_assessment_question tests."""
-    return [
-        {"question_number": 1, "content": "Q1"},
-        {"question_number": 2, "content": "Q2"},
-        {"question_number": 3, "content": "Q3"},
-        {"question_number": 4, "content": "Q4"},
-        {"question_number": 5, "content": "Q5"},
-    ]
+def validated_simulation_output(raw_simulation_output) -> list[AssessmentRun]:
+    """Provides a list of validated Pydantic AssessmentRun models."""
+    return [AssessmentRun.model_validate(run) for run in raw_simulation_output]
 
 
 # --- Tests for the scoring logic ---
 
 
-def test_calculate_assessment_score_range(mock_assessment_questions):
+def test_calculate_assessment_score_range(validated_assessment_questions):
     """Tests the calculation of min and max possible scores."""
-    min_score, max_score = _calculate_assessment_score_range(mock_assessment_questions)
+    min_score, max_score = _calculate_assessment_score_range(
+        validated_assessment_questions
+    )
     # Question 1: min 0, max 2
     # Question 2: min 0, max 2
-    # Question 3: min 0, max 0 (only "No" is a valid int)
-    # Question 4: min 0, max 0 (no score options)
+    # Question 3: min 0, max 0
     # Total min: 0, Total max: 4
     assert min_score == 0
     assert max_score == 4
 
 
 @pytest.mark.parametrize(
-    "turn_input, expected_score, expected_error_substring",
+    "turn_data, expected_score, expected_error_substring",
     [
-        ({"question_name": 1, "llm_extracted_user_response": "Yes"}, 2, None),
+        ({"question_number": 1, "llm_extracted_user_response": "Yes"}, 2, None),
         (
-            {"question_name": 2, "llm_extracted_user_response": "Maybe"},
-            None,
+            {"question_number": 2, "llm_extracted_user_response": "Maybe"},
+            0,  # Score defaults to 0
             "not a valid, scorable option",
         ),
         (
-            {"question_name": 99, "llm_extracted_user_response": "Yes"},
-            None,
-            "Question not found",
-        ),
-        (
-            {"llm_extracted_user_response": "Yes"},
-            None,
-            "missing its question identifier",
-        ),
-        (
-            {"question_name": 3, "llm_extracted_user_response": "Yes"},
-            None,
-            "Invalid score value",
+            {"question_number": 99, "llm_extracted_user_response": "Yes"},
+            0,  # Score defaults to 0
+            "Question number 99 not found",  # UPDATED: More specific error check
         ),
     ],
     ids=[
         "success",
         "answer_not_in_options",
         "question_not_found",
-        "missing_identifier",
-        "invalid_score_value",
     ],
 )
-def test_score_and_format_turn(
-    turn_input, expected_score, expected_error_substring, mock_assessment_questions
+def test_score_single_turn(
+    turn_data, expected_score, expected_error_substring, validated_assessment_questions
 ):
-    """Tests various scenarios for scoring a single turn using parametrization."""
-    question_lookup = {q["question_number"]: q for q in mock_assessment_questions}
+    """Tests scoring a single turn. The input 'turn' is a validated Pydantic model."""
+    turn_model = Turn.model_validate(turn_data)
+    question_lookup = {q.question_number: q for q in validated_assessment_questions}
 
-    _score_and_format_turn(turn_input, question_lookup)
+    # The function now returns a new dictionary instead of modifying in-place
+    result = _score_single_turn(turn_model, question_lookup)
 
-    assert turn_input["score"] == expected_score
+    assert result["score"] == expected_score
     if expected_error_substring:
-        assert expected_error_substring in turn_input["score_error"]
+        assert expected_error_substring in result["score_error"]
     else:
-        assert turn_input["score_error"] is None
+        # UPDATED: Safer check for missing key or a value of None.
+        assert result.get("score_error") is None
 
 
 def test_score_assessment_from_simulation_end_to_end(
-    mock_simulation_output, mock_assessment_questions
+    validated_simulation_output, validated_assessment_questions
 ):
-    """Tests the full scoring process and the new output format."""
-    import copy
-
-    simulation_output_copy = copy.deepcopy(mock_simulation_output)
-
+    """Tests the full scoring process with validated Pydantic models."""
     result = score_assessment_from_simulation(
-        simulation_output=simulation_output_copy,
-        assessment_id="dma_assessment",
-        assessment_questions=mock_assessment_questions,
+        simulation_output=validated_simulation_output,
+        assessment_id="dma-assessment",
+        assessment_questions=validated_assessment_questions,
     )
 
     assert result is not None
@@ -158,21 +141,26 @@ def test_score_assessment_from_simulation_end_to_end(
     assert result["assessment_max_score"] == 4
     assert result["score_percentage"] == 50.0
 
-    # Check that original turns are present and augmented
+    # Check that the final output has a clean 'results' list
     results_list = result["results"]
-    assert len(results_list) == 4
+    assert len(results_list) == 3
     assert results_list[0]["score"] == 2
-    assert results_list[1]["score"] is None
+    assert results_list[1]["score"] == 0  # Score defaults to 0 for invalid answers
+    assert "not a valid, scorable option" in results_list[1]["score_error"]
 
 
-def test_score_assessment_from_simulation_no_valid_run(mock_assessment_questions):
+def test_score_assessment_from_simulation_no_valid_run(validated_assessment_questions):
     """Tests that the function returns None if the assessment_id is not found."""
-    simulation_output_missing_flow = [{"flow_type": "onboarding", "turns": []}]
+    simulation_output_missing_flow = [
+        AssessmentRun.model_validate(
+            {"scenario_id": "s1", "flow_type": "onboarding", "turns": []}
+        )
+    ]
 
     result = score_assessment_from_simulation(
         simulation_output=simulation_output_missing_flow,
-        assessment_id="dma_assessment",
-        assessment_questions=mock_assessment_questions,
+        assessment_id="dma-assessment",
+        assessment_questions=validated_assessment_questions,
     )
     assert result is None
 

@@ -1,9 +1,12 @@
 import logging
 import json
 from typing import Any
+from pydantic import ValidationError
+
 
 from . import doc_store
 from . import pipelines
+from .models import AssessmentRun, Question, Turn
 
 # --- Configuration ---
 logger = logging.getLogger(__name__)
@@ -160,139 +163,128 @@ def validate_assessment_answer(
     }
 
 
+def load_and_validate_assessment_questions(
+    assessment_id: str, assessment_data_source: dict
+) -> list[Question] | None:
+    """
+    Extracts and validates a specific list of questions from a larger
+    assessment data source (like the KAB or DMA dictionary).
+    """
+    logger.info(f"Loading and validating questions for '{assessment_id}'...")
+    raw_question_data = assessment_data_source.get(assessment_id)
+
+    if not raw_question_data or not isinstance(raw_question_data, list):
+        logger.error(
+            f"No valid question data found for '{assessment_id}' in the provided source."
+        )
+        return None
+
+    try:
+        validated_questions = [Question.model_validate(q) for q in raw_question_data]
+        logger.info(
+            f"Successfully validated {len(validated_questions)} questions for '{assessment_id}'."
+        )
+        return validated_questions
+    except ValidationError as e:
+        logger.critical(f"Data structure error in source for '{assessment_id}':\n{e}")
+        return None
+
+
 def _calculate_assessment_score_range(
-    assessment_questions: list[dict[str, Any]],
+    assessment_questions: list[Question],
 ) -> tuple[int, int]:
     """
-    Calculates the minimum and maximum possible scores for an assessment.
+    Calculates the min/max possible scores using validated Question models.
     """
-    total_min_score = 0
-    total_max_score = 0
-
+    total_min_score, total_max_score = 0, 0
     for question in assessment_questions:
-        if not isinstance(question, dict):
-            continue
-
-        score_options = question.get("valid_responses", {})
-        if not score_options:
-            continue
-
-        valid_scores = []
-        for score_val in score_options.values():
-            try:
-                valid_scores.append(int(score_val))
-            except (ValueError, TypeError):
-                continue
-
-        if valid_scores:
-            total_min_score += min(valid_scores)
-            total_max_score += max(valid_scores)
-
+        if scores := list(question.valid_responses.values()):
+            total_min_score += min(scores)
+            total_max_score += max(scores)
     return total_min_score, total_max_score
 
 
-def _score_and_format_turn(
-    turn: dict[str, Any],
-    question_lookup: dict[int, dict[str, Any]],
-) -> None:
+def _score_single_turn(
+    turn: Turn,
+    question_lookup_by_num: dict[int, Question],
+) -> dict[str, Any]:
     """
-    Helper function to process one 'turn' from a simulation run. It adds the
-    score and a score_error message directly to the turn dictionary in-place.
+    Scores a single assessment turn.
     """
-    turn["score"] = None
-    turn["score_error"] = "An unknown error occurred during scoring."
+    # This function now safely assumes turn.question_number is not None
+    # because the calling function is responsible for filtering.
+    q_num = turn.question_number
+    question_data = question_lookup_by_num.get(q_num)
+    result = turn.model_dump()
 
-    q_num_raw = turn.get("question_name")
-    if q_num_raw is None:
-        turn["score_error"] = "Turn is missing its question identifier."
-        logger.warning(f"{turn['score_error']}: {turn}")
-        return
-
-    try:
-        q_num = int(q_num_raw)
-    except (ValueError, TypeError):
-        turn["score_error"] = f"Invalid question identifier: {q_num_raw}."
-        logger.warning(f"{turn['score_error']}: {turn}")
-        return
-
-    question_data = question_lookup.get(q_num)
+    result["score"] = 0
     if not question_data:
-        turn["score_error"] = "Question not found in master assessment file."
-        logger.warning(f"{turn['score_error']} (q_num: {q_num})")
-        return
-
-    user_answer = turn.get("llm_extracted_user_response", "N/A")
-    score_options = question_data.get("valid_responses", {})
-    score_val = score_options.get(user_answer)
-
-    if score_val is None:
-        turn["score_error"] = "User's answer is not a valid, scorable option."
-        logger.warning(
-            f"{turn['score_error']} (q_num: {q_num}, answer: '{user_answer}')"
+        result["score_error"] = (
+            f"Question number {q_num} not found in master assessment file."
         )
-        return
+        return result
 
-    try:
-        turn["score"] = int(score_val)
-        turn["score_error"] = None
-    except (ValueError, TypeError):
-        turn["score_error"] = f"Invalid score value '{score_val}' in master file."
-        logger.warning(
-            f"{turn['score_error']} (q_num: {q_num}, answer: '{user_answer}')"
-        )
+    # Add rich details to the result
+    # result["question_name"] = question_data.question_name
+    # result["question_text"] = question_data.content
+
+    # Calculate the score
+    if isinstance(question_data.valid_responses, dict):
+        score_val = question_data.valid_responses.get(turn.user_response)
+        if score_val is not None:
+            result["score"] = score_val
+        else:
+            result["score_error"] = "User's answer is not a valid, scorable option."
+    else:
+        result["score_error"] = "This question is not structured for scoring."
+
+    return result
 
 
 def score_assessment_from_simulation(
-    simulation_output: list[dict[str, Any]],
+    simulation_output: list[AssessmentRun],
     assessment_id: str,
-    assessment_questions: list[dict[str, Any]],
-) -> dict | None:
+    assessment_questions: list[Question],
+) -> dict[str, Any] | None:
     """
-    Calculates the final score from a raw simulation output for a specific assessment.
+    Calculates the final score for a specific assessment run.
     """
     logger.info(
         f"Calculating final score for '{assessment_id}' from simulation output..."
     )
 
     assessment_run = next(
-        (run for run in simulation_output if run.get("flow_type") == assessment_id),
+        (run for run in simulation_output if run.flow_type == assessment_id),
         None,
     )
-    if not assessment_run or not isinstance(
-        assessment_turns := assessment_run.get("turns"), list
-    ):
+    if not assessment_run:
         logger.error(
             f"Could not find a valid run for '{assessment_id}' in the simulation output."
         )
         return None
 
-    question_lookup = {
-        q["question_number"]: q for q in assessment_questions if "question_number" in q
-    }
+    question_lookup = {q.question_number: q for q in assessment_questions}
 
-    for turn in assessment_turns:
-        if isinstance(turn, dict):
-            _score_and_format_turn(turn, question_lookup)
-
-    # --- New Score Calculation Logic ---
+    # ---Score Calculation Logic ---
     min_possible_score, max_possible_score = _calculate_assessment_score_range(
         assessment_questions
     )
-    valid_user_scores = [
-        turn["score"] for turn in assessment_turns if isinstance(turn.get("score"), int)
+    results = [
+        _score_single_turn(turn, question_lookup)
+        for turn in assessment_run.turns
+        if turn.question_number is not None
     ]
-    user_total_score = sum(valid_user_scores)
-
-    user_score_percentage = 0.0
-    if max_possible_score > 0:
-        user_score_percentage = (user_total_score / max_possible_score) * 100
+    user_total_score = sum(r["score"] for r in results if r.get("score") is not None)
+    score_percentage = (
+        (user_total_score / max_possible_score * 100) if max_possible_score > 0 else 0.0
+    )
 
     logger.info(f"Final score for '{assessment_id}' calculated: {user_total_score}")
 
     return {
         "overall_score": user_total_score,
-        "score_percentage": round(user_score_percentage, 2),
+        "score_percentage": round(score_percentage, 2),
         "assessment_min_score": min_possible_score,
         "assessment_max_score": max_possible_score,
-        "results": assessment_turns,
+        "results": results,
     }
