@@ -24,6 +24,8 @@ The following environment variables control the application configuration:
 
 `WEAVIATE_API_KEY` - (optional) if supplied, the API key to use to connect to the weaviate instance. If not supplied, no authentication is provided when connecting
 
+`SENTRY_DSN` - (optional) if supplied, then we configure to send any errors to the provided DSN
+
 ## API
 
 ### Documentation

@@ -5,15 +5,15 @@ A script to evaluate LLM performance based on three criteria for each turn:
 3.  Extraction Accuracy: Does the extracted data exactly match the ground truth?
 """
 
-import os
+import argparse
 import json
 import logging
-import argparse
+import os
 from pathlib import Path
 
 from deepeval import evaluate
-from deepeval.test_case import LLMTestCase
 from deepeval.metrics import AnswerRelevancyMetric
+from deepeval.test_case import LLMTestCase
 
 # Configure logging to show only important messages
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
@@ -78,7 +78,7 @@ def run_evaluation_suite(
                         actual_output=llm_result_turn.get("llm_utterance", ""),
                     )
                 ],
-                metrics=[relevancy_metric],
+                metrics=[relevancy_metric],  # type: ignore
             )
             r_appropriateness_result = evaluate(
                 test_cases=[
@@ -87,7 +87,7 @@ def run_evaluation_suite(
                         actual_output=gt_turn.get("user_utterance", ""),
                     )
                 ],
-                metrics=[relevancy_metric],
+                metrics=[relevancy_metric],  # type: ignore
             )
 
             # Collate results for the current turn
@@ -97,11 +97,11 @@ def run_evaluation_suite(
                     == gt_turn.get("ground_truth_delta", {})
                 ),
                 "extraction_details": f"Expected: {json.dumps(gt_turn.get('ground_truth_delta', {}))}, Got: {json.dumps(llm_result_turn.get('actual_output', {}))}",
-                "question_consistency_score": q_consistency_result.test_results[0]
+                "question_consistency_score": q_consistency_result.test_results[0]  # type: ignore
                 .metrics_data[0]
                 .score,
                 "response_appropriateness_score": r_appropriateness_result.test_results[
-                    0
+                    0  # type: ignore
                 ]
                 .metrics_data[0]
                 .score,
@@ -137,7 +137,7 @@ def present_results(all_results: dict[tuple, dict]):
         )
 
     # --- PERFORMANCE SUMMARY REPORT ---
-    summary_data = {}
+    summary_data: dict[str, list] = {}
     for (scenario_id, flow_type, question_name), res in all_results.items():
         if res:  # Only include evaluated turns in summary
             summary_data.setdefault(flow_type, []).append(res)

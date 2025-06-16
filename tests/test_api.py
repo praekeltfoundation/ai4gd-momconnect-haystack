@@ -2,8 +2,9 @@ import os
 from unittest import mock
 
 from fastapi.testclient import TestClient
+from sentry_sdk import get_client as get_sentry_client
 
-from ai4gd_momconnect_haystack.api import app
+from ai4gd_momconnect_haystack.api import app, setup_sentry
 
 
 def test_health():
@@ -185,3 +186,27 @@ def test_survey_invalid_survey_id():
             }
         ]
     }
+
+
+@mock.patch.dict(
+    os.environ,
+    {"SENTRY_DSN": "https://testdsn@testdsn.example.org/12345"},
+    clear=True,
+)
+def test_sentry_setup():
+    """
+    Sentry is setup with the correct DSN found in the env var
+    """
+    setup_sentry()
+    assert get_sentry_client().is_active()
+    assert get_sentry_client().dsn == "https://testdsn@testdsn.example.org/12345"
+
+
+def test_prometheus_metrics():
+    """
+    Prometheus metrics are exposed on the /metrics endpoint
+    """
+    client = TestClient(app)
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    assert "python_info" in response.text

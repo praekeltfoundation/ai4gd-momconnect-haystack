@@ -2,8 +2,10 @@ from enum import Enum
 from os import environ
 from typing import Annotated, Any
 
+import sentry_sdk
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel
 
 from .tasks import (
@@ -18,12 +20,21 @@ from .tasks import (
 
 load_dotenv()
 
+
+def setup_sentry():
+    if dsn := environ.get("SENTRY_DSN"):
+        sentry_sdk.init(dsn=dsn, send_default_pii=True)
+
+
+setup_sentry()
+
 app = FastAPI()
+
+Instrumentator().instrument(app).expose(app)
 
 
 @app.get("/health")
 def health():
-    # TODO: Proper health check
     return {"health": "ok"}
 
 
