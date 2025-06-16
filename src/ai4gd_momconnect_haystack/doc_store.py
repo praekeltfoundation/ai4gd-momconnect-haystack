@@ -1,21 +1,20 @@
 import logging
 from os import environ
 from pathlib import Path
-from dotenv import load_dotenv
 from typing import Any
 
+from dotenv import load_dotenv
 from haystack import Document, Pipeline
-from haystack_integrations.document_stores.weaviate import (
-    WeaviateDocumentStore,
-    AuthApiKey,
-)
 from haystack.components.embedders import OpenAIDocumentEmbedder
 from haystack.components.writers import DocumentWriter
 from haystack.utils import Secret
+from haystack_integrations.document_stores.weaviate import (
+    AuthApiKey,
+    WeaviateDocumentStore,
+)
 from weaviate.embedded import EmbeddedOptions
 
 from .utilities import read_json
-
 
 # --- Configurations ---
 load_dotenv()
@@ -128,13 +127,16 @@ def ingest_content(
                     },
                 )
             else:
+                valid_responses = piece.get("valid_responses", [])
+                if isinstance(valid_responses, dict):
+                    valid_responses = list(valid_responses.keys())
                 doc = Document(
                     content=piece["content"],
                     meta={
                         "flow_id": flow_id,
                         "question_number": piece["question_number"],
                         "content_type": piece["content_type"],
-                        "valid_responses": piece.get("valid_responses", []),
+                        "valid_responses": valid_responses,
                     },
                 )
             documents_to_ingest.append(doc)
