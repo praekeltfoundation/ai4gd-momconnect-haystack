@@ -262,10 +262,8 @@ def main() -> None:
     doc_store_dma = load_json_and_validate(DOC_STORE_DMA_PATH, dict)
     doc_store_kab = load_json_and_validate(DOC_STORE_KAB_PATH, dict)
 
-    if not all([doc_store_dma, doc_store_kab]):
-        logging.critical(
-            "Could not load one or more required doc store files. Exiting."
-        )
+    if doc_store_dma is None or doc_store_kab is None:
+        logging.critical("Could not load one or more required doc store files. Exiting.")
         return
 
     all_doc_stores = {**doc_store_dma, **doc_store_kab}

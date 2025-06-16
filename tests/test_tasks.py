@@ -141,8 +141,8 @@ def test_score_assessment_from_simulation_end_to_end(
     assert result["assessment_max_score"] == 4
     assert result["score_percentage"] == 50.0
 
-    # Check that the final output has a clean 'results' list
-    results_list = result["results"]
+    # Check that the final output has a clean 'turns' list
+    results_list = result["turns"]
     assert len(results_list) == 3
     assert results_list[0]["score"] == 2
     assert results_list[1]["score"] == 0  # Score defaults to 0 for invalid answers

@@ -1,5 +1,4 @@
 import json
-import argparse
 import logging
 from typing import Any
 from pathlib import Path
@@ -43,9 +42,10 @@ def load_json_and_validate(
             return raw_data
 
         # If the model is a Pydantic model, proceed with validation.
-        if isinstance(raw_data, list):
-            return [model.model_validate(item) for item in raw_data]
-        return model.model_validate(raw_data)
+        if issubclass(model, BaseModel):
+            if isinstance(raw_data, list):
+                return [model.model_validate(item) for item in raw_data]
+            return model.model_validate(raw_data)
 
     except FileNotFoundError:
         logging.error(f"File not found: {file_path}")
@@ -67,34 +67,3 @@ def save_json_file(data: list[dict[str, Any]], file_path: Path) -> None:
     except Exception as e:
         logging.error(f"An unexpected error occurred while writing to {file_path}: {e}")
 
-
-def parse_arguments() -> argparse.Namespace:
-    """Parses command-line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Score assessments from a simulation run."
-    )
-    parser.add_argument(
-        "--doc-store-dma",
-        type=Path,
-        required=True,
-        help="Path to the DMA JSON doc store file.",
-    )
-    parser.add_argument(
-        "--doc-store-kab",
-        type=Path,
-        required=True,
-        help="Path to the KAB JSON doc store file.",
-    )
-    parser.add_argument(
-        "--results",
-        type=Path,
-        required=True,
-        help="Path to the raw simulation output JSON file.",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=Path("final_augmented_output.json"),
-        help="Path for the final output file.",
-    )
-    return parser.parse_args()

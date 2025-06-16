@@ -198,9 +198,11 @@ def _calculate_assessment_score_range(
     """
     total_min_score, total_max_score = 0, 0
     for question in assessment_questions:
-        if scores := list(question.valid_responses.values()):
-            total_min_score += min(scores)
-            total_max_score += max(scores)
+        if isinstance(question.valid_responses, dict):
+            scores = list(question.valid_responses.values())
+            if scores:
+                total_min_score += min(scores)
+                total_max_score += max(scores)
     return total_min_score, total_max_score
 
 
@@ -213,11 +215,15 @@ def _score_single_turn(
     """
     # This function now safely assumes turn.question_number is not None
     # because the calling function is responsible for filtering.
-    q_num = turn.question_number
-    question_data = question_lookup_by_num.get(q_num)
     result = turn.model_dump()
-
     result["score"] = 0
+
+    q_num = turn.question_number
+    if q_num is None:
+        result["score_error"] = "Turn has no question number."
+        return result
+
+    question_data = question_lookup_by_num.get(q_num)
     if not question_data:
         result["score_error"] = (
             f"Question number {q_num} not found in master assessment file."
@@ -286,5 +292,5 @@ def score_assessment_from_simulation(
         "score_percentage": round(score_percentage, 2),
         "assessment_min_score": min_possible_score,
         "assessment_max_score": max_possible_score,
-        "results": results,
+        "turns": results,
     }

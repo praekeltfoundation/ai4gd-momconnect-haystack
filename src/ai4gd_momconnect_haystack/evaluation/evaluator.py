@@ -9,14 +9,25 @@ import argparse
 import json
 import logging
 import os
+from typing import Any
 from pathlib import Path
 
 from deepeval import evaluate
-from deepeval.metrics import AnswerRelevancyMetric
+from deepeval.metrics import AnswerRelevancyMetric, BaseMetric
 from deepeval.test_case import LLMTestCase
 
 # Configure logging to show only important messages
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
+
+
+# UPDATED: Added a simple class for terminal colors to improve report readability.
+class Colors:
+    """Simple ANSI color codes for terminal output."""
+    OK = '\033[92m'      # GREEN
+    WARNING = '\033[93m' # YELLOW
+    FAIL = '\033[91m'    # RED
+    BOLD = '\033[1m'     # BOLD
+    ENDC = '\033[0m'     # RESET
 
 
 def load_json_file(file_path: Path) -> list[dict] | None:
@@ -32,6 +43,27 @@ def load_json_file(file_path: Path) -> list[dict] | None:
         return None
 
 
+# UPDATED: New helper function to safely extract scores and satisfy mypy
+def _get_metric_details(result: Any) -> tuple[float, str | None]:
+    """
+    Safely extracts the score and reason from a deepeval result,
+    providing default values if they don't exist.
+    """
+    score = 0.0
+    reason = None
+    if (
+        result.test_results
+        and result.test_results[0].metrics_data
+        and result.test_results[0].metrics_data[0]
+    ):
+        metric_data = result.test_results[0].metrics_data[0]
+        if metric_data.score is not None:
+            score = metric_data.score
+        if metric_data.reason is not None:
+            reason = metric_data.reason
+    return score, reason
+
+
 def run_evaluation_suite(
     gt_path: Path, results_path: Path, eval_model: str, threshold: float
 ):
@@ -45,21 +77,23 @@ def run_evaluation_suite(
         exit("Evaluation aborted due to file loading errors.")
 
     # Create lookup dictionaries for efficient matching
-    gt_lookup = {
-        (s["scenario_id"], s["flow_type"], t["question_name"]): t
-        for s in gt_scenarios
-        for t in s["turns"]
-    }
-    llm_results_lookup = {
-        (s["scenario_id"], s["flow_type"], t["question_name"]): t
-        for s in llm_results
-        for t in s["turns"]
-    }
+    gt_lookup = {}
+    for s in gt_scenarios:
+        for t in s.get("turns", []):
+            identifier = t.get("question_name") if "onboarding" in s["flow_type"] else t.get("question_number")
+            gt_lookup[(s["scenario_id"], s["flow_type"], identifier)] = t
+
+    llm_results_lookup = {}
+    for s in llm_results:
+        for t in s.get("turns", []):
+            identifier = t.get("question_name") if "onboarding" in s["flow_type"] else t.get("question_number")
+            llm_results_lookup[(s["scenario_id"], s["flow_type"], identifier)] = t
 
     collated_results: dict[tuple, dict] = {}
     relevancy_metric = AnswerRelevancyMetric(
         threshold=threshold, model=eval_model, include_reason=True
     )
+    metrics_list: list[BaseMetric] = [relevancy_metric]
 
     print("\n--- Running Per-Turn Evaluations (this may take a moment) ---")
 
@@ -78,7 +112,7 @@ def run_evaluation_suite(
                         actual_output=llm_result_turn.get("llm_utterance", ""),
                     )
                 ],
-                metrics=[relevancy_metric],  # type: ignore
+                metrics=metrics_list,
             )
             r_appropriateness_result = evaluate(
                 test_cases=[
@@ -87,24 +121,23 @@ def run_evaluation_suite(
                         actual_output=gt_turn.get("user_utterance", ""),
                     )
                 ],
-                metrics=[relevancy_metric],  # type: ignore
+                metrics=metrics_list,
             )
 
-            # Collate results for the current turn
+            expected_extraction_str = gt_turn.get("user_response", "")
+            actual_extraction_str = llm_result_turn.get("user_response", "")
+            exact_match_passed = actual_extraction_str == expected_extraction_str
+
+            q_score, q_reason  = _get_metric_details(q_consistency_result)
+            r_score, r_reason = _get_metric_details(r_appropriateness_result)
+
             collated_results[key] = {
-                "exact_match_passed": (
-                    llm_result_turn.get("actual_output", {})
-                    == gt_turn.get("ground_truth_delta", {})
-                ),
-                "extraction_details": f"Expected: {json.dumps(gt_turn.get('ground_truth_delta', {}))}, Got: {json.dumps(llm_result_turn.get('actual_output', {}))}",
-                "question_consistency_score": q_consistency_result.test_results[0]  # type: ignore
-                .metrics_data[0]
-                .score,
-                "response_appropriateness_score": r_appropriateness_result.test_results[
-                    0  # type: ignore
-                ]
-                .metrics_data[0]
-                .score,
+                "exact_match_passed": exact_match_passed,
+                "extraction_details": f"Expected: '{expected_extraction_str}', Got: '{actual_extraction_str}'",
+                "question_consistency_score": q_score,
+                "question_consistency_reason": q_reason,
+                "response_appropriateness_score": r_score,
+                "response_appropriateness_reason": r_reason,
             }
         except Exception as e:
             logging.error(
@@ -116,30 +149,42 @@ def run_evaluation_suite(
 def present_results(all_results: dict[tuple, dict]):
     """Formats and prints detailed and summary reports to the console."""
 
-    # --- DETAILED TURN-BY-TURN REPORT (now printed first) ---
     print("\n\n" + "=" * 50)
     print("              DETAILED TURN-BY-TURN REPORT")
     print("=" * 50)
-    for (scenario_id, flow_type, question_name), res in all_results.items():
-        print(f"\n--- Turn: {scenario_id} ({flow_type}) | {question_name} ---")
+    for (scenario_id, flow_type, turn_identifier), res in all_results.items():
+        print(f"\n--- {Colors.BOLD}Turn: {scenario_id} ({flow_type}) | ID: {turn_identifier}{Colors.ENDC} ---")
 
+        # Extraction Accuracy Result
         if res.get("exact_match_passed"):
-            print("  [✅] Extraction Accuracy: PASSED")
+            print(f"  {Colors.OK}[✅] Extraction Accuracy: PASSED{Colors.ENDC}")
         else:
-            print("  [❌] Extraction Accuracy: FAILED")
-            print("       No LLM result found")
+            print(f"  {Colors.FAIL}[❌] Extraction Accuracy: FAILED{Colors.ENDC}")
+            print(f"       {Colors.FAIL}Details: {res.get('extraction_details', 'No details available.')}{Colors.ENDC}")
 
+        # Question Consistency Result
+        qc_score = res.get('question_consistency_score', 0.0)
+        qc_reason = res.get('question_consistency_reason')
+        qc_color = Colors.OK if qc_score >= 0.7 else Colors.FAIL
         print(
-            f"  [ score: {res['question_consistency_score']:.2f} ] Question Consistency"
+            f"  {qc_color}[ score: {qc_score:.2f} ] Question Consistency{Colors.ENDC}"
         )
-        print(
-            f"  [ score: {res['response_appropriateness_score']:.2f} ] Response Appropriateness"
-        )
+        if qc_reason and qc_score < 0.7:
+             print(f"       {Colors.WARNING}Reason: {qc_reason}{Colors.ENDC}")
 
-    # --- PERFORMANCE SUMMARY REPORT ---
+        # Response Appropriateness Result
+        ra_score = res.get('response_appropriateness_score', 0.0)
+        ra_reason = res.get('response_appropriateness_reason')
+        ra_color = Colors.OK if ra_score >= 0.7 else Colors.FAIL
+        print(
+            f"  {ra_color}[ score: {ra_score:.2f} ] Response Appropriateness{Colors.ENDC}"
+        )
+        if ra_reason and ra_score < 0.7:
+             print(f"       {Colors.WARNING}Reason: {ra_reason}{Colors.ENDC}")
+
     summary_data: dict[str, list] = {}
     for (scenario_id, flow_type, question_name), res in all_results.items():
-        if res:  # Only include evaluated turns in summary
+        if res:
             summary_data.setdefault(flow_type, []).append(res)
 
     print("\n\n" + "=" * 50)
@@ -150,12 +195,11 @@ def present_results(all_results: dict[tuple, dict]):
             continue
         total = len(results_list)
 
-        # Calculate averages for each metric
         ea_rate = sum(1 for r in results_list if r["exact_match_passed"]) / total
         qc_avg = sum(r["question_consistency_score"] for r in results_list) / total
         ra_avg = sum(r["response_appropriateness_score"] for r in results_list) / total
 
-        print(f"\n📊 {flow_type.capitalize()} Performance ({total} turns evaluated):")
+        print(f"\n📊 {Colors.BOLD}{flow_type.capitalize()} Performance ({total} turns evaluated):{Colors.ENDC}")
         print(f"  - Extraction Accuracy: {ea_rate:.2%}")
         print(f"  - Question Consistency Score (Avg): {qc_avg:.2f}")
         print(f"  - Response Appropriateness Score (Avg): {ra_avg:.2f}")
