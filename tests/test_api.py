@@ -289,6 +289,97 @@ def test_anc_survey(
 
 
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
+@mock.patch("ai4gd_momconnect_haystack.api.get_anc_survey_question")
+@mock.patch("ai4gd_momconnect_haystack.api.extract_anc_data_from_response")
+def test_anc_survey_first_question(
+    extract_anc_data_from_response, get_anc_survey_question, handle_user_message
+):
+    """
+    For the first question, we shouldn't try to extract answers, and we shouldn't classify
+    it as chitchat, even though it is blank because we don't have a user input
+    """
+    get_anc_survey_question.return_value = {
+        "contextualized_question": "Hi! Did you go for your clinic visit?",
+        "is_final_step": False,
+    }
+    client = TestClient(app)
+
+    response = client.post(
+        "/v1/survey",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "survey_id": "anc",
+            "user_context": {},
+            "user_input": "",
+            "chat_history": [],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "question": "Hi! Did you go for your clinic visit?",
+        "user_context": {},
+        "chat_history": [
+            "System to User: Hi! Did you go for your clinic visit?",
+        ],
+        "survey_complete": False,
+        "intent": "JOURNEY_RESPONSE",
+        "intent_related_response": "",
+    }
+    handle_user_message.assert_not_called()
+    extract_anc_data_from_response.assert_not_called()
+
+
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
+@mock.patch("ai4gd_momconnect_haystack.api.get_anc_survey_question")
+@mock.patch("ai4gd_momconnect_haystack.api.extract_anc_data_from_response")
+def test_anc_survey_chitchat(
+    extract_anc_data_from_response, get_anc_survey_question, handle_user_message
+):
+    """
+    If the user sends chitchat, we should ask the same question again, and not
+    try to extract an answer.
+    """
+    handle_user_message.return_value = "CHITCHAT", "User is chitchatting"
+    get_anc_survey_question.return_value = {
+        "contextualized_question": "Hi! Did you go for your clinic visit?",
+        "is_final_step": False,
+    }
+    client = TestClient(app)
+
+    response = client.post(
+        "/v1/survey",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "survey_id": "anc",
+            "user_context": {},
+            "user_input": "Hi!",
+            "chat_history": [
+                "System to User: Hi! Did you go for your clinic visit?",
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "question": "Hi! Did you go for your clinic visit?",
+        "user_context": {},
+        "chat_history": [
+            "System to User: Hi! Did you go for your clinic visit?",
+            "User to System: Hi!",
+            "System to User: User is chitchatting",
+            "System to User: Hi! Did you go for your clinic visit?",
+        ],
+        "survey_complete": False,
+        "intent": "CHITCHAT",
+        "intent_related_response": "User is chitchatting",
+    }
+    extract_anc_data_from_response.assert_not_called()
+
+
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 def test_survey_invalid_survey_id():
     """
     If the user sends an unrecognised ID, then we should return an error message
