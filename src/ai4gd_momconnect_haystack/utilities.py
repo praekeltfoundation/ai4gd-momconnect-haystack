@@ -66,4 +66,3 @@ def save_json_file(data: list[dict[str, Any]], file_path: Path) -> None:
         logging.info(f"Successfully saved final augmented output to {file_path}")
     except Exception as e:
         logging.error(f"An unexpected error occurred while writing to {file_path}: {e}")
-

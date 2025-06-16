@@ -23,11 +23,12 @@ logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 # UPDATED: Added a simple class for terminal colors to improve report readability.
 class Colors:
     """Simple ANSI color codes for terminal output."""
-    OK = '\033[92m'      # GREEN
-    WARNING = '\033[93m' # YELLOW
-    FAIL = '\033[91m'    # RED
-    BOLD = '\033[1m'     # BOLD
-    ENDC = '\033[0m'     # RESET
+
+    OK = "\033[92m"  # GREEN
+    WARNING = "\033[93m"  # YELLOW
+    FAIL = "\033[91m"  # RED
+    BOLD = "\033[1m"  # BOLD
+    ENDC = "\033[0m"  # RESET
 
 
 def load_json_file(file_path: Path) -> list[dict] | None:
@@ -80,13 +81,21 @@ def run_evaluation_suite(
     gt_lookup = {}
     for s in gt_scenarios:
         for t in s.get("turns", []):
-            identifier = t.get("question_name") if "onboarding" in s["flow_type"] else t.get("question_number")
+            identifier = (
+                t.get("question_name")
+                if "onboarding" in s["flow_type"]
+                else t.get("question_number")
+            )
             gt_lookup[(s["scenario_id"], s["flow_type"], identifier)] = t
 
     llm_results_lookup = {}
     for s in llm_results:
         for t in s.get("turns", []):
-            identifier = t.get("question_name") if "onboarding" in s["flow_type"] else t.get("question_number")
+            identifier = (
+                t.get("question_name")
+                if "onboarding" in s["flow_type"]
+                else t.get("question_number")
+            )
             llm_results_lookup[(s["scenario_id"], s["flow_type"], identifier)] = t
 
     collated_results: dict[tuple, dict] = {}
@@ -128,7 +137,7 @@ def run_evaluation_suite(
             actual_extraction_str = llm_result_turn.get("user_response", "")
             exact_match_passed = actual_extraction_str == expected_extraction_str
 
-            q_score, q_reason  = _get_metric_details(q_consistency_result)
+            q_score, q_reason = _get_metric_details(q_consistency_result)
             r_score, r_reason = _get_metric_details(r_appropriateness_result)
 
             collated_results[key] = {
@@ -153,34 +162,38 @@ def present_results(all_results: dict[tuple, dict]):
     print("              DETAILED TURN-BY-TURN REPORT")
     print("=" * 50)
     for (scenario_id, flow_type, turn_identifier), res in all_results.items():
-        print(f"\n--- {Colors.BOLD}Turn: {scenario_id} ({flow_type}) | ID: {turn_identifier}{Colors.ENDC} ---")
+        print(
+            f"\n--- {Colors.BOLD}Turn: {scenario_id} ({flow_type}) | ID: {turn_identifier}{Colors.ENDC} ---"
+        )
 
         # Extraction Accuracy Result
         if res.get("exact_match_passed"):
             print(f"  {Colors.OK}[✅] Extraction Accuracy: PASSED{Colors.ENDC}")
         else:
             print(f"  {Colors.FAIL}[❌] Extraction Accuracy: FAILED{Colors.ENDC}")
-            print(f"       {Colors.FAIL}Details: {res.get('extraction_details', 'No details available.')}{Colors.ENDC}")
+            print(
+                f"       {Colors.FAIL}Details: {res.get('extraction_details', 'No details available.')}{Colors.ENDC}"
+            )
 
         # Question Consistency Result
-        qc_score = res.get('question_consistency_score', 0.0)
-        qc_reason = res.get('question_consistency_reason')
+        qc_score = res.get("question_consistency_score", 0.0)
+        qc_reason = res.get("question_consistency_reason")
         qc_color = Colors.OK if qc_score >= 0.7 else Colors.FAIL
         print(
             f"  {qc_color}[ score: {qc_score:.2f} ] Question Consistency{Colors.ENDC}"
         )
         if qc_reason and qc_score < 0.7:
-             print(f"       {Colors.WARNING}Reason: {qc_reason}{Colors.ENDC}")
+            print(f"       {Colors.WARNING}Reason: {qc_reason}{Colors.ENDC}")
 
         # Response Appropriateness Result
-        ra_score = res.get('response_appropriateness_score', 0.0)
-        ra_reason = res.get('response_appropriateness_reason')
+        ra_score = res.get("response_appropriateness_score", 0.0)
+        ra_reason = res.get("response_appropriateness_reason")
         ra_color = Colors.OK if ra_score >= 0.7 else Colors.FAIL
         print(
             f"  {ra_color}[ score: {ra_score:.2f} ] Response Appropriateness{Colors.ENDC}"
         )
         if ra_reason and ra_score < 0.7:
-             print(f"       {Colors.WARNING}Reason: {ra_reason}{Colors.ENDC}")
+            print(f"       {Colors.WARNING}Reason: {ra_reason}{Colors.ENDC}")
 
     summary_data: dict[str, list] = {}
     for (scenario_id, flow_type, question_name), res in all_results.items():
@@ -199,7 +212,9 @@ def present_results(all_results: dict[tuple, dict]):
         qc_avg = sum(r["question_consistency_score"] for r in results_list) / total
         ra_avg = sum(r["response_appropriateness_score"] for r in results_list) / total
 
-        print(f"\n📊 {Colors.BOLD}{flow_type.capitalize()} Performance ({total} turns evaluated):{Colors.ENDC}")
+        print(
+            f"\n📊 {Colors.BOLD}{flow_type.capitalize()} Performance ({total} turns evaluated):{Colors.ENDC}"
+        )
         print(f"  - Extraction Accuracy: {ea_rate:.2%}")
         print(f"  - Question Consistency Score (Avg): {qc_avg:.2f}")
         print(f"  - Response Appropriateness Score (Avg): {ra_avg:.2f}")
