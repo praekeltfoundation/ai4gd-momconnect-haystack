@@ -32,6 +32,7 @@ ONBOARDING_FLOW = read_json(data_dir / "onboarding.json")
 
 # Assessment Questions Data
 DMA_FLOW = read_json(data_dir / "dma.json")
+KAB_FLOW = read_json(data_dir / "kab.json")
 
 
 # --- Core Functions ---
@@ -173,6 +174,7 @@ def setup_document_store() -> WeaviateDocumentStore:
         ingest_content(indexing_pipe, ONBOARDING_FLOW)
         logger.info("--- Ingesting Assessment Content ---")
         ingest_content(indexing_pipe, DMA_FLOW)
+        ingest_content(indexing_pipe, KAB_FLOW)
     else:
         logger.info(
             "Documents found in the store. Skipping ingestion to avoid duplicates."
