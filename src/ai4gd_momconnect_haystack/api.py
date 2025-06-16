@@ -75,25 +75,31 @@ class OnboardingResponse(BaseModel):
 @app.post("/v1/onboarding")
 def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
     chat_history = request.chat_history
-    last_question = chat_history[-1] if chat_history else ""
-    intent, intent_related_response = handle_user_message(
-        last_question, request.user_input
-    )
-    chat_history.append(f"User to System: {request.user_input}")
+    if request.user_input:
+        last_question = chat_history[-1] if chat_history else ""
+        intent, intent_related_response = handle_user_message(
+            last_question, request.user_input
+        )
+        chat_history.append(f"User to System: {request.user_input}")
+    else:
+        # For the first message we initiate, we won't have a user input, so we should
+        # force the intent in this situation
+        intent, intent_related_response = "JOURNEY_RESPONSE", ""
+    if intent_related_response:
+        chat_history.append(f"System to User: {intent_related_response}")
     if intent == "JOURNEY_RESPONSE":
-        # TODO: Can we run these in parallel for latency?
         user_context = extract_onboarding_data_from_response(
             user_response=request.user_input,
             user_context=request.user_context,
             chat_history=chat_history,
         )
-        question = get_next_onboarding_question(
-            user_context=user_context, chat_history=chat_history
-        )
-        chat_history.append(f"System to User: {question}")
     else:
+        # If there is no response to the question, the context stays the same
         user_context = request.user_context
-        question = ""
+    question = get_next_onboarding_question(
+        user_context=user_context, chat_history=chat_history
+    )
+    chat_history.append(f"System to User: {question}")
     return OnboardingResponse(
         question=question or "",
         user_context=user_context,

@@ -48,11 +48,16 @@ def test_onboarding_invalid_auth_token():
 @mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
 @mock.patch("ai4gd_momconnect_haystack.api.get_next_onboarding_question")
 @mock.patch("ai4gd_momconnect_haystack.api.extract_onboarding_data_from_response")
-def test_onboarding(
+def test_onboarding_chitchat(
     extract_onboarding_data_from_response,
     get_next_onboarding_question,
     handle_user_message,
 ):
+    """
+    If the user's response gets classified as chitchat, then we should not try
+    to extract the onboarding data. Also, the response to the chitchat should be
+    captured in the message history
+    """
     extract_onboarding_data_from_response.return_value = {"area_type": "City"}
     get_next_onboarding_question.return_value = (
         "Which province are you currently living in? 🏡"
@@ -66,12 +71,54 @@ def test_onboarding(
     )
     assert response.status_code == 200
     assert response.json() == {
-        "question": "",
+        "question": "Which province are you currently living in? 🏡",
         "user_context": {},
-        "chat_history": ["User to System: Hello!"],
+        "chat_history": [
+            "User to System: Hello!",
+            "System to User: User is chitchatting",
+            "System to User: Which province are you currently living in? 🏡",
+        ],
         "intent": "CHITCHAT",
         "intent_related_response": "User is chitchatting",
     }
+    extract_onboarding_data_from_response.assert_not_called()
+
+
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
+@mock.patch("ai4gd_momconnect_haystack.api.get_next_onboarding_question")
+@mock.patch("ai4gd_momconnect_haystack.api.extract_onboarding_data_from_response")
+def test_onboarding_first_question(
+    extract_onboarding_data_from_response,
+    get_next_onboarding_question,
+    handle_user_message,
+):
+    """
+    For the first interaction that the user has with the service, we don't have a user
+    input. That should be handled correctly and not seen as chitchat
+    """
+    extract_onboarding_data_from_response.return_value = {"area_type": "City"}
+    get_next_onboarding_question.return_value = (
+        "Which province are you currently living in? 🏡"
+    )
+    handle_user_message.return_value = "CHITCHAT", "User is chitchatting"
+    client = TestClient(app)
+    response = client.post(
+        "/v1/onboarding",
+        headers={"Authorization": "Token testtoken"},
+        json={"user_context": {}, "user_input": ""},
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "question": "Which province are you currently living in? 🏡",
+        "user_context": {"area_type": "City"},
+        "chat_history": [
+            "System to User: Which province are you currently living in? 🏡",
+        ],
+        "intent": "JOURNEY_RESPONSE",
+        "intent_related_response": "",
+    }
+    handle_user_message.assert_not_called()
 
 
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
