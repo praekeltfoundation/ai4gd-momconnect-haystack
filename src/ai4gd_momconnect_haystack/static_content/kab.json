@@ -1,5 +1,5 @@
 {
-    "behaviour-assessment": [
+    "behaviour-pre-assessment": [
         {
             "question_number": 1,
             "question_name": "antenatal_care_visit_count",
@@ -43,7 +43,7 @@
         {
             "question_number": 4,
             "question_name": "consumed_alcohol_or_smoking_during_pregnancy",
-            "pre-content": "*Since becoming pregnant, have you drunk any alcohol or smoked at all?* 🫃🏽",
+            "content": "*Since becoming pregnant, have you drunk any alcohol or smoked at all?* 🫃🏽",
             "post-content": "*Since joining MomConnect, have you drunk any alcohol or smoked at all?* 🫃🏽",
             "content_type": "assessment_question",
             "valid_responses": {

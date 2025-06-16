@@ -1,11 +1,10 @@
-import logging
 import json
+import logging
 from typing import Any
+
 from pydantic import ValidationError
 
-
-from . import doc_store
-from . import pipelines
+from . import doc_store, pipelines
 from .models import AssessmentRun, Question, Turn
 
 # --- Configuration ---
@@ -13,12 +12,37 @@ logger = logging.getLogger(__name__)
 
 onboarding_flow_id = "onboarding"
 dma_flow_id = "dma-assessment"
+kab_k_flow_id = "knowledge-assessment"
+kab_a_flow_id = "attitude-assessment"
+kab_b_pre_flow_id = "behaviour-pre-assessment"
+kab_b_post_flow_id = "behaviour-post-assessment"
+anc_survey_flow_id = "anc-survey"
+faqs_flow_id = "faqs"
 
 all_onboarding_questions = doc_store.ONBOARDING_FLOW.get(onboarding_flow_id, [])
 all_dma_questions = doc_store.DMA_FLOW.get(dma_flow_id, [])
+all_kab_k_questions = doc_store.KAB_FLOW.get(kab_k_flow_id, [])
+all_kab_a_questions = doc_store.KAB_FLOW.get(kab_a_flow_id, [])
+all_kab_b_pre_questions = doc_store.KAB_FLOW.get(kab_b_pre_flow_id, [])
+all_kab_b_post_questions = doc_store.KAB_FLOW.get(kab_b_post_flow_id, [])
+all_anc_survey_questions = doc_store.ANC_SURVEY_FLOW.get(anc_survey_flow_id, [])
+faq_questions = doc_store.FAQ_DATA.get(faqs_flow_id, [])
+
+assessment_flow_map = {
+    dma_flow_id: all_dma_questions,
+    kab_k_flow_id: all_kab_k_questions,
+    kab_a_flow_id: all_kab_a_questions,
+    kab_b_pre_flow_id: all_kab_b_pre_questions,
+    kab_b_post_flow_id: all_kab_b_post_questions,
+}
+
+ANC_SURVEY_MAP = {item["title"]: item for item in all_anc_survey_questions}
 
 
 def get_next_onboarding_question(user_context: dict, chat_history: list) -> str | None:
+    """
+    Gets the next contextualized onboarding question.
+    """
     # Get remaining questions
     remaining_questions_list = doc_store.get_remaining_onboarding_questions(
         user_context, all_onboarding_questions
@@ -68,6 +92,9 @@ def get_next_onboarding_question(user_context: dict, chat_history: list) -> str 
 def extract_onboarding_data_from_response(
     user_response: str, user_context: dict, chat_history: list
 ) -> dict:
+    """
+    Extracts data from a user's response to an onboarding question.
+    """
     logger.info("Running data extraction pipeline...")
     onboarding_data_extraction_pipe = (
         pipelines.create_onboarding_data_extraction_pipeline()
@@ -102,36 +129,42 @@ def extract_onboarding_data_from_response(
 
 
 def get_assessment_question(
-    flow_id: str, question_number: int, current_assessment_step: int, user_context: dict
+    flow_id: str, current_assessment_step: int, user_context: dict
 ) -> dict:
-    if current_assessment_step >= len(all_dma_questions):
-        logger.info("Assessment flow complete.")
+    """
+    Gets the next contextualized assessment question from the specified flow.
+    """
+    # Get the list of questions for the specified flow_id
+    question_list = assessment_flow_map.get(flow_id)
+    if not question_list:
+        logger.error(f"Invalid flow_id provided: '{flow_id}'. No questions found.")
         return {}
 
-    next_step_data = all_dma_questions[current_assessment_step]
-    current_question_number = next_step_data["question_number"]
-    logger.info(f"Processing step {current_question_number} for flow '{dma_flow_id}'")
+    if current_assessment_step >= len(question_list):
+        logger.info(f"Assessment flow '{flow_id}' complete.")
+        return {}
 
-    # Contextualize the current question
+    # Get the next question data
+    next_step_data = question_list[current_assessment_step]
+    current_question_number = next_step_data["question_number"]
+    logger.info(f"Processing step {current_question_number} for flow '{flow_id}'")
+
+    # Contextualize the question
     logger.info("Running contextualization pipeline...")
-    # Call with correct arguments: pipeline, flow_id, question_number, user_context
     assessment_contextualization_pipe = (
         pipelines.create_assessment_contextualization_pipeline()
     )
     contextualized_question = pipelines.run_assessment_contextualization_pipeline(
         assessment_contextualization_pipe,
-        dma_flow_id,
+        flow_id,
         current_question_number,
         user_context,
     )
 
     if not contextualized_question:
-        # Fallback
-        logger.warning(
-            f"Contextualization failed for step {current_question_number}. Using raw content."
-        )
-        contextualized_question = next_step_data["content"]
-        print(f"\n[System to User (Fallback)]:\n{contextualized_question}\n")
+        logger.error(f"Question contextualization failed in flow: '{flow_id}'.")
+        return {}
+
     return {
         "contextualized_question": contextualized_question,
         "current_question_number": current_question_number,
@@ -139,11 +172,36 @@ def get_assessment_question(
 
 
 def validate_assessment_answer(
-    user_response: str, current_question_number: int
+    user_response: str, current_question_number: int, current_flow_id: str
 ) -> dict[str, Any]:
+    """
+    Validates a user's response to an assessment question.
+    """
+    current_question = None
+    for q in assessment_flow_map[current_flow_id]:
+        if q["question_number"] == current_question_number:
+            current_question = q
+    if not current_question:
+        logger.error(
+            f"Could not find question number {current_question_number} in flow '{current_flow_id}'."
+        )
+        return {
+            "processed_user_response": None,
+            "current_assessment_step": current_question_number - 1,
+        }
+    valid_responses = current_question.get("valid_responses", [])
+    if not valid_responses:
+        logger.error(
+            f"No valid_responses found for question {current_question_number}."
+        )
+        return {
+            "processed_user_response": None,
+            "current_assessment_step": current_question_number - 1,
+        }
+
     validator_pipe = pipelines.create_assessment_response_validator_pipeline()
     processed_user_response = pipelines.run_assessment_response_validator_pipeline(
-        validator_pipe, user_response
+        validator_pipe, user_response, valid_responses
     )
 
     if not processed_user_response:
@@ -157,10 +215,157 @@ def validate_assessment_answer(
             f"Storing validated response for question_number {current_question_number}: {processed_user_response}"
         )
         current_assessment_step = current_question_number
+
+    # Ensure current_assessment_step is defined even if validation fails
+    else:
+        current_assessment_step = current_question_number - 1  # Or handle as needed
+
     return {
         "processed_user_response": processed_user_response,
         "current_assessment_step": current_assessment_step,
     }
+
+
+def get_anc_survey_question(user_context: dict, chat_history: list) -> dict | None:
+    """
+    Gets the next contextualized ANC survey question by first determining the
+    next logical step, then fetching the content and contextualizing it.
+    """
+    # 1. Get the next logical step from the Navigator Pipeline
+    logger.info("Running clinic visit navigator pipeline...")
+    navigator_pipe = pipelines.create_clinic_visit_navigator_pipeline()
+    if not navigator_pipe:
+        logger.error("Failed to create ANC survey navigator pipeline.")
+        return None
+
+    step_result = pipelines.run_clinic_visit_navigator_pipeline(
+        navigator_pipe, user_context
+    )
+
+    if not step_result or "next_step" not in step_result:
+        logger.error("Question navigation failed in 'anc-survey' flow.")
+        return None
+
+    next_step_id = step_result["next_step"]
+    is_final = step_result.get("is_final_step", False)
+
+    # 2. Fetch the original question content from our loaded JSON data
+    question_data = ANC_SURVEY_MAP.get(next_step_id)
+    if not question_data:
+        logger.error(f"Could not find question content for step_id: '{next_step_id}'")
+        return None
+
+    original_question_content = question_data.get("content", "")
+    valid_responses = question_data.get("valid_respnses", [])
+
+    # 3. Get the final, contextualized question from the Contextualizer Pipeline
+    logger.info(f"Running contextualization pipeline for step: '{next_step_id}'...")
+    contextualizer_pipe = pipelines.create_anc_survey_contextualization_pipeline()
+    if not contextualizer_pipe:
+        logger.error("Failed to create ANC survey contextualization pipeline.")
+        # Fallback to original content if pipeline creation fails
+        contextualized_question = original_question_content
+    else:
+        contextualized_question = pipelines.run_anc_survey_contextualization_pipeline(
+            contextualizer_pipe,
+            user_context,
+            chat_history,
+            original_question_content,
+            valid_responses,
+        )
+
+    # 4. Append valid responses to the final question, if they exist
+    valid_responses = question_data.get("valid_responses")
+    if valid_responses:
+        options = "\n".join(valid_responses)
+        final_question_text = f"{contextualized_question}\n\n{options}"
+    else:
+        final_question_text = contextualized_question
+
+    return {
+        "contextualized_question": final_question_text.strip(),
+        "is_final_step": is_final,
+    }
+
+
+def extract_anc_data_from_response(
+    user_response: str, user_context: dict, chat_history: list
+) -> dict:
+    """
+    Extracts data from a user's response to an ANC survey question.
+    """
+    logger.info("Running ANC survey data extraction pipeline...")
+    anc_data_extraction_pipe = pipelines.create_clinic_visit_data_extraction_pipeline()
+    extracted_data = pipelines.run_clinic_visit_data_extraction_pipeline(
+        anc_data_extraction_pipe, user_response, user_context, chat_history
+    )
+
+    print(f"[Extracted ANC Data]:\n{json.dumps(extracted_data, indent=2)}\n")
+
+    if extracted_data:
+        # Update the user_context with the newly extracted data
+        for key, value in extracted_data.items():
+            user_context[key] = value
+            logger.info(f"Updated user_context for {key}: {value}")
+    else:
+        logger.warning("ANC data extraction pipeline did not produce a result.")
+
+    return user_context
+
+
+def detect_user_intent(last_question: str, user_response: str) -> str | None:
+    """Runs the intent detection pipeline."""
+    logger.info("Running intent detection pipeline...")
+    intent_pipeline = pipelines.create_intent_detection_pipeline()
+    result = pipelines.run_intent_detection_pipeline(
+        intent_pipeline, last_question, user_response
+    )
+    return result.get("intent") if result else None
+
+
+def get_faq_answer(user_question: str) -> str | None:
+    """Runs the FAQ answering pipeline."""
+    logger.info("Running FAQ answering pipeline...")
+    faq_pipeline = pipelines.create_faq_answering_pipeline()
+    result = pipelines.run_faq_pipeline(
+        faq_pipeline,
+        user_question,
+        filters={"field": "meta.flow_id", "operator": "==", "value": "faqs"},
+    )
+    return result.get("answer") if result else None
+
+
+def handle_user_message(
+    last_question_asked: str, user_message: str
+) -> tuple[str | None, str | None]:
+    """
+    Orchestrates the process of handling a new user message.
+    """
+    intent = detect_user_intent(last_question_asked, user_message)
+    response = None
+
+    if intent == "QUESTION_ABOUT_STUDY":
+        response = get_faq_answer(user_question=user_message)
+        if not response:
+            response = "Sorry, I don't have information about that right now."
+    elif intent == "HEALTH_QUESTION":
+        response = "Please consider first finishing the current survey, but we may have an answer to your question on MomConnect: https://wa.me/27796312456?text=menu"
+    elif intent == "CHITCHAT":
+        if last_question_asked and last_question_asked != "":
+            response = "Please try answering the previous question again."
+        else:
+            response = "Thank you for reaching out! We will let you know if we have more questions for you. You can also click on this link to go to MomConnect: https://wa.me/27796312456?text=menu"
+    elif intent in [
+        "JOURNEY_RESPONSE",
+        "ASKING_TO_STOP_MESSAGES",
+        "ASKING_TO_DELETE_DATA",
+        "REPORTING_AIRTIME_NOT_RECEIVED",
+    ]:
+        pass
+    else:
+        logger.error(f"Intent detected: {intent}. No specific action defined.")
+
+    return intent, response
 
 
 def load_and_validate_assessment_questions(

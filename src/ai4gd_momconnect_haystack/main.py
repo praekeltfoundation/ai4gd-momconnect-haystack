@@ -1,18 +1,23 @@
 import logging
-from pathlib import Path
 from datetime import datetime
-from pydantic import ValidationError
+from os import environ
+from pathlib import Path
 
+from dotenv import load_dotenv
+from pydantic import ValidationError
 
 from . import tasks
 from .models import AssessmentRun
 from .utilities import (
+    generate_scenario_id,
     load_json_and_validate,
     save_json_file,
-    generate_scenario_id,
 )
 
+load_dotenv()
 
+log_level = environ.get("LOGLEVEL", "WARNING").upper()
+logging.basicConfig(level=log_level)
 logger = logging.getLogger(__name__)
 
 # TODO: Add confirmation outputs telling the user what we understood their response to be, before sending them a next message.
@@ -67,112 +72,269 @@ def run_simulation():
     onboarding_turns = []
     flow_type = "onboarding"
 
-    # Simulate Onboarding
-    for attempt in range(max_onboarding_steps):
-        print("-" * 20)
-        logger.info(f"Onboarding Question Attempt: {attempt + 1}")
+    sim_onboarding = False
+    sim_dma = False
+    sim_kab = False
+    sim_anc_survey = False
 
-        ### Endpoint 1: Turn can call to get the next question to send to a user.
-        contextualized_question = tasks.get_next_onboarding_question(
-            user_context, chat_history
-        )
-        if not contextualized_question:
-            logger.info("Onboarding flow complete.")
+    while True:
+        sim = input("Simulate Onboarding? (Y/N)\n> ")
+        if sim.lower() in ["y", "yes"]:
+            sim_onboarding = True
             break
+        elif sim.lower() in ["n", "no"]:
+            break
+        else:
+            print("Please enter 'Y' or 'N'.")
 
-        # Simulate User Response & Data Extraction
-        chat_history.append("System to User: " + contextualized_question + "\n> ")
-        user_response = input(contextualized_question + "\n> ")
-        chat_history.append("User to System: " + user_response + "\n> ")
+    if sim_onboarding:
+        # Simulate Onboarding
+        for attempt in range(max_onboarding_steps):
+            print("-" * 20)
+            logger.info(f"Onboarding Question Attempt: {attempt + 1}")
 
-        ### Endpoint 2: Turn can call to get extracted data from a user response.
-        previous_context = user_context.copy()
-        user_context = tasks.extract_onboarding_data_from_response(
-            user_response, user_context, chat_history
-        )
+            contextualized_question = tasks.get_next_onboarding_question(
+                user_context, chat_history
+            )
+            if not contextualized_question:
+                logger.info("Onboarding flow complete.")
+                break
 
-        # Identify what changed in user_context
-        diff_keys = [
-            k for k in user_context if user_context[k] != previous_context.get(k)
-        ]
+            # Simulate User Response & Data Extraction
+            chat_history.append("System to User: " + contextualized_question + "\n> ")
+            # Keep getting a user response until it is one that continues the journey:
+            intent = None
+            while intent != "JOURNEY_RESPONSE":
+                chat_history.append(
+                    "System to User: " + contextualized_question + "\n> "
+                )
+                user_response = input(contextualized_question + "\n> ")
+                chat_history.append("User to System: " + user_response + "\n> ")
 
-        for updated_field in diff_keys:
-            # For each piece of extracted info, create a separate turn.
-            if updated_field == "other":
-                # Handle cases where multiple 'other' fields might change
-                other_diff = {
-                    k: v
-                    for k, v in user_context["other"].items()
-                    if v != previous_context["other"].get(k)
-                }
-                for key, value in other_diff.items():
-                    logger.info(f"Creating turn for extracted field: {key}")
+                # Classify user's intent and act accordingly
+                intent, message_to_user = tasks.handle_user_message(
+                    contextualized_question, user_response
+                )
+                # If a question about the study or about health was asked, print the
+                # response that would be sent to users
+                if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
+                    print(message_to_user)
+                elif intent in [
+                    "ASKING_TO_STOP_MESSAGES",
+                    "ASKING_TO_DELETE_DATA",
+                    "REPORTING_AIRTIME_NOT_RECEIVED",
+                ]:
+                    print(f"Turn must be notified that user is {intent}")
+                elif intent == "CHITCHAT":
+                    print(message_to_user)
+                    print(
+                        (
+                            f"User is chitchatting and needs to still respond to "
+                            f"the previous question: {contextualized_question}"
+                        )
+                    )
+                else:
+                    # intent must be JOURNEY_RESPONSE
+                    pass
+            chat_history.append("User to System: " + user_response + "\n> ")
+
+            ### Endpoint 2: Turn can call to get extracted data from a user response.
+            previous_context = user_context.copy()
+            user_context = tasks.extract_onboarding_data_from_response(
+                user_response, user_context, chat_history
+            )
+
+            # Identify what changed in user_context
+            diff_keys = [
+                k for k in user_context if user_context[k] != previous_context.get(k)
+            ]
+
+            for updated_field in diff_keys:
+                # For each piece of extracted info, create a separate turn.
+                if updated_field == "other":
+                    # Handle cases where multiple 'other' fields might change
+                    other_diff = {
+                        k: v
+                        for k, v in user_context["other"].items()
+                        if v != previous_context["other"].get(k)
+                    }
+                    for key, value in other_diff.items():
+                        logger.info(f"Creating turn for extracted field: {key}")
+                        onboarding_turns.append(
+                            {
+                                "question_name": key,
+                                "llm_utterance": contextualized_question,
+                                "user_utterance": user_response,
+                                "llm_extracted_user_response": value,
+                            }
+                        )
+                else:
+                    logger.info(f"Creating turn for extracted field: {updated_field}")
                     onboarding_turns.append(
                         {
-                            "question_name": key,
+                            "question_name": updated_field,
                             "llm_utterance": contextualized_question,
                             "user_utterance": user_response,
-                            "llm_extracted_user_response": value,
+                            "llm_extracted_user_response": user_context[updated_field],
                         }
                     )
-            else:
-                logger.info(f"Creating turn for extracted field: {updated_field}")
-                onboarding_turns.append(
-                    {
-                        "question_name": updated_field,
-                        "llm_utterance": contextualized_question,
-                        "user_utterance": user_response,
-                        "llm_extracted_user_response": user_context[updated_field],
-                    }
+
+    # ** DMA Scenario **
+    print("")
+    while True:
+        sim = input("Simulate DMA? (Y/N)\n> ")
+        if sim.lower() in ["y", "yes"]:
+            sim_dma = True
+            break
+        elif sim.lower() in ["n", "no"]:
+            break
+        else:
+            print("Please enter 'Y' or 'N'.")
+
+    assessment_turns = []
+
+    if sim_dma:
+        logger.info("\n--- Simulating DMA ---")
+        current_assessment_step = 0
+        user_context["goal"] = "Complete the assessment"
+        max_assessment_steps = 10  # Safety break
+
+        # Simulate Assessment
+        while current_assessment_step < max_assessment_steps:
+            print("-" * 20)
+            logger.info(
+                f"Assessment Step: Requesting step after {current_assessment_step}"
+            )
+
+            result = tasks.get_assessment_question(
+                flow_id="dma-assessment",
+                current_assessment_step=current_assessment_step,
+                user_context=user_context,
+            )
+            if not result:
+                logger.info("Assessment flow complete.")
+                break
+            contextualized_question = result["contextualized_question"]
+            current_assessment_step = result["current_question_number"]
+
+            # Simulate User Response
+            user_response = input(contextualized_question + "\n> ")
+
+            result = tasks.validate_assessment_answer(
+                user_response, current_assessment_step, "dma-assessment"
+            )
+            if not result:
+                logger.warning(
+                    f"Response validation failed for step {current_assessment_step}."
+                )
+                continue
+            current_assessment_step = result["current_assessment_step"]
+
+    # ** KAB Scenario **
+    print("")
+    while True:
+        sim = input("Simulate KAB? (Y/N)\n> ")
+        if sim.lower() in ["y", "yes"]:
+            sim_kab = True
+            break
+        elif sim.lower() in ["n", "no"]:
+            break
+        else:
+            print("Please enter 'Y' or 'N'.")
+
+    if sim_kab:
+        for flow_id in [
+            "knowledge-assessment",
+            "attitude-assessment",
+            "behaviour-pre-assessment",
+        ]:
+            logger.info("\n--- Simulating KAB ---")
+            current_assessment_step = 0
+            user_context["goal"] = "Complete the assessment"
+            max_assessment_steps = 20  # Safety break
+
+            # Simulate Assessments
+            while current_assessment_step < max_assessment_steps:
+                print("-" * 20)
+                logger.info(
+                    f"Assessment Step: Requesting step after {current_assessment_step}"
                 )
 
-    simulation_results.append(
-        {
-            "scenario_id": generate_scenario_id(
-                flow_type=flow_type, username="user_123"
-            ),  # TODO: Find a way to pass the username dynamically
-            "flow_type": flow_type,
-            "turns": onboarding_turns,
-        }
-    )
+                result = tasks.get_assessment_question(
+                    flow_id=flow_id,
+                    current_assessment_step=current_assessment_step,
+                    user_context=user_context,
+                )
+                if not result:
+                    logger.info("Assessment flow complete.")
+                    break
+                contextualized_question = result["contextualized_question"]
+                current_assessment_step = result["current_question_number"]
 
-    # ** Assessment Scenario **
+                # Simulate User Response
+                user_response = input(contextualized_question + "\n> ")
+
+                result = tasks.validate_assessment_answer(
+                    user_response, current_assessment_step, flow_id
+                )
+                if not result:
+                    logger.warning(
+                        f"Response validation failed for step {current_assessment_step}."
+                    )
+                    continue
+                current_assessment_step = result["current_assessment_step"]
+
+    # ** ANC Survey Scenario **
     print("")
-    logger.info("\n--- Simulating Assessment ---")
-    current_assessment_step = 0
-    user_context["goal"] = "Complete the assessment"
-    max_assessment_steps = 10  # Safety break
-    assessment_turns = []
-    flow_type = "dma-assessment"
-
-    # Simulate Assessment
-    while current_assessment_step < max_assessment_steps:
-        print("-" * 20)
-        logger.info(f"Assessment Step: Requesting step after {current_assessment_step}")
-
-        ### Endpoint 3: Turn can call to get an assessment question to send to the user.
-        result = tasks.get_assessment_question(
-            flow_id="dma_flow_id",
-            question_number=current_assessment_step,
-            current_assessment_step=current_assessment_step,
-            user_context=user_context,
-        )
-        if not result:
-            logger.info("Assessment flow complete.")
+    while True:
+        sim = input("Simulate ANC Survey? (Y/N)\n> ")
+        if sim.lower() in ["y", "yes"]:
+            sim_anc_survey = True
             break
-        contextualized_question = result["contextualized_question"]
-        current_assessment_step = result["current_question_number"]
+        elif sim.lower() in ["n", "no"]:
+            break
+        else:
+            print("Please enter 'Y' or 'N'.")
 
-        # Simulate User Response
-        user_response = input(contextualized_question + "\n> ")
+    if sim_anc_survey:
+        logger.info("\n--- Simulating ANC Survey ---")
+        anc_user_context = {
+            "age": user_context.get("age"),
+            "gender": user_context.get("gender"),
+            "goal": "Complete the ANC survey",
+        }
+        anc_chat_history = []
+        survey_complete = False
 
-        ### Endpoint 4: Turn can call to validate a user's response to an assessment question.
-        result = tasks.validate_assessment_answer(
-            user_response, current_assessment_step
-        )
-        if not result:
-            logger.warning(
-                f"Response validation failed for step {current_assessment_step}."
+        # Simulate ANC Survey
+        while not survey_complete:
+            print("-" * 20)
+            logger.info("ANC Survey Step: Requesting next question...")
+
+            result = tasks.get_anc_survey_question(
+                user_context=anc_user_context, chat_history=anc_chat_history
+            )
+
+            if not result or not result.get("contextualized_question"):
+                logger.info("Could not get next survey question. Ending flow.")
+                break
+
+            contextualized_question = result["contextualized_question"]
+            survey_complete = result.get("is_final_step", False)
+
+            # Simulate User Response
+            anc_chat_history.append(
+                "System to User: " + contextualized_question + "\n> "
+            )
+            user_response = input(contextualized_question + "\n> ")
+            anc_chat_history.append("User to System: " + user_response + "\n> ")
+
+            if survey_complete:
+                logger.info("Survey flow complete.")
+                break
+
+            anc_user_context = tasks.extract_anc_data_from_response(
+                user_response, anc_user_context, anc_chat_history
             )
             continue
         # processed_user_response = result['processed_user_response']

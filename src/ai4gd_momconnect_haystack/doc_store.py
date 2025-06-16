@@ -1,21 +1,20 @@
 import logging
 from os import environ
 from pathlib import Path
-from dotenv import load_dotenv
 from typing import Any
 
+from dotenv import load_dotenv
 from haystack import Document, Pipeline
-from haystack_integrations.document_stores.weaviate import (
-    WeaviateDocumentStore,
-    AuthApiKey,
-)
 from haystack.components.embedders import OpenAIDocumentEmbedder
 from haystack.components.writers import DocumentWriter
 from haystack.utils import Secret
+from haystack_integrations.document_stores.weaviate import (
+    AuthApiKey,
+    WeaviateDocumentStore,
+)
 from weaviate.embedded import EmbeddedOptions
 
 from .utilities import read_json
-
 
 # --- Configurations ---
 load_dotenv()
@@ -33,6 +32,12 @@ ONBOARDING_FLOW = read_json(data_dir / "onboarding.json")
 # Assessment Questions Data
 DMA_FLOW = read_json(data_dir / "dma.json")
 KAB_FLOW = read_json(data_dir / "kab.json")
+
+# ANC Follow-Up Questions Data
+ANC_SURVEY_FLOW = read_json(data_dir / "anc_survey.json")
+
+# FAQ Data
+FAQ_DATA = read_json(data_dir / "faqs.json")
 
 
 # --- Core Functions ---
@@ -98,21 +103,43 @@ def ingest_content(
     doc_count = 0
 
     for flow_id, content_pieces in content_flows.items():
+        print("INGESTING", flow_id)
         flow_count += 1
         for piece in content_pieces:
             doc_count += 1
-            doc = Document(
-                content=piece["content"],
-                meta={
-                    "flow_id": flow_id,
-                    "question_number": piece["question_number"],
-                    "content_type": piece["content_type"],
-                },
-            )
+            if flow_id == "anc-survey":
+                doc = Document(
+                    content=piece["content"],
+                    meta={
+                        "flow_id": flow_id,
+                        "title": piece["title"],
+                        "content_type": piece["content_type"],
+                        "valid_responses": piece.get("valid_responses", []),
+                    },
+                )
+            elif flow_id == "faqs":
+                doc = Document(
+                    content=piece["content"],
+                    meta={
+                        "flow_id": flow_id,
+                        "title": piece["title"],
+                        "valid_responses": piece.get("valid_responses", []),
+                    },
+                )
+            else:
+                valid_responses = piece.get("valid_responses", [])
+                if isinstance(valid_responses, dict):
+                    valid_responses = list(valid_responses.keys())
+                doc = Document(
+                    content=piece["content"],
+                    meta={
+                        "flow_id": flow_id,
+                        "question_number": piece["question_number"],
+                        "content_type": piece["content_type"],
+                        "valid_responses": valid_responses,
+                    },
+                )
             documents_to_ingest.append(doc)
-            logger.debug(
-                f"Prepared document: flow='{flow_id}', seq={piece['question_number']}"
-            )
 
     if documents_to_ingest:
         logger.info(
@@ -175,6 +202,10 @@ def setup_document_store() -> WeaviateDocumentStore:
         logger.info("--- Ingesting Assessment Content ---")
         ingest_content(indexing_pipe, DMA_FLOW)
         ingest_content(indexing_pipe, KAB_FLOW)
+        logger.info("--- Ingesting ANC Survey Content ---")
+        ingest_content(indexing_pipe, ANC_SURVEY_FLOW)
+        logger.info("--- Ingesting FAQ Content ---")
+        ingest_content(indexing_pipe, FAQ_DATA)
     else:
         logger.info(
             "Documents found in the store. Skipping ingestion to avoid duplicates."
