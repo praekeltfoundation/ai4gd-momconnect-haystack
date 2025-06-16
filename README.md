@@ -112,8 +112,10 @@ for example,
 }
 ```
 
-### ANC Survey
-The ANC (Antenatal Care) survey is handled through the `/v1/anc-survey` endpoint. It receives a POST request with a JSON body, with the following fields:
+### Surveys
+Surveys are handled through the `/v1/survey` endpoint. It receives a POST request with a JSON body, with the following fields:
+
+`survey_id`: Which survey this is for. Currently there is one survey, `anc`
 
 `user_input`: The message that the user sent to us, as a string
 
@@ -124,6 +126,7 @@ The ANC (Antenatal Care) survey is handled through the `/v1/anc-survey` endpoint
 for example:
 ```json
 {
+  "survey_id": "anc",
   "user_input": "I am 20 weeks pregnant",
   "user_context": {},
   "chat_history": []
@@ -160,3 +163,7 @@ Run the following commands from the root directory:
 - `uv run ruff check --fix`
 - `uv run ruff format`
 - `uv run mypy .`
+
+## Testing
+There are automated tests, they can be run with:
+- `uv run pytest`

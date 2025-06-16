@@ -132,9 +132,10 @@ def test_anc_survey(
     initial_chat_history = ["System to User: Hi! Did you go for your clinic visit?"]
 
     response = client.post(
-        "/v1/anc-survey",
+        "/v1/survey",
         headers={"Authorization": "Token testtoken"},
         json={
+            "survey_id": "anc",
             "user_context": {},
             "user_input": "Yes I did",
             "chat_history": initial_chat_history,
@@ -153,4 +154,34 @@ def test_anc_survey(
         "survey_complete": False,
         "intent": "JOURNEY_RESPONSE",
         "intent_related_response": None,
+    }
+
+
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+def test_survey_invalid_survey_id():
+    """
+    If the user sends an unrecognised ID, then we should return an error message
+    """
+    client = TestClient(app)
+    response = client.post(
+        "/v1/survey",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "survey_id": "invalid",
+            "user_context": {},
+            "user_input": "Hi",
+            "chat_history": [],
+        },
+    )
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": [
+            {
+                "ctx": {"expected": "'anc'"},
+                "input": "invalid",
+                "loc": ["body", "survey_id"],
+                "msg": "Input should be 'anc'",
+                "type": "enum",
+            }
+        ]
     }

@@ -1,3 +1,4 @@
+from enum import Enum
 from os import environ
 from typing import Annotated, Any
 
@@ -142,13 +143,18 @@ def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
     )
 
 
-class ANCSurveyRequest(BaseModel):
+class SurveyTypes(str, Enum):
+    anc = "anc"
+
+
+class SurveyRequest(BaseModel):
+    survey_id: SurveyTypes
     user_input: str
     user_context: dict[str, Any]
     chat_history: list[str] = []
 
 
-class ANCSurveyResponse(BaseModel):
+class SurveyResponse(BaseModel):
     question: str
     user_context: dict[str, Any]
     chat_history: list[str]
@@ -157,8 +163,8 @@ class ANCSurveyResponse(BaseModel):
     intent_related_response: str | None
 
 
-@app.post("/v1/anc-survey", response_model=ANCSurveyResponse)
-def anc_survey(request: ANCSurveyRequest, token: str = Depends(verify_token)):
+@app.post("/v1/survey", response_model=SurveyResponse)
+def anc_survey(request: SurveyRequest, token: str = Depends(verify_token)):
     """
     Handles the conversation flow for the ANC (Antenatal Care) survey.
     It extracts data from the user's response and determines the next question.
@@ -170,6 +176,7 @@ def anc_survey(request: ANCSurveyRequest, token: str = Depends(verify_token)):
     )
     chat_history.append(f"User to System: {request.user_input}")
     if intent == "JOURNEY_RESPONSE":
+        # There's only one survey type, so we can assume anc until we add more
         # First, extract data from the user's last response to update the context
         user_context = extract_anc_data_from_response(
             user_response=request.user_input,
@@ -196,7 +203,7 @@ def anc_survey(request: ANCSurveyRequest, token: str = Depends(verify_token)):
         user_context = request.user_context
         question = ""
         survey_complete = False
-    return ANCSurveyResponse(
+    return SurveyResponse(
         question=question,
         user_context=user_context,
         chat_history=chat_history,
