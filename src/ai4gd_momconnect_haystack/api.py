@@ -103,10 +103,18 @@ def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
     )
 
 
+class AssessmentType(str, Enum):
+    dma_assessment = "dma-assessment"
+    knowledge_assessment = "knowledge-assessment"
+    attitude_assessment = "attitude-assessment"
+    behaviour_pre_assessment = "behaviour-pre-assessment"
+    behaviour_post_assessment = "behaviour-post-assessment"
+
+
 class AssessmentRequest(BaseModel):
     user_input: str
     user_context: dict[str, Any]
-    flow_id: str
+    flow_id: AssessmentType
     question_number: int
     chat_history: list[str] = []
 

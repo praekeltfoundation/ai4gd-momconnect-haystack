@@ -78,7 +78,7 @@ Assessments are handled through the `/v1/assessment` endpoint. It receives a POS
 
 `user_context`: The user's contact fields that we want to share with the LLM
 
-`flow_id`: Which assessment to run, as a string. Currenty only `dma-assessment` is implemented
+`flow_id`: Which assessment to run, as a string. The following assessments are available: `dma-assessment`, `knowledge-assessment`, `attitude-assessment`, `behaviour-pre-assessment`, `behaviour-post-assessment`
 
 `question_number`: Which question number we are on, as an integer.
 
