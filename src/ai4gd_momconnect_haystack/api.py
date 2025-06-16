@@ -87,7 +87,7 @@ def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
     if intent_related_response:
         chat_history.append(f"System to User: {intent_related_response}")
-    if intent == "JOURNEY_RESPONSE":
+    if intent == "JOURNEY_RESPONSE" and request.user_input:
         user_context = extract_onboarding_data_from_response(
             user_response=request.user_input,
             user_context=request.user_context,
@@ -137,28 +137,34 @@ class AssessmentResponse(BaseModel):
 def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
     chat_history = request.chat_history
     last_question = chat_history[-1] if chat_history else ""
-    intent, intent_related_response = handle_user_message(
-        last_question, request.user_input
-    )
-    chat_history.append(f"User to System: {request.user_input}")
-    if intent == "JOURNEY_RESPONSE":
-        # TODO: Can we run these in parallel for latency?
-        validate_assessment_answer(
+    if request.user_input:
+        intent, intent_related_response = handle_user_message(
+            last_question, request.user_input
+        )
+        chat_history.append(f"User to System: {request.user_input}")
+        if intent_related_response:
+            chat_history.append(f"System to User: {intent_related_response}")
+    else:
+        intent, intent_related_response = "JOURNEY_RESPONSE", ""
+
+    if intent == "JOURNEY_RESPONSE" and request.user_input:
+        answer = validate_assessment_answer(
             user_response=request.user_input,
-            current_question_number=request.question_number,
+            current_question_number=request.question_number - 1,
             current_flow_id=request.flow_id,
         )
-        question = get_assessment_question(
-            flow_id=request.flow_id,
-            current_assessment_step=request.question_number,
-            user_context=request.user_context,
-        )
-        contextualized_question = question["contextualized_question"] or ""
-        current_question_number = question["current_question_number"]
-        chat_history.append(f"System to User: {contextualized_question}")
+        current_question_number = answer["current_assessment_step"]
     else:
         current_question_number = request.question_number
-        contextualized_question = ""
+
+    question = get_assessment_question(
+        flow_id=request.flow_id,
+        current_assessment_step=current_question_number,
+        user_context=request.user_context,
+    )
+    contextualized_question = question["contextualized_question"] or ""
+    current_question_number = question["current_question_number"]
+    chat_history.append(f"System to User: {contextualized_question}")
     return AssessmentResponse(
         question=contextualized_question,
         next_question=current_question_number,
