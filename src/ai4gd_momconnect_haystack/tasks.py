@@ -142,7 +142,7 @@ def get_assessment_question(
         logger.error(f"Invalid flow_id provided: '{flow_id}'. No questions found.")
         return {}
 
-    if question_number >= len(question_list):
+    if question_number > len(question_list):
         logger.info(f"Assessment flow '{flow_id}' complete.")
         return {}
 
