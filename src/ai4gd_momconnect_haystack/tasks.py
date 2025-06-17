@@ -129,10 +129,12 @@ def extract_onboarding_data_from_response(
 
 
 def get_assessment_question(
-    flow_id: str, current_assessment_step: int, user_context: dict
+    flow_id: str, question_number: int, user_context: dict
 ) -> dict:
     """
     Gets the next contextualized assessment question from the specified flow.
+
+    question_number uses 1-based indexing
     """
     # Get the list of questions for the specified flow_id
     question_list = assessment_flow_map.get(flow_id)
@@ -140,14 +142,9 @@ def get_assessment_question(
         logger.error(f"Invalid flow_id provided: '{flow_id}'. No questions found.")
         return {}
 
-    if current_assessment_step >= len(question_list):
+    if question_number >= len(question_list):
         logger.info(f"Assessment flow '{flow_id}' complete.")
         return {}
-
-    # Get the next question data
-    next_step_data = question_list[current_assessment_step]
-    current_question_number = next_step_data["question_number"]
-    logger.info(f"Processing step {current_question_number} for flow '{flow_id}'")
 
     # Contextualize the question
     logger.info("Running contextualization pipeline...")
@@ -157,7 +154,7 @@ def get_assessment_question(
     contextualized_question = pipelines.run_assessment_contextualization_pipeline(
         assessment_contextualization_pipe,
         flow_id,
-        current_question_number,
+        question_number,
         user_context,
     )
 
@@ -167,36 +164,35 @@ def get_assessment_question(
 
     return {
         "contextualized_question": contextualized_question,
-        "current_question_number": current_question_number,
     }
 
 
 def validate_assessment_answer(
-    user_response: str, current_question_number: int, current_flow_id: str
+    user_response: str, question_number: int, current_flow_id: str
 ) -> dict[str, Any]:
     """
     Validates a user's response to an assessment question.
+
+    question_number uses 1-based indexing
     """
     current_question = None
     for q in assessment_flow_map[current_flow_id]:
-        if q["question_number"] == current_question_number:
+        if q["question_number"] == question_number:
             current_question = q
     if not current_question:
         logger.error(
-            f"Could not find question number {current_question_number} in flow '{current_flow_id}'."
+            f"Could not find question number {question_number} in flow '{current_flow_id}'."
         )
         return {
             "processed_user_response": None,
-            "current_assessment_step": current_question_number - 1,
+            "next_question_number": question_number,
         }
     valid_responses = current_question.get("valid_responses", [])
     if not valid_responses:
-        logger.error(
-            f"No valid_responses found for question {current_question_number}."
-        )
+        logger.error(f"No valid_responses found for question {question_number}.")
         return {
             "processed_user_response": None,
-            "current_assessment_step": current_question_number - 1,
+            "next_question_number": question_number,
         }
 
     validator_pipe = pipelines.create_assessment_response_validator_pipeline()
@@ -204,25 +200,18 @@ def validate_assessment_answer(
         validator_pipe, user_response, valid_responses
     )
 
-    if not processed_user_response:
-        logger.warning(
-            f"Response validation failed for step {current_question_number}."
-        )
-
     # Move to the next step, or try again if the response was invalid
     if processed_user_response:
         logger.info(
-            f"Storing validated response for question_number {current_question_number}: {processed_user_response}"
+            f"Storing validated response for question_number {question_number}: {processed_user_response}"
         )
-        current_assessment_step = current_question_number
-
-    # Ensure current_assessment_step is defined even if validation fails
+        question_number += 1
     else:
-        current_assessment_step = current_question_number - 1  # Or handle as needed
+        logger.warning(f"Response validation failed for step {question_number}.")
 
     return {
         "processed_user_response": processed_user_response,
-        "current_assessment_step": current_assessment_step,
+        "next_question_number": question_number,
     }
 
 

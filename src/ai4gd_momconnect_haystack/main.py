@@ -195,40 +195,37 @@ def run_simulation():
 
     if sim_dma:
         logger.info("\n--- Simulating DMA ---")
-        current_assessment_step = 0
         user_context["goal"] = "Complete the assessment"
         max_assessment_steps = 10  # Safety break
+        question_number = 1
 
         # Simulate Assessment
-        while current_assessment_step < max_assessment_steps:
+        for _ in range(max_assessment_steps):
             print("-" * 20)
-            logger.info(
-                f"Assessment Step: Requesting step after {current_assessment_step}"
-            )
+            logger.info(f"Assessment Step: Requesting question {question_number}")
 
             result = tasks.get_assessment_question(
                 flow_id="dma-assessment",
-                current_assessment_step=current_assessment_step,
+                question_number=question_number,
                 user_context=user_context,
             )
             if not result:
                 logger.info("Assessment flow complete.")
                 break
             contextualized_question = result["contextualized_question"]
-            current_assessment_step = result["current_question_number"]
 
             # Simulate User Response
             user_response = input(contextualized_question + "\n> ")
 
             result = tasks.validate_assessment_answer(
-                user_response, current_assessment_step, "dma-assessment"
+                user_response, question_number, "dma-assessment"
             )
             if not result:
                 logger.warning(
-                    f"Response validation failed for step {current_assessment_step}."
+                    f"Response validation failed for question {question_number}."
                 )
                 continue
-            current_assessment_step = result["current_assessment_step"]
+            question_number = result["next_question_number"]
 
     # ** KAB Scenario **
     print("")
@@ -249,40 +246,37 @@ def run_simulation():
             "behaviour-pre-assessment",
         ]:
             logger.info("\n--- Simulating KAB ---")
-            current_assessment_step = 0
+            question_number = 1
             user_context["goal"] = "Complete the assessment"
             max_assessment_steps = 20  # Safety break
 
             # Simulate Assessments
-            while current_assessment_step < max_assessment_steps:
+            for _ in range(max_assessment_steps):
                 print("-" * 20)
-                logger.info(
-                    f"Assessment Step: Requesting step after {current_assessment_step}"
-                )
+                logger.info(f"Assessment Step: Requesting question {question_number}")
 
                 result = tasks.get_assessment_question(
                     flow_id=flow_id,
-                    current_assessment_step=current_assessment_step,
+                    question_number=question_number,
                     user_context=user_context,
                 )
                 if not result:
                     logger.info("Assessment flow complete.")
                     break
                 contextualized_question = result["contextualized_question"]
-                current_assessment_step = result["current_question_number"]
 
                 # Simulate User Response
                 user_response = input(contextualized_question + "\n> ")
 
                 result = tasks.validate_assessment_answer(
-                    user_response, current_assessment_step, flow_id
+                    user_response, question_number, flow_id
                 )
                 if not result:
                     logger.warning(
-                        f"Response validation failed for step {current_assessment_step}."
+                        f"Response validation failed for question {question_number}."
                     )
                     continue
-                current_assessment_step = result["current_assessment_step"]
+                question_number = result["next_question_number"]
 
     # ** ANC Survey Scenario **
     print("")
