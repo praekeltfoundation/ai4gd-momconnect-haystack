@@ -194,7 +194,7 @@ def test_get_last_assessment_question(pipelines_mock):
     )
     result = get_assessment_question(
         flow_id="dma-assessment",
-        question_number=4,
+        question_number=5,
         user_context={},
     )
     assert result == {
@@ -202,7 +202,7 @@ def test_get_last_assessment_question(pipelines_mock):
     }
     result = get_assessment_question(
         flow_id="dma-assessment",
-        question_number=5,
+        question_number=6,
         user_context={},
     )
     assert result == {}
