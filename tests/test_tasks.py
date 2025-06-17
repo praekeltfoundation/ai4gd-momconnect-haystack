@@ -289,7 +289,7 @@ def test_extract_onboarding_data_from_response_updates_context(
     extracted from the user's response.
     """
     # The initial state of the user context
-    user_context = {"other": {}}
+    user_context = {}
 
     # The data that the mocked pipeline will "extract"
     mock_extracted_data = {
