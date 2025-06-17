@@ -122,7 +122,7 @@ def extract_onboarding_data_from_response(
                 user_context[k] = v
                 logger.info(f"Updated user_context for {k}: {v}")
             else:
-                user_context["other"][k] = v
+                user_context.setdefault("other", {})[k] = v
     else:
         logger.warning("Data extraction pipeline did not produce a result.")
     return user_context
