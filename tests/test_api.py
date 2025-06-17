@@ -214,7 +214,6 @@ def test_assessment_initial_message(
     """
     get_assessment_question.return_value = {
         "contextualized_question": "How confident are you in discussing your maternal health concerns with your healthcare provider?",
-        "current_question_number": 2,
     }
     client = TestClient(app)
     response = client.post(
@@ -230,7 +229,7 @@ def test_assessment_initial_message(
     assert response.status_code == 200
     assert response.json() == {
         "question": "How confident are you in discussing your maternal health concerns with your healthcare provider?",
-        "next_question": 2,
+        "next_question": 1,
         "chat_history": [
             "System to User: How confident are you in discussing your maternal health concerns with your healthcare provider?"
         ],
@@ -239,6 +238,48 @@ def test_assessment_initial_message(
     }
     handle_user_message.assert_not_called()
     validate_assessment_answer.assert_not_called()
+
+
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
+@mock.patch("ai4gd_momconnect_haystack.api.get_assessment_question")
+@mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_answer")
+def test_assessment_increment_question_number(
+    validate_assessment_answer, get_assessment_question, handle_user_message
+):
+    """
+    If the assessment answer is correct, we should go to the next question
+    """
+    get_assessment_question.return_value = {
+        "contextualized_question": "How confident are you in discussing your maternal health concerns with your healthcare provider?",
+    }
+    validate_assessment_answer.return_value = {
+        "processed_user_response": "I agree",
+        "next_question_number": 2,
+    }
+    handle_user_message.return_value = ("JOURNEY_RESPONSE", "")
+    client = TestClient(app)
+    response = client.post(
+        "/v1/assessment",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_context": {},
+            "user_input": "I agree",
+            "flow_id": "dma-assessment",
+            "question_number": 1,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "question": "How confident are you in discussing your maternal health concerns with your healthcare provider?",
+        "next_question": 2,
+        "chat_history": [
+            "User to System: I agree",
+            "System to User: How confident are you in discussing your maternal health concerns with your healthcare provider?",
+        ],
+        "intent": "JOURNEY_RESPONSE",
+        "intent_related_response": "",
+    }
 
 
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)

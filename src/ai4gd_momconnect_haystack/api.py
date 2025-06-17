@@ -150,24 +150,23 @@ def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
     if intent == "JOURNEY_RESPONSE" and request.user_input:
         answer = validate_assessment_answer(
             user_response=request.user_input,
-            current_question_number=request.question_number - 1,
+            question_number=request.question_number,
             current_flow_id=request.flow_id,
         )
-        current_question_number = answer["current_assessment_step"]
+        next_question_number = answer["next_question_number"]
     else:
-        current_question_number = request.question_number
+        next_question_number = request.question_number
 
     question = get_assessment_question(
         flow_id=request.flow_id,
-        current_assessment_step=current_question_number,
+        question_number=next_question_number,
         user_context=request.user_context,
     )
-    contextualized_question = question["contextualized_question"] or ""
-    current_question_number = question["current_question_number"]
+    contextualized_question = question.get("contextualized_question") or ""
     chat_history.append(f"System to User: {contextualized_question}")
     return AssessmentResponse(
         question=contextualized_question,
-        next_question=current_question_number,
+        next_question=next_question_number,
         chat_history=chat_history,
         intent=intent,
         intent_related_response=intent_related_response,
