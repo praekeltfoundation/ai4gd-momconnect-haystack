@@ -89,6 +89,13 @@ def run_simulation():
 
     if sim_onboarding:
         # Simulate Onboarding
+        flow_id = "onboarding"
+        run_results = {
+            "scenario_id":generate_scenario_id(flow_type=flow_id, username="user_123"),
+            "flow_type":flow_id,
+            "turns":None
+        }        
+        
         for attempt in range(max_onboarding_steps):
             print("-" * 20)
             logger.info(f"Onboarding Question Attempt: {attempt + 1}")
@@ -178,6 +185,8 @@ def run_simulation():
                             "llm_extracted_user_response": user_context[updated_field],
                         }
                     )
+        run_results["turns"] = onboarding_turns    
+        simulation_results.append(run_results)
 
     # ** DMA Scenario **
     print("")
@@ -200,12 +209,21 @@ def run_simulation():
         question_number = 1
 
         # Simulate Assessment
+        
+        flow_id = "dma-assessment"
+        run_results = {
+            "scenario_id":generate_scenario_id(flow_type=flow_id, username="user_123"),
+            "flow_type":flow_id,
+            "turns":None
+        }   
+        dma_turns = []
+        
         for _ in range(max_assessment_steps):
             print("-" * 20)
             logger.info(f"Assessment Step: Requesting question {question_number}")
 
             result = tasks.get_assessment_question(
-                flow_id="dma-assessment",
+                flow_id=flow_id,
                 question_number=question_number,
                 user_context=user_context,
             )
@@ -218,14 +236,26 @@ def run_simulation():
             user_response = input(contextualized_question + "\n> ")
 
             result = tasks.validate_assessment_answer(
-                user_response, question_number, "dma-assessment"
+                user_response, question_number, flow_id
             )
             if not result:
                 logger.warning(
                     f"Response validation failed for question {question_number}."
                 )
                 continue
+            dma_turns.append(
+                {
+                    "question_number": question_number,
+                    "llm_utterance": contextualized_question,
+                    "user_utterance": user_response,
+                    "llm_extracted_user_response": result["processed_user_response"],
+                }
+            )
             question_number = result["next_question_number"]
+            
+        run_results["turns"] = dma_turns
+        simulation_results.append(run_results)
+
 
     # ** KAB Scenario **
     print("")
@@ -251,6 +281,12 @@ def run_simulation():
             max_assessment_steps = 20  # Safety break
 
             # Simulate Assessments
+            run_results = {
+                "scenario_id":generate_scenario_id(flow_type=flow_id, username="user_123"),
+                "flow_type":flow_id,
+                "turns":None
+            }
+            kab_turns = []
             for _ in range(max_assessment_steps):
                 print("-" * 20)
                 logger.info(f"Assessment Step: Requesting question {question_number}")
@@ -276,7 +312,18 @@ def run_simulation():
                         f"Response validation failed for question {question_number}."
                     )
                     continue
+                kab_turns.append(
+                    {
+                        "question_number": question_number,
+                        "llm_utterance": contextualized_question,
+                        "user_utterance": user_response,
+                        "llm_extracted_user_response": result.get["processed_user_response"],
+                    }
+                )
                 question_number = result["next_question_number"]
+            run_results["turns"] = kab_turns
+            simulation_results.append(run_results)
+                
 
     # ** ANC Survey Scenario **
     print("")
@@ -301,6 +348,13 @@ def run_simulation():
         survey_complete = False
 
         # Simulate ANC Survey
+        flow_id = "anc-survey"
+        run_results = {
+            "scenario_id":generate_scenario_id(flow_type=flow_id, username="user_123"),
+            "flow_type":flow_id,
+            "turns":None
+        }
+        anc_survey_turns = []
         while not survey_complete:
             print("-" * 20)
             logger.info("ANC Survey Step: Requesting next question...")
@@ -330,28 +384,17 @@ def run_simulation():
             anc_user_context = tasks.extract_anc_data_from_response(
                 user_response, anc_user_context, anc_chat_history
             )
+            anc_survey_turns.append(
+                {
+                    "question_name": result["question_identifier"],
+                    "llm_utterance": contextualized_question,
+                    "user_utterance": user_response,
+                    "llm_extracted_user_response": anc_user_context,
+                }
+            )
             continue
-        # processed_user_response = result['processed_user_response']
-        current_assessment_step = result["current_assessment_step"]
-        processed_user_response = result["processed_user_response"]
-        assessment_turns.append(
-            {
-                "question_number": current_assessment_step,
-                "llm_utterance": contextualized_question,
-                "user_utterance": user_response,
-                "llm_extracted_user_response": processed_user_response,
-            }
-        )
-
-    simulation_results.append(
-        {
-            "scenario_id": generate_scenario_id(
-                flow_type=flow_type, username="user_123"
-            ),  # TODO: Find a way to pass the username dynamically
-            "flow_type": flow_type,
-            "turns": assessment_turns,
-        }
-    )
+        run_results["turns"] = anc_survey_turns
+        simulation_results.append(run_results)
 
     logger.info("--- Simulation Complete ---")
     return simulation_results
@@ -403,6 +446,8 @@ def main() -> None:
     # 1. Run the simulation to get the raw output directly in memory.
     raw_simulation_output = run_simulation()
     logging.info("Simulation complete. Starting validation and scoring process...")
+    print("_________ RUN OUPUT__________")
+    print(raw_simulation_output)
 
     # 2. Validate the IN-MEMORY raw output directly using Pydantic.
     try:

@@ -274,6 +274,7 @@ def get_anc_survey_question(user_context: dict, chat_history: list) -> dict | No
     return {
         "contextualized_question": final_question_text.strip(),
         "is_final_step": is_final,
+        "question_indentifier": next_step_id,
     }
 
 
