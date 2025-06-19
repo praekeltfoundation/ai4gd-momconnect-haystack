@@ -1,14 +1,14 @@
-import logging
 import json
+import logging
 from functools import cache
 from typing import Any
 
 from haystack import Pipeline
 from haystack.components.builders.chat_prompt_builder import ChatPromptBuilder
-from haystack.dataclasses import ChatMessage
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.retrievers import FilterRetriever
 from haystack.components.validators import JsonSchemaValidator
+from haystack.dataclasses import ChatMessage
 from haystack.tools import Tool
 from haystack.utils import Secret
 
@@ -1148,7 +1148,7 @@ def run_assessment_response_validator_pipeline(
 
         llm_response = result.get("llm", {})
         if llm_response and llm_response.get("replies"):
-            validated_text = llm_response["replies"][0].text.strip()
+            validated_text = llm_response["replies"][0].text.strip().strip('"')
             if validated_text.lower() == "nonsense":
                 return None
             if validated_text in valid_responses:

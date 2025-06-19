@@ -211,25 +211,23 @@ async def run_simulation():
         iterations = 0
         user_context["goal"] = "Complete the assessment"
         max_assessment_steps = 10  # Safety break
+        question_number = 1
 
         # Simulate Assessment
         while iterations < max_assessment_steps:
             iterations += 1
             print("-" * 20)
-            logger.info(
-                f"Assessment Step: Requesting step after {current_assessment_step}"
-            )
+            logger.info(f"Assessment Step: Requesting question {question_number}")
 
             result = tasks.get_assessment_question(
                 flow_id="dma-assessment",
-                current_assessment_step=current_assessment_step,
+                question_number=question_number,
                 user_context=user_context,
             )
             if not result:
                 logger.info("Assessment flow complete.")
                 break
             contextualized_question = result["contextualized_question"]
-            current_assessment_step = result["current_question_number"]
 
             # Simulate User Response
             user_response = input(contextualized_question + "\n> ")
@@ -261,11 +259,11 @@ async def run_simulation():
                 pass
 
             result = tasks.validate_assessment_answer(
-                user_response, current_assessment_step, "dma-assessment"
+                user_response, question_number, "dma-assessment"
             )
             if not result:
                 logger.warning(
-                    f"Response validation failed for step {current_assessment_step}."
+                    f"Response validation failed for question {question_number}."
                 )
                 continue
             processed_user_response = result["processed_user_response"]
@@ -278,6 +276,7 @@ async def run_simulation():
                     "llm_extracted_user_response": processed_user_response,
                 }
             )
+            question_number = current_assessment_step
 
     # ** KAB Scenario **
     print("")
@@ -300,6 +299,7 @@ async def run_simulation():
             logger.info("\n--- Simulating KAB ---")
             current_assessment_step = 0
             iterations = 0
+            question_number = 1
             user_context["goal"] = "Complete the assessment"
             max_assessment_steps = 20  # Safety break
 
@@ -307,20 +307,17 @@ async def run_simulation():
             while iterations < max_assessment_steps:
                 iterations += 1
                 print("-" * 20)
-                logger.info(
-                    f"Assessment Step: Requesting step after {current_assessment_step}"
-                )
+                logger.info(f"Assessment Step: Requesting question {question_number}")
 
                 result = tasks.get_assessment_question(
                     flow_id=flow_id,
-                    current_assessment_step=current_assessment_step,
+                    question_number=question_number,
                     user_context=user_context,
                 )
                 if not result:
                     logger.info("Assessment flow complete.")
                     break
                 contextualized_question = result["contextualized_question"]
-                current_assessment_step = result["current_question_number"]
 
                 # Simulate User Response
                 user_response = input(contextualized_question + "\n> ")
@@ -352,11 +349,11 @@ async def run_simulation():
                     pass
 
                 result = tasks.validate_assessment_answer(
-                    user_response, current_assessment_step, flow_id
+                    user_response, question_number, flow_id
                 )
                 if not result:
                     logger.warning(
-                        f"Response validation failed for step {current_assessment_step}."
+                        f"Response validation failed for question {question_number}."
                     )
                     continue
                 processed_user_response = result["processed_user_response"]
@@ -388,6 +385,7 @@ async def run_simulation():
                             "llm_extracted_user_response": processed_user_response,
                         }
                     )
+                question_number = current_assessment_step
 
     # ** ANC Survey Scenario **
     print("")

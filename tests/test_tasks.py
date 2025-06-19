@@ -179,12 +179,11 @@ def test_get_assessment_question(pipelines_mock):
     )
     result = get_assessment_question(
         flow_id="dma-assessment",
-        current_assessment_step=0,
+        question_number=1,
         user_context={},
     )
     assert result == {
         "contextualized_question": "mock_question",
-        "current_question_number": 1,
     }
 
 
@@ -195,16 +194,15 @@ def test_get_last_assessment_question(pipelines_mock):
     )
     result = get_assessment_question(
         flow_id="dma-assessment",
-        current_assessment_step=4,
+        question_number=5,
         user_context={},
     )
     assert result == {
         "contextualized_question": "mock_question",
-        "current_question_number": 5,
     }
     result = get_assessment_question(
         flow_id="dma-assessment",
-        current_assessment_step=5,
+        question_number=6,
         user_context={},
     )
     assert result == {}
@@ -217,7 +215,7 @@ def test_get_assessment_question_invalid_flow(pipelines_mock):
     """
     result = get_assessment_question(
         flow_id="non-existent-flow",
-        current_assessment_step=0,
+        question_number=1,
         user_context={},
     )
     assert result == {}
@@ -236,13 +234,13 @@ def test_validate_assessment_answer_success(pipelines_mock):
 
     result = validate_assessment_answer(
         user_response="This is my answer.",
-        current_question_number=3,
+        question_number=3,
         current_flow_id="dma-assessment",
     )
 
     assert result == {
         "processed_user_response": mock_processed_response,
-        "current_assessment_step": 3,
+        "next_question_number": 4,
     }
 
 
@@ -255,14 +253,14 @@ def test_validate_assessment_answer_failure(pipelines_mock):
 
     result = validate_assessment_answer(
         user_response="I don't know.",
-        current_question_number=3,
+        question_number=3,
         current_flow_id="dma-assessment",
     )
 
-    # Check that the response is None and the step is decremented to repeat the question
+    # Check that the response is None and the question number is kept the same to repeat the question
     assert result == {
         "processed_user_response": None,
-        "current_assessment_step": 2,
+        "next_question_number": 3,
     }
 
 
@@ -289,7 +287,7 @@ def test_extract_onboarding_data_from_response_updates_context(
     extracted from the user's response.
     """
     # The initial state of the user context
-    user_context = {"other": {}}
+    user_context = {}
 
     # The data that the mocked pipeline will "extract"
     mock_extracted_data = {
