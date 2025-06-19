@@ -1,10 +1,12 @@
 from enum import Enum
 from os import environ
+from pathlib import Path
 from typing import Annotated, Any
 
 import sentry_sdk
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
+from haystack.dataclasses import ChatMessage
 from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel
 
@@ -17,8 +19,20 @@ from .tasks import (
     handle_user_message,
     validate_assessment_answer,
 )
+from .utilities import (
+    ChatTypes,
+    get_or_create_chat_history,
+    load_json_and_validate,
+    save_chat_history,
+    SurveyTypes,
+)
 
 load_dotenv()
+
+DATA_PATH = Path("src/ai4gd_momconnect_haystack/")
+
+SERVICE_PERSONA_PATH = DATA_PATH / "static_content" / "service_persona.json"
+SERVICE_PERSONA = load_json_and_validate(SERVICE_PERSONA_PATH, dict)
 
 
 def setup_sentry():
@@ -59,51 +73,60 @@ def verify_token(authorization: Annotated[str, Header()]):
 
 
 class OnboardingRequest(BaseModel):
+    user_id: str
     user_input: str
     user_context: dict[str, Any]
-    chat_history: list[str] = []
 
 
 class OnboardingResponse(BaseModel):
     question: str
     user_context: dict[str, Any]
-    chat_history: list[str]
     intent: str | None
     intent_related_response: str | None
 
 
 @app.post("/v1/onboarding")
-def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
-    chat_history = request.chat_history
-    if request.user_input:
-        last_question = chat_history[-1] if chat_history else ""
-        intent, intent_related_response = handle_user_message(
-            last_question, request.user_input
-        )
-        chat_history.append(f"User to System: {request.user_input}")
+async def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
+    user_id = request.user_id
+    user_input = request.user_input
+    chat_history = await get_or_create_chat_history(
+        user_id=user_id, history_type=ChatTypes.onboarding
+    )
+
+    if user_input:
+        last_question = chat_history[-1].text if chat_history else ""
+        chat_history.append(ChatMessage.from_user(text=user_input))
+        intent, intent_related_response = handle_user_message(last_question, user_input)
     else:
         # For the first message we initiate, we won't have a user input, so we should
         # force the intent in this situation
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
-    if intent_related_response:
-        chat_history.append(f"System to User: {intent_related_response}")
-    if intent == "JOURNEY_RESPONSE" and request.user_input:
+        # Also initialize the chat history with the persona in a system message
+        chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA)]
+    if intent == "JOURNEY_RESPONSE" and user_input:
         user_context = extract_onboarding_data_from_response(
-            user_response=request.user_input,
+            user_response=user_input,
             user_context=request.user_context,
             chat_history=chat_history,
         )
     else:
         # If there is no response to the question, the context stays the same
         user_context = request.user_context
+    if intent == "CHITCHAT" and intent_related_response:
+        chat_history.append(ChatMessage.from_assistant(text=intent_related_response))
     question = get_next_onboarding_question(
         user_context=user_context, chat_history=chat_history
     )
-    chat_history.append(f"System to User: {question}")
+    if question:
+        chat_history.append(ChatMessage.from_assistant(text=question))
+    await save_chat_history(
+        user_id=request.user_id,
+        messages=chat_history,
+        history_type=ChatTypes.onboarding,
+    )
     return OnboardingResponse(
         question=question or "",
         user_context=user_context,
-        chat_history=chat_history,
         intent=intent,
         intent_related_response=intent_related_response,
     )
@@ -122,28 +145,22 @@ class AssessmentRequest(BaseModel):
     user_context: dict[str, Any]
     flow_id: AssessmentType
     question_number: int
-    chat_history: list[str] = []
+    previous_question: str
 
 
 class AssessmentResponse(BaseModel):
     question: str
     next_question: int
-    chat_history: list[str]
     intent: str | None
     intent_related_response: str | None
 
 
 @app.post("/v1/assessment")
 def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
-    chat_history = request.chat_history
-    last_question = chat_history[-1] if chat_history else ""
     if request.user_input:
         intent, intent_related_response = handle_user_message(
-            last_question, request.user_input
+            request.previous_question, request.user_input
         )
-        chat_history.append(f"User to System: {request.user_input}")
-        if intent_related_response:
-            chat_history.append(f"System to User: {intent_related_response}")
     else:
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
 
@@ -164,53 +181,57 @@ def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
     )
     contextualized_question = question["contextualized_question"] or ""
     current_question_number = question["current_question_number"]
-    chat_history.append(f"System to User: {contextualized_question}")
     return AssessmentResponse(
         question=contextualized_question,
         next_question=current_question_number,
-        chat_history=chat_history,
         intent=intent,
         intent_related_response=intent_related_response,
     )
 
 
-class SurveyTypes(str, Enum):
-    anc = "anc"
-
-
 class SurveyRequest(BaseModel):
+    user_id: str
     survey_id: SurveyTypes
     user_input: str
     user_context: dict[str, Any]
-    chat_history: list[str] = []
 
 
 class SurveyResponse(BaseModel):
     question: str
     user_context: dict[str, Any]
-    chat_history: list[str]
     survey_complete: bool
     intent: str | None
     intent_related_response: str | None
 
 
 @app.post("/v1/survey", response_model=SurveyResponse)
-def survey(request: SurveyRequest, token: str = Depends(verify_token)):
+async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
     """
     Handles the conversation flow for the ANC (Antenatal Care) survey.
     It extracts data from the user's response and determines the next question.
     """
-    chat_history = request.chat_history
+    user_id = request.user_id
+    user_input = request.user_input
+    chat_history = await get_or_create_chat_history(
+        user_id=user_id, history_type=request.survey_id
+    )
+
     last_question = chat_history[-1] if chat_history else ""
     if request.user_input:
-        intent, intent_related_response = handle_user_message(
-            last_question, request.user_input
+        chat_history.append(ChatMessage.from_user(text=user_input))
+        await save_chat_history(
+            user_id=request.user_id,
+            messages=chat_history,
+            history_type=request.survey_id,
         )
-        chat_history.append(f"User to System: {request.user_input}")
-        if intent_related_response:
-            chat_history.append(f"System to User: {intent_related_response}")
+        intent, intent_related_response = handle_user_message(last_question, user_input)
     else:
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
+        if not chat_history:
+            chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA)]
+            await save_chat_history(
+                user_id=user_id, messages=chat_history, history_type=request.survey_id
+            )
     if intent == "JOURNEY_RESPONSE" and request.user_input:
         # There's only one survey type, so we can assume anc until we add more
         # First, extract data from the user's last response to update the context
@@ -231,16 +252,16 @@ def survey(request: SurveyRequest, token: str = Depends(verify_token)):
         question = question_result.get("contextualized_question", "")
         survey_complete = question_result.get("is_final_step", False)
     # Add the new question or a completion message to the history
-    if question:
-        chat_history.append(f"System to User: {question}")
-    elif survey_complete:
+    if (not question) and survey_complete:
         completion_message = "Thank you for completing the survey!"
-        chat_history.append(f"System to User: {completion_message}")
         question = completion_message
+    chat_history.append(ChatMessage.from_assistant(text=question))
+    await save_chat_history(
+        user_id=request.user_id, messages=chat_history, history_type=request.survey_id
+    )
     return SurveyResponse(
         question=question,
         user_context=user_context,
-        chat_history=chat_history,
         survey_complete=survey_complete,
         intent=intent,
         intent_related_response=intent_related_response,

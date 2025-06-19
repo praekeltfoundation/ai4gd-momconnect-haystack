@@ -1,12 +1,27 @@
+from datetime import datetime
+from enum import Enum
 import json
 import logging
-from typing import Any
 from pathlib import Path
-from datetime import datetime
+from typing import Any
+
+from haystack.dataclasses import ChatMessage
 from pydantic import BaseModel, ValidationError
+from sqlalchemy.future import select
+
+from .database import AsyncSessionLocal
+from .sqlalchemy_models import ChatHistory
 
 
 logger = logging.getLogger(__name__)
+
+
+class SurveyTypes(str, Enum):
+    anc = "anc"
+
+
+class ChatTypes(str, Enum):
+    onboarding = "onboarding"
 
 
 def read_json(filepath: Path) -> dict:
@@ -66,3 +81,92 @@ def save_json_file(data: list[dict[str, Any]], file_path: Path) -> None:
         logging.info(f"Successfully saved final augmented output to {file_path}")
     except Exception as e:
         logging.error(f"An unexpected error occurred while writing to {file_path}: {e}")
+
+
+def chat_messages_to_json(messages: list[ChatMessage]) -> list[dict[str, Any]]:
+    """Converts a list of ChatMessage objects to a JSON-serializable list of dicts."""
+    return [
+        {
+            "role": msg.role.value,
+            "text": msg.text,
+        }
+        for msg in messages
+    ]
+
+
+async def get_or_create_chat_history(
+    user_id: str, history_type: ChatTypes | SurveyTypes
+) -> list[ChatMessage]:
+    """
+    Retrieves an Onboarding chat history for a given user_id.
+    If it doesn't exist, an empty history is returned.
+    """
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(ChatHistory).filter(ChatHistory.user_id == user_id)
+        )
+        db_history = result.scalar_one_or_none()
+        chat_history = []
+
+        if db_history:
+            if history_type == "onboarding":
+                for cm in db_history.onboarding_history:
+                    if cm["role"] == "user":
+                        chat_history.append(ChatMessage.from_user(text=cm["text"]))
+                    elif cm["role"] == "assistant":
+                        chat_history.append(ChatMessage.from_assistant(text=cm["text"]))
+                    else:
+                        chat_history.append(ChatMessage.from_system(text=cm["text"]))
+            elif history_type == "anc":
+                for cm in db_history.anc_survey_history:
+                    if cm["role"] == "user":
+                        chat_history.append(ChatMessage.from_user(text=cm["text"]))
+                    elif cm["role"] == "assistant":
+                        chat_history.append(ChatMessage.from_assistant(text=cm["text"]))
+                    else:
+                        chat_history.append(ChatMessage.from_system(text=cm["text"]))
+            else:
+                logger.error(f"Unknown chat history type requested: {history_type}")
+        return chat_history
+
+
+async def save_chat_history(
+    user_id: str, messages: list[ChatMessage], history_type: ChatTypes | SurveyTypes
+) -> None:
+    """Saves or updates the chat history for a given user_id."""
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            result = await session.execute(
+                select(ChatHistory).filter(ChatHistory.user_id == user_id)
+            )
+            db_history = result.scalar_one_or_none()
+
+            history_json = chat_messages_to_json(messages)
+
+            if db_history:
+                if history_type == "onboarding":
+                    db_history.onboarding_history = history_json
+                elif history_type == "anc":
+                    db_history.anc_survey_history = history_json
+                else:
+                    logger.error(f"Unknown chat history type to update: {history_type}")
+                    return
+            else:
+                if history_type == "onboarding":
+                    db_history = ChatHistory(
+                        user_id=user_id,
+                        onboarding_history=history_json,
+                        anc_survey_history=[],
+                    )
+                elif history_type == "anc":
+                    db_history = ChatHistory(
+                        user_id=user_id,
+                        onboarding_history=[],
+                        anc_survey_history=history_json,
+                    )
+                else:
+                    logger.error(f"Unknown chat history type to create: {history_type}")
+                    return
+                session.add(db_history)
+
+            await session.commit()

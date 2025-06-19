@@ -4,7 +4,7 @@ from unittest import mock
 import pytest
 
 # Import the Pydantic models and the functions to be tested
-from ai4gd_momconnect_haystack.models import AssessmentRun, Question, Turn
+from ai4gd_momconnect_haystack.pydantic_models import AssessmentRun, Question, Turn
 from ai4gd_momconnect_haystack.tasks import (
     _calculate_assessment_score_range,
     _score_single_turn,

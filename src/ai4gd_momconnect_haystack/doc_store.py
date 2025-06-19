@@ -1,4 +1,5 @@
 import logging
+import json
 from os import environ
 from pathlib import Path
 from typing import Any
@@ -126,17 +127,27 @@ def ingest_content(
                         "valid_responses": piece.get("valid_responses", []),
                     },
                 )
-            else:
-                valid_responses = piece.get("valid_responses", [])
-                if isinstance(valid_responses, dict):
-                    valid_responses = list(valid_responses.keys())
+            elif flow_id == "onboarding":
                 doc = Document(
                     content=piece["content"],
                     meta={
                         "flow_id": flow_id,
                         "question_number": piece["question_number"],
                         "content_type": piece["content_type"],
-                        "valid_responses": valid_responses,
+                        "valid_responses": piece.get("valid_responses", []),
+                    },
+                )
+            else:
+                # For DMA and KAB flows
+                doc = Document(
+                    content=piece["content"],
+                    meta={
+                        "flow_id": flow_id,
+                        "question_number": piece["question_number"],
+                        "content_type": piece["content_type"],
+                        "valid_responses_and_scores": json.dumps(
+                            piece.get("valid_responses_and_scores", [])
+                        ),
                     },
                 )
             documents_to_ingest.append(doc)

@@ -380,40 +380,53 @@ def create_next_onboarding_question_pipeline() -> Pipeline | None:
     pipeline = Pipeline()
 
     prompt_template = """
-    You are an assistant helping to onboard a new user.
-    The user has already provided the following information:
+    {% for message in chat_history %}
+    {% if message.is_from('user') %}
+    user:
+    {{ message.text }}
+
+    {% elif message.is_from('assistant') %}
+    assistant:
+    {{ message.text }}
+
+    {% else %}
+    system:
+    {{ message.text }}
+
+    {% endif %}
+    {% endfor %}
+
+    system:
+    Data already collected:
     User Context:
     {% for key, value in user_context.items() %}
     - {{ key }}: {{ value }}
     {% endfor %}
 
-    Chat History:
-    {% for message in chat_history %}
-    - {{ message }}
-    {% endfor %}
-
-    Here are the remaining questions we can ask to complete their profile:
+    Remaining questions to complete their profile:
     {% for q in remaining_questions %}
     - Question: "{{ q.content }}" (collects data for: "{{ q.collects }}", possible correctly formatted values: "{{ q.valid_responses }}", current question_number for reference: {{ q.question_number }})
     {% endfor %}
 
     Considering the information already collected, the chat history, and the remaining questions,
     which single question would be the most natural and effective to ask next?
-    Your goal is to make the onboarding conversational and logical such that a subsequent prompt can be made to try to extract the expected data from the user's response.
 
     You MUST respond with a valid JSON object containing exactly these fields:
     - "chosen_question_number" (integer): The question_number of the chosen question from the list above
     - "contextualized_question" (string): A contextualized version of the question
 
-    You can reference the existing User Context and Chat History to modify the tonality and/or phrasing,
-    or even add emojis, but DO NOT change the core meaning of the question nor introduce ambiguity. Ensure that the chat flows
+    You can reference the existing User Context and chat history to modify the tonality and/or phrasing,
+    but DO NOT change the core meaning of the question nor introduce ambiguity. Ensure that the chat flows
     smoothly (e.g. the first message in a chat must not start as if there were preceding messages).
 
     JSON Response:
     """
+    chat_template = [
+        ChatMessage.from_system(prompt_template),
+    ]
     prompt_builder = ChatPromptBuilder(
-        template=[ChatMessage.from_user(prompt_template)],
-        required_variables=["user_context", "chat_history", "remaining_questions"],
+        template=chat_template,
+        required_variables=["user_context", "remaining_questions", "chat_history"],
     )
 
     json_validator = JsonSchemaValidator(json_schema=NEXT_QUESTION_SCHEMA)
@@ -447,21 +460,42 @@ def create_onboarding_data_extraction_pipeline() -> Pipeline | None:
     pipeline = Pipeline()
 
     prompt_template = """
-    You are helping extract onboarding data from a user's response to a maternal health chatbot.
+    {% for message in chat_history %}
+    {% if message.is_from('user') %}
+    user:
+    {{ message.text }}
 
+    {% elif message.is_from('assistant') %}
+    assistant:
+    {{ message.text }}
+
+    {% else %}
+    system:
+    {{ message.text }}
+
+    {% endif %}
+    {% endfor %}
+
+    system:
     Data already collected:
-    {{ user_context }}
-
-    Chat history:
-    {{ chat_history }}
+    User Context:
+    {% for key, value in user_context.items() %}
+    - {{ key }}: {{ value }}
+    {% endfor %}
 
     User's latest message: "{{ user_response }}"
 
     Please use the 'extract_onboarding_data' tool to analyze this message. Pay close attention to these **critical rules**:
     - For the properties 'province', 'area_type', 'relationship_status', 'education_level', 'hunger_days', 'num_children' and 'phone_ownership', extracted data **MUST** adhere strictly to their 'enum' lists. If the user's response for one of these properties does **NOT** contain a word or phrase that *directly and unambiguously* maps to one of the EXACT 'enum' values, **DO NOT include that property in your tool call**. Only store the 'Skip' enum value for these properties if the user explicitly states they want to skip in response to that specific question.
     - **DO NOT GUESS or INFER** an enum value based on sentiment, vague descriptions, or ambiguous terms. Only include a field if you are highly confident that the user's input matches an allowed 'enum' value.
-    - Do not extract a data point if it clearly has already been collected in the user context, unless the user explicitly provides new information that updates it.
-    - For 'hunger_days' and 'num_children', if the user provides a number that does not match any of the enum values, you **MUST** omit those fields, unless the corresponding enum can reasonably be deduced or inferred e.g. '6' hungry days can be mapped to the enum '5-7 days'.
+    - Do not extract a data point if it clearly has already been collected in the user context, unless the user's latest message explicitly provides new information that updates it.
+    - For properties with numeric ranges like 'hunger_days', you MUST map the user's input to the correct enum category, unless they did not provide valid information. Do not just look for an exact string match. For example:
+        - If the user says "3", you should extract: {"hunger_days": "3-4 days"}
+        - If the user says "one day", you should extract: {"hunger_days": "1-2 days"}
+        - If the user says "6", you should extract: {"hunger_days": "5-7 days"}
+        - If the user says "I haven't been hungry", you should extract: {"hunger_days": "0 days"}
+        - If the user does not provide a mappable, do not include 'hunger_days' in the tool call.
+    - For 'num_children', apply the same numeric mapping logic.
     - For the open-ended additionalProperties, extract any extra information mentioned AS LONG AS it pertains specifically to maternal health or the use of a maternal health chatbot.
     """
 
@@ -504,11 +538,8 @@ def create_assessment_contextualization_pipeline() -> Pipeline | None:
     Original Assessment Question to be contextualized:
     {{ documents[0].content }}
 
-    **Start of valid responses list**
-    {% for vr in documents[0].meta.valid_responses %}
-    {{ vr }}
-    {% endfor %}
-    **End of valid responses list**
+    Valid responses:
+    The user can respond with one of the options described in the following JSON string: {{ documents[0].meta.valid_responses_and_scores }}.
 
     Review the Original Assessment Question. If you think it's needed, make minor
     adjustments to ensure that the question is clear and directly applicable to the
@@ -567,9 +598,6 @@ def create_assessment_response_validator_pipeline() -> Pipeline | None:
     {% for response in valid_responses %}
     - "{{ response }}"
     {% endfor %}
-
-    User responses can be unpredictable. They might reply with a number, an exact phrase from the list, or something similar in meaning.
-    Your job is to find the best match.
 
     - If the user's response clearly and unambiguously corresponds to one of the valid responses, your output MUST be the exact text of that valid response from the list.
     - If the user's response is ambiguous, does not match any valid response, or is nonsense/gibberish, you MUST return the single word: "nonsense".
@@ -886,7 +914,7 @@ def run_next_onboarding_question_pipeline(
     pipeline: Pipeline,
     user_context: dict[str, Any],
     remaining_questions: list[dict],
-    chat_history: list[str],
+    chat_history: list[ChatMessage],
 ) -> dict[str, Any] | None:
     """
     Run the next onboarding question selection pipeline and return the chosen question.
@@ -972,9 +1000,11 @@ def run_onboarding_data_extraction_pipeline(
     try:
         result = pipeline.run(
             {
-                "user_response": user_response,
-                "user_context": user_context,
-                "chat_history": chat_history,
+                "prompt_builder": {
+                    "user_response": user_response,
+                    "user_context": user_context,
+                    "chat_history": chat_history,
+                }
             }
         )
 
@@ -1061,7 +1091,15 @@ def run_assessment_contextualization_pipeline(
             )
             return None
 
-        valid_responses = retrieved_docs[0].meta.get("valid_responses", [])
+        valid_responses_and_scores = json.loads(
+            retrieved_docs[0].meta.get("valid_responses_and_scores", "[]")
+        )
+        valid_responses = [
+            item["response"]
+            for item in valid_responses_and_scores
+            if "response" in item
+        ]
+        print(f"Valid responses for question {question_number}: {valid_responses}")
 
         # Get validated JSON from the validator
         validated_json_list = result.get("json_validator", {}).get("validated", [])

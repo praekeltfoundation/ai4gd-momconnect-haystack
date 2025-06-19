@@ -12,6 +12,8 @@ dependencies = [
     "fastapi[standard]>=0.115.12",
     "sentry-sdk[fastapi]>=2.29.1",
     "prometheus-fastapi-instrumentator>=7.1.0",
+    "sqlalchemy>=2.0.29",
+    "aiosqlite>=0.20.0",
 ]
 
 [dependency-groups]

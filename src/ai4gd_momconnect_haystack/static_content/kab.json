@@ -5,40 +5,40 @@
             "question_name": "antenatal_care_visit_count",
             "content": "*So far in this pregnancy, how many times have you gone to the clinic for a pregnancy check-up?* 🫃🏽",
             "content_type": "assessment_question",
-            "valid_responses": {
-                "0 - None": 0,
-                "1": 1,
-                "2": 2,
-                "3": 3,
-                "4": 3,
-                "5": 3,
-                "6": 3,
-                "7": 3,
-                "More than 7": 3,
-                "Skip": 0
-            }
+            "valid_responses_and_scores": [
+                { "resonse": "0 - None", "score": 0 },
+                { "response": "1", "score": 1 },
+                { "response": "2", "score": 2 },
+                { "response": "3", "score": 3 },
+                { "response": "4", "score": 3 },
+                { "response": "5", "score": 3 },
+                { "response": "6", "score": 3 },
+                { "response": "7", "score": 3 },
+                { "response": "More than 7", "score": 3 },
+                { "response": "Skip", "score": 0 }
+            ]
         },
         {
             "question_number": 2,
             "question_name": "made_diet_changes_based_on_health_worker",
             "content": "*In this pregnancy, have you made any changes to your diet based on information from the health worker?* 🫃🏽",
             "content_type": "assessment_question",
-            "valid_responses": {
-                "Yes": 1,
-                "No": 2,
-                "Skip": 0
-            }
+            "valid_responses_and_scores": [
+                { "resonse": "Yes", "score": 1 },
+                { "response": "No", "score": 2 },
+                { "response": "Skip", "score": 0 }
+            ]
         },
         {
             "question_number": 3,
             "question_name": "tetanus_vaccine_doses_received",
             "content": "*So far in this pregnancy, how many doses of the tetanus vaccine (Tdap) have you received?* 🫃🏽",
             "content_type": "assessment_question",
-            "valid_responses": {
-                "0": 0,
-                "1": 1,
-                "Skip": 0
-            }
+            "valid_responses_and_scores": [
+                { "resonse": "0", "score": 0 },
+                { "response": "1", "score": 1 },
+                { "response": "Skip", "score": 0 }
+            ]
         },
         {
             "question_number": 4,
@@ -46,11 +46,11 @@
             "content": "*Since becoming pregnant, have you drunk any alcohol or smoked at all?* 🫃🏽",
             "post-content": "*Since joining MomConnect, have you drunk any alcohol or smoked at all?* 🫃🏽",
             "content_type": "assessment_question",
-            "valid_responses": {
-                "Yes": 0,
-                "No": 1,
-                "Skip": 0
-            }
+            "valid_responses_and_scores": [
+                { "response": "Yes", "score": 0 },
+                { "response": "No", "score": 1 },
+                { "response": "Skip", "score": 0 }
+            ]
         }
     ],
     "knowledge-assessment": [
@@ -59,79 +59,79 @@
             "question_name": "first_pregnancy_checkup_timing",
             "content": "*When do you think a pregnant woman should get her first pregnancy check-up?* 🤰🏽",
             "content_type": "assessment_question",
-            "valid_responses": {
-                "Before 14 weeks": 0,
-                "At about 16 weeks": 1,
-                "At about 20 weeks": 0,
-                "At about 24 weeks": 0,
-                "At birth": 0,
-                "I don't know": 0,
-                "Skip": 0
-            }
+            "valid_responses_and_scores": [
+                { "response": "Before 14 weeks", "score": 0 },
+                { "response": "At about 16 weeks", "score": 1 },
+                { "response": "At about 20 weeks", "score": 0 },
+                { "response": "At about 24 weeks", "score": 0 },
+                { "response": "At birth", "score": 0 },
+                { "response": "I don't know", "score": 0 },
+                { "response": "Skip", "score": 0 }
+            ]
         },
         {
             "question_number": 2,
             "question_name": "emergency_symptom_recognition",
             "content": "*During a pregnancy, which of these means you need to go to the hospital immediately?* 🤰🏽\n\n• You have contractions that stop when you move\n• Your tummy stays tight, hard and is very painful\n• Your lower back aches all day",
             "content_type": "assessment_question",
-            "valid_responses": {
-                "Contractions stop": 0,
-                "Tight painful tummy": 1,
-                "Lower back ache": 0,
-                "I don't know": 0,
-                "Skip": 0
-            }
+            "valid_responses_and_scores": [
+                { "response": "Contractions stop", "score": 0 },
+                { "response": "Tight painful tummy", "score": 1 },
+                { "response": "Lower back ache", "score": 0 },
+                { "response": "I don't know", "score": 0 },
+                { "response": "Skip", "score": 0 }
+            ]
         },
         {
             "question_number": 3,
             "question_name": "pregnancy_checkup_frequency",
             "content": "*How many pregnancy check-ups should you go to during your pregnancy?* 🤰🏽",
             "content_type": "assessment_question",
-            "valid_responses": {
-                "1 to 4 check-ups": 0,
-                "5 to 7 check-ups": 1,
-                "8 or more check-ups": 1,
-                "0 - None": 0,
-                "I don't know": 0,
-                "Skip": 0
-            }
+            "valid_responses_and_scores": [
+                { "response": "1 to 4 check-ups", "score": 0 },
+                { "response": "5 to 7 check-ups", "score": 1 },
+                { "response": "8 or more check-ups", "score": 1 },
+                { "response": "0 - None", "score": 0 },
+                { "response": "I don't know", "score": 0 },
+                { "response": "Skip", "score": 0 }
+            ]
         },
         {
             "question_number": 4,
             "question_name": "should_breastfeed_within_hour",
             "content": "*Should a baby be breastfed within the first hour of birth?* 🤰🏽",
             "content_type": "assessment_question",
-            "valid_responses": {
-                "Yes": 1,
-                "No": 0,
-                "I don't know": 0,
-                "Skip": 0
-            }
+            "valid_responses_and_scores": [
+                { "response": "Yes", "score": 1 },
+                { "response": "No", "score": 0 },
+                { "response": "I don't know", "score": 0 },
+                { "response": "Skip", "score": 0 }
+            ]
         },
         {
             "question_number": 5,
             "question_name": "vaccine_protection",
             "content": "*Who does this vaccine protect?* 🤰🏽",
             "content_type": "assessment_question",
-            "valid_responses": {
-                "You": 0,
-                "Your baby only": 0,
-                "You and baby": 1,
-                "I don't know": 0,
-                "Skip": 0
-            }
+            "valid_responses_and_scores": [
+                { "response": "You", "score": 0 },
+                { "response": "Your baby only", "score": 0 },
+                { "response": "You and baby", "score": 1 },
+                { "response": "I don't know", "score": 0 },
+                { "response": "Skip", "score": 0 }
+            ]
         },
         {
             "question_number": 6,
             "question_name": "understands_iron_folic_acid_benefits",
             "content": "*Are iron and folic acid supplements good for you and your unborn baby?* 🤰🏽",
             "content_type": "assessment_question",
-            "valid_responses": {
-                "Yes": 1,
-                "No": 0,
-                "I don't know": 0,
-                "Skip": 0
-            }
+            "valid_responses_and_scores": [
+                { "response": "Yes", "score": 1 },
+                { "response": "No", "score": 0 },
+                { "response": "I don't know", "score": 0 },
+                { "response": "Skip", "score": 0 }
+            ]
         }
     ],
     "attitude-assessment": [
@@ -140,42 +140,42 @@
             "question_name": "believes_in_checkup_importance",
             "content": "Do you agree with this statement?\n\n*Pregnancy check-ups are a good way to check that you and your unborn baby are healthy.* 🫄🏽",
             "content_type": "assessment_question",
-            "valid_responses": {
-                "I strongly agree": 5,
-                "I agree": 4,
-                "I'm not sure": 3,
-                "I disagree": 2,
-                "I strongly disagree": 1,
-                "Skip": 0
-            }
+            "valid_responses_and_scores": [
+                { "response": "I strongly agree", "score": 5 },
+                { "response": "I agree", "score": 4 },
+                { "response": "I'm not sure", "score": 3 },
+                { "response": "I disagree", "score": 2 },
+                { "response": "I strongly disagree", "score": 1 },
+                { "response": "Skip", "score": 0 }
+            ]
         },
         {
             "question_number": 2,
             "question_name": "believes_home_birth_is_safer",
             "content": "What about this one…\n\n*Home birth is safer than giving birth in a hospital.* 🫄🏽",
             "content_type": "assessment_question",
-            "valid_responses": {
-                "I strongly agree": 1,
-                "I agree": 2,
-                "I'm not sure": 3,
-                "I disagree": 4,
-                "I strongly disagree": 5,
-                "Skip": 0
-            }
+            "valid_responses_and_scores": [
+                { "response": "I strongly agree", "score": 1 },
+                { "response": "I agree", "score": 2 },
+                { "response": "I'm not sure", "score": 3 },
+                { "response": "I disagree", "score": 4 },
+                { "response": "I strongly disagree", "score": 5 },
+                { "response": "Skip", "score": 0 }
+            ]
         },
         {
             "question_number": 3,
             "question_name": "believes_in_hiv_testing",
             "content": "And…\n\n*It’s important for a pregnant woman to get an HIV test when she is pregnant.* 🫄🏽",
             "content_type": "assessment_question",
-            "valid_responses": {
-                "I strongly agree": 5,
-                "I agree": 4,
-                "I'm not sure": 3,
-                "I disagree": 2,
-                "I strongly disagree": 1,
-                "Skip": 0
-            }
+            "valid_responses_and_scores": [
+                { "response": "I strongly agree", "score": 5 },
+                { "response": "I agree", "score": 4 },
+                { "response": "I'm not sure", "score": 3 },
+                { "response": "I disagree", "score": 2 },
+                { "response": "I strongly disagree", "score": 1 },
+                { "response": "Skip", "score": 0 }
+            ]
         }
     ]
 }

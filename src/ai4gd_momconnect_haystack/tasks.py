@@ -2,10 +2,11 @@ import json
 import logging
 from typing import Any
 
+from haystack.dataclasses import ChatMessage
 from pydantic import ValidationError
 
 from . import doc_store, pipelines
-from .models import AssessmentRun, Question, Turn
+from .pydantic_models import AssessmentRun, Question, Turn
 
 # --- Configuration ---
 logger = logging.getLogger(__name__)
@@ -39,7 +40,9 @@ assessment_flow_map = {
 ANC_SURVEY_MAP = {item["title"]: item for item in all_anc_survey_questions}
 
 
-def get_next_onboarding_question(user_context: dict, chat_history: list) -> str | None:
+def get_next_onboarding_question(
+    user_context: dict, chat_history: list[ChatMessage]
+) -> str | None:
     """
     Gets the next contextualized onboarding question.
     """
@@ -90,7 +93,7 @@ def get_next_onboarding_question(user_context: dict, chat_history: list) -> str 
 
 
 def extract_onboarding_data_from_response(
-    user_response: str, user_context: dict, chat_history: list
+    user_response: str, user_context: dict, chat_history: list[ChatMessage]
 ) -> dict:
     """
     Extracts data from a user's response to an onboarding question.
@@ -189,15 +192,18 @@ def validate_assessment_answer(
             "processed_user_response": None,
             "current_assessment_step": current_question_number - 1,
         }
-    valid_responses = current_question.get("valid_responses", [])
-    if not valid_responses:
+    valid_responses_and_scores = current_question.get("valid_responses_and_scores", [])
+    if not valid_responses_and_scores:
         logger.error(
-            f"No valid_responses found for question {current_question_number}."
+            f"No valid responses found for question {current_question_number}."
         )
         return {
             "processed_user_response": None,
             "current_assessment_step": current_question_number - 1,
         }
+    valid_responses = [
+        item["response"] for item in valid_responses_and_scores if "response" in item
+    ]
 
     validator_pipe = pipelines.create_assessment_response_validator_pipeline()
     processed_user_response = pipelines.run_assessment_response_validator_pipeline(
@@ -226,7 +232,9 @@ def validate_assessment_answer(
     }
 
 
-def get_anc_survey_question(user_context: dict, chat_history: list) -> dict | None:
+def get_anc_survey_question(
+    user_context: dict, chat_history: list[ChatMessage]
+) -> dict | None:
     """
     Gets the next contextualized ANC survey question by first determining the
     next logical step, then fetching the content and contextualizing it.
@@ -289,7 +297,7 @@ def get_anc_survey_question(user_context: dict, chat_history: list) -> dict | No
 
 
 def extract_anc_data_from_response(
-    user_response: str, user_context: dict, chat_history: list
+    user_response: str, user_context: dict, chat_history: list[ChatMessage]
 ) -> dict:
     """
     Extracts data from a user's response to an ANC survey question.
@@ -336,12 +344,12 @@ def get_faq_answer(user_question: str) -> str | None:
 
 
 def handle_user_message(
-    last_question_asked: str, user_message: str
+    previous_question: str, user_message: str
 ) -> tuple[str | None, str | None]:
     """
     Orchestrates the process of handling a new user message.
     """
-    intent = detect_user_intent(last_question_asked, user_message)
+    intent = detect_user_intent(previous_question, user_message)
     response = None
 
     if intent == "QUESTION_ABOUT_STUDY":
@@ -351,7 +359,7 @@ def handle_user_message(
     elif intent == "HEALTH_QUESTION":
         response = "Please consider first finishing the current survey, but we may have an answer to your question on MomConnect: https://wa.me/27796312456?text=menu"
     elif intent == "CHITCHAT":
-        if last_question_asked and last_question_asked != "":
+        if previous_question and previous_question != "":
             response = "Please try answering the previous question again."
         else:
             response = "Thank you for reaching out! We will let you know if we have more questions for you. You can also click on this link to go to MomConnect: https://wa.me/27796312456?text=menu"
