@@ -192,9 +192,7 @@ def validate_assessment_answer(
         }
     valid_responses_and_scores = current_question.get("valid_responses_and_scores", [])
     if not valid_responses_and_scores:
-        logger.error(
-            f"No valid responses found for question {current_question_number}."
-        )
+        logger.error(f"No valid responses found for question {question_number}.")
         return {
             "processed_user_response": None,
             "next_question_number": question_number,
