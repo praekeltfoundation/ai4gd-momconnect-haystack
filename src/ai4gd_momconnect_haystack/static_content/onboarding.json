@@ -34,7 +34,7 @@
         },
         {
             "question_number": 3,
-            "content": "What’s your current relationship status? 👤",
+            "content": "What's your current relationship status? 👤",
             "content_type": "onboarding_message",
             "valid_responses": [
                 "Single",
@@ -46,7 +46,7 @@
         },
         {
             "question_number": 4,
-            "content": "What’s your highest level of education? 📚",
+            "content": "What's your highest level of education? 📚",
             "content_type": "onboarding_message",
             "valid_responses": [
                 "No school",
@@ -55,14 +55,14 @@
                 "Some high school",
                 "Finished high school",
                 "More than high school",
-                "Don’t know",
+                "Don't know",
                 "Skip"
             ],
             "collects": "education_level"
         },
         {
             "question_number": 5,
-            "content": "In the last week, how many days did you miss a meal because there wasn’t money for food? 🍞",
+            "content": "In the last week, how many days did you miss a meal because there wasn't money for food? 🍞",
             "content_type": "onboarding_message",
             "valid_responses": [
                 "0 days",
@@ -90,7 +90,7 @@
         },
         {
             "question_number": 7,
-            "content": "Do you own the phone you’re using right now? 📱",
+            "content": "Do you own the phone you're using right now? 📱",
             "content_type": "onboarding_message",
             "valid_responses": [
                 "Yes",

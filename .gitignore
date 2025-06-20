@@ -176,6 +176,9 @@ cython_debug/
 # Weaviate document store
 weaviate_data/
 
+# SQLite db
+chat.db
+
 # Other files
 .python-version
 evaluation_outputs/
