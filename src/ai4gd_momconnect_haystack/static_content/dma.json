@@ -31,7 +31,7 @@
         {
             "question_number": 3,
             "question_name": "confident_in_disagreeing_with_health_worker",
-            "content": "Here’s the next one 👇🏽\n\n*I feel that I can disagree with a health worker about my treatment plan.*",
+            "content": "Here's the next one 👇🏽\n\n*I feel that I can disagree with a health worker about my treatment plan.*",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
                 { "response": "I strongly disagree", "score": 0 },

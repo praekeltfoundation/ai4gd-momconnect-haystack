@@ -5,6 +5,12 @@ from typing import Any
 from haystack.dataclasses import ChatMessage
 from pydantic import ValidationError
 
+from ai4gd_momconnect_haystack.sqlalchemy_models import PreAssessmentQuestionHistory
+from ai4gd_momconnect_haystack.utilities import (
+    AssessmentType,
+    get_pre_assessment_history,
+)
+
 from . import doc_store, pipelines
 from .pydantic_models import AssessmentRun, Question, Turn
 
@@ -12,29 +18,48 @@ from .pydantic_models import AssessmentRun, Question, Turn
 logger = logging.getLogger(__name__)
 
 onboarding_flow_id = "onboarding"
-dma_flow_id = "dma-assessment"
-kab_k_flow_id = "knowledge-assessment"
-kab_a_flow_id = "attitude-assessment"
+dma_pre_flow_id = "dma-pre-assessment"
+dma_post_flow_id = "dma-post-assessment"
+kab_k_pre_flow_id = "knowledge-pre-assessment"
+kab_k_post_flow_id = "knowledge-post-assessment"
+kab_a_pre_flow_id = "attitude-pre-assessment"
+kab_a_post_flow_id = "attitude-post-assessment"
 kab_b_pre_flow_id = "behaviour-pre-assessment"
 kab_b_post_flow_id = "behaviour-post-assessment"
 anc_survey_flow_id = "anc-survey"
 faqs_flow_id = "faqs"
 
 all_onboarding_questions = doc_store.ONBOARDING_FLOW.get(onboarding_flow_id, [])
-all_dma_questions = doc_store.DMA_FLOW.get(dma_flow_id, [])
-all_kab_k_questions = doc_store.KAB_FLOW.get(kab_k_flow_id, [])
-all_kab_a_questions = doc_store.KAB_FLOW.get(kab_a_flow_id, [])
-all_kab_b_pre_questions = doc_store.KAB_FLOW.get(kab_b_pre_flow_id, [])
-all_kab_b_post_questions = doc_store.KAB_FLOW.get(kab_b_post_flow_id, [])
 all_anc_survey_questions = doc_store.ANC_SURVEY_FLOW.get(anc_survey_flow_id, [])
 faq_questions = doc_store.FAQ_DATA.get(faqs_flow_id, [])
+# The following assessments have the same pre and post flows, so we can use the same IDs
+all_dma_questions = doc_store.DMA_FLOW.get("dma-assessment", [])
+all_kab_k_questions = doc_store.KAB_FLOW.get("knowledge-assessment", [])
+all_kab_a_questions = doc_store.KAB_FLOW.get("attitude-assessment", [])
+# The kab_b pre and post flows are different, so we use separate IDs
+all_kab_b_pre_questions = doc_store.KAB_FLOW.get(kab_b_pre_flow_id, [])
+all_kab_b_post_questions = doc_store.KAB_FLOW.get(kab_b_post_flow_id, [])
 
 assessment_flow_map = {
-    dma_flow_id: all_dma_questions,
-    kab_k_flow_id: all_kab_k_questions,
-    kab_a_flow_id: all_kab_a_questions,
+    dma_pre_flow_id: all_dma_questions,
+    dma_post_flow_id: all_dma_questions,
+    kab_k_pre_flow_id: all_kab_k_questions,
+    kab_k_post_flow_id: all_kab_k_questions,
+    kab_a_pre_flow_id: all_kab_a_questions,
+    kab_a_post_flow_id: all_kab_a_questions,
     kab_b_pre_flow_id: all_kab_b_pre_questions,
     kab_b_post_flow_id: all_kab_b_post_questions,
+}
+
+assessment_map_to_their_pre = {
+    dma_pre_flow_id: AssessmentType.dma_pre_assessment,
+    dma_post_flow_id: AssessmentType.dma_pre_assessment,
+    kab_k_pre_flow_id: AssessmentType.knowledge_pre_assessment,
+    kab_k_post_flow_id: AssessmentType.knowledge_pre_assessment,
+    kab_a_pre_flow_id: AssessmentType.attitude_pre_assessment,
+    kab_a_post_flow_id: AssessmentType.attitude_pre_assessment,
+    kab_b_pre_flow_id: AssessmentType.behaviour_pre_assessment,
+    kab_b_post_flow_id: AssessmentType.behaviour_pre_assessment,
 }
 
 ANC_SURVEY_MAP = {item["title"]: item for item in all_anc_survey_questions}
@@ -131,22 +156,85 @@ def extract_onboarding_data_from_response(
     return user_context
 
 
-def get_assessment_question(
-    flow_id: str, question_number: int, user_context: dict
+async def get_assessment_question(
+    user_id: str, flow_id: AssessmentType, question_number: int, user_context: dict
 ) -> dict:
     """
     Gets the next contextualized assessment question from the specified flow.
 
     question_number uses 1-based indexing
     """
-    # Get the list of questions for the specified flow_id
-    question_list = assessment_flow_map.get(flow_id)
+    # Check if the requested question has already been processed and stored in
+    # the pre-assessment history. This might happen if the user dropped off
+    # and is now returning to continue.
+    pre_assessment_flow_id = assessment_map_to_their_pre[flow_id.value]
+    question_history: list[
+        PreAssessmentQuestionHistory
+    ] = await get_pre_assessment_history(user_id, pre_assessment_flow_id)
+    if question_history:
+        for q in question_history:
+            if q.question_number == question_number:
+                # Whether the user is doing pre- or post-, we return the question
+                # unless it's the special case of the KAB Behaviour post-assessment,
+                # in which case we need to generate a new question.
+                if flow_id.value == kab_b_post_flow_id and question_number == len(
+                    assessment_flow_map[kab_b_pre_flow_id]
+                ):
+                    logger.info("Running contextualization pipeline...")
+                    assessment_contextualization_pipe = (
+                        pipelines.create_assessment_contextualization_pipeline()
+                    )
+                    contextualized_question = (
+                        pipelines.run_assessment_contextualization_pipeline(
+                            assessment_contextualization_pipe,
+                            flow_id.value,
+                            question_number,
+                            user_context,
+                        )
+                    )
+                    if not contextualized_question:
+                        logger.error(
+                            f"Question contextualization failed in flow: '{flow_id.value}'."
+                        )
+                        return {}
+                    return {
+                        "contextualized_question": contextualized_question,
+                    }
+                else:
+                    return {
+                        "contextualized_question": q.question,
+                    }
+    # If
+    # - the question history is empty, or
+    # - the question number is not in the history, or
+    # - the question number is in the history but it's not the special case of the KAB Behaviour post-assessment,
+    # then we proceed to generate the requested question.
+
+    # For the DMA, KAB Knowledge and KAB Attitude flows, we use the same pre
+    # and post flows.
+    # For the KAB Behaviour flow, we use the same questions for pre and post
+    # except for the last question, which is different. For this assessment,
+    # we first use the pre-assessment flow to get all the questions and then
+    # we replace the last question with the post-assessment question.
+
+    if "dma" in flow_id.value:
+        flow_id_to_use = "dma-assessment"
+    elif "knowledge" in flow_id.value:
+        flow_id_to_use = "knowledge-assessment"
+    elif "attitude" in flow_id.value:
+        flow_id_to_use = "attitude-assessment"
+    else:
+        flow_id_to_use = "behaviour-pre-assessment"
+
+    question_list = assessment_flow_map.get(flow_id.value)
     if not question_list:
-        logger.error(f"Invalid flow_id provided: '{flow_id}'. No questions found.")
+        logger.error(f"Invalid flow_id: '{flow_id.value}'. No questions found.")
         return {}
 
     if question_number > len(question_list):
-        logger.info(f"Assessment flow '{flow_id}' complete.")
+        logger.error(
+            f"Question number '{question_number}' for flow '{flow_id.value}' does not exist."
+        )
         return {}
 
     # Contextualize the question
@@ -156,13 +244,13 @@ def get_assessment_question(
     )
     contextualized_question = pipelines.run_assessment_contextualization_pipeline(
         assessment_contextualization_pipe,
-        flow_id,
+        flow_id_to_use,
         question_number,
         user_context,
     )
 
     if not contextualized_question:
-        logger.error(f"Question contextualization failed in flow: '{flow_id}'.")
+        logger.error(f"Question contextualization failed in flow: '{flow_id.value}'.")
         return {}
 
     return {

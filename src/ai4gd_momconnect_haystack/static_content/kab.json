@@ -44,7 +44,19 @@
             "question_number": 4,
             "question_name": "consumed_alcohol_or_smoking_during_pregnancy",
             "content": "*Since becoming pregnant, have you drunk any alcohol or smoked at all?* 🫃🏽",
-            "post-content": "*Since joining MomConnect, have you drunk any alcohol or smoked at all?* 🫃🏽",
+            "content_type": "assessment_question",
+            "valid_responses_and_scores": [
+                { "response": "Yes", "score": 0 },
+                { "response": "No", "score": 1 },
+                { "response": "Skip", "score": 0 }
+            ]
+        }
+    ],
+    "behaviour-post-assessment": [
+        {
+            "question_number": 4,
+            "question_name": "consumed_alcohol_or_smoking_during_pregnancy",
+            "content": "*Since joining MomConnect, have you drunk any alcohol or smoked at all?* 🫃🏽",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
                 { "response": "Yes", "score": 0 },
@@ -166,7 +178,7 @@
         {
             "question_number": 3,
             "question_name": "believes_in_hiv_testing",
-            "content": "And…\n\n*It’s important for a pregnant woman to get an HIV test when she is pregnant.* 🫄🏽",
+            "content": "And…\n\n*It's important for a pregnant woman to get an HIV test when she is pregnant.* 🫄🏽",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
                 { "response": "I strongly agree", "score": 5 },

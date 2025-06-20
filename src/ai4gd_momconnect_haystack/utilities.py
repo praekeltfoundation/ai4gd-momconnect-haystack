@@ -7,20 +7,32 @@ from typing import Any
 
 from haystack.dataclasses import ChatMessage
 from pydantic import BaseModel, ValidationError
+from sqlalchemy import delete
 from sqlalchemy.future import select
 
 from .database import AsyncSessionLocal
-from .sqlalchemy_models import ChatHistory
+from .sqlalchemy_models import ChatHistory, PreAssessmentQuestionHistory
 
 
 logger = logging.getLogger(__name__)
 
 
-class SurveyTypes(str, Enum):
+class AssessmentType(str, Enum):
+    dma_pre_assessment = "dma-pre-assessment"
+    dma_post_assessment = "dma-post-assessment"
+    knowledge_pre_assessment = "knowledge-pre-assessment"
+    knowledge_post_assessment = "knowledge-post-assessment"
+    attitude_pre_assessment = "attitude-pre-assessment"
+    attitude_post_assessment = "attitude-post-assessment"
+    behaviour_pre_assessment = "behaviour-pre-assessment"
+    behaviour_post_assessment = "behaviour-post-assessment"
+
+
+class SurveyType(str, Enum):
     anc = "anc"
 
 
-class ChatTypes(str, Enum):
+class ChatType(str, Enum):
     onboarding = "onboarding"
 
 
@@ -95,7 +107,7 @@ def chat_messages_to_json(messages: list[ChatMessage]) -> list[dict[str, Any]]:
 
 
 async def get_or_create_chat_history(
-    user_id: str, history_type: ChatTypes | SurveyTypes
+    user_id: str, history_type: ChatType | SurveyType
 ) -> list[ChatMessage]:
     """
     Retrieves an Onboarding chat history for a given user_id.
@@ -131,7 +143,7 @@ async def get_or_create_chat_history(
 
 
 async def save_chat_history(
-    user_id: str, messages: list[ChatMessage], history_type: ChatTypes | SurveyTypes
+    user_id: str, messages: list[ChatMessage], history_type: ChatType | SurveyType
 ) -> None:
     """Saves or updates the chat history for a given user_id."""
     async with AsyncSessionLocal() as session:
@@ -169,4 +181,52 @@ async def save_chat_history(
                     return
                 session.add(db_history)
 
+            await session.commit()
+
+
+async def get_pre_assessment_history(
+    user_id: str, assessment_type: AssessmentType
+) -> list[PreAssessmentQuestionHistory]:
+    """
+    Retrieves pre-assessment question history for a given user and assessment type.
+    If no history exists, an empty list is returned.
+    """
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(PreAssessmentQuestionHistory).filter(
+                PreAssessmentQuestionHistory.user_id == user_id,
+                PreAssessmentQuestionHistory.assessment_id == assessment_type.value,
+            )
+        )
+        history = result.scalars().all()
+        return list(history)
+
+
+async def save_pre_assessment_question(
+    user_id: str,
+    assessment_type: AssessmentType,
+    question_number: int,
+    question: str,
+) -> None:
+    """
+    Saves the pre-assessment question history for a given user, assessment type and question number.
+    This will overwrite any existing history for the same user, assessment type and question number.
+    """
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            # First, delete any existing history for this user, assessment type and question number.
+            await session.execute(
+                delete(PreAssessmentQuestionHistory).where(
+                    PreAssessmentQuestionHistory.user_id == user_id,
+                    PreAssessmentQuestionHistory.assessment_id == assessment_type.value,
+                    PreAssessmentQuestionHistory.question_number == question_number,
+                )
+            )
+            new_historic_record = PreAssessmentQuestionHistory(
+                user_id=user_id,
+                assessment_id=assessment_type.value,
+                question_number=question_number,
+                question=question,
+            )
+            session.add(new_historic_record)
             await session.commit()

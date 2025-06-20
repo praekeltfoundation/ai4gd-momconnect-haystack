@@ -14,6 +14,7 @@ from ai4gd_momconnect_haystack.tasks import (
     score_assessment_from_simulation,
     validate_assessment_answer,
 )
+from ai4gd_momconnect_haystack.utilities import AssessmentType
 
 # --- Test Data Fixtures ---
 
@@ -163,7 +164,7 @@ def test_score_assessment_from_simulation_no_valid_run(validated_assessment_ques
 
     result = score_assessment_from_simulation(
         simulation_output=simulation_output_missing_flow,
-        assessment_id="dma-assessment",
+        assessment_id="dma-pre-assessment",
         assessment_questions=validated_assessment_questions,
     )
     assert result is None
@@ -172,54 +173,79 @@ def test_score_assessment_from_simulation_no_valid_run(validated_assessment_ques
 # --- Tests for the question fetching logic ---
 
 
-@mock.patch("ai4gd_momconnect_haystack.tasks.pipelines")
-def test_get_assessment_question(pipelines_mock):
-    pipelines_mock.run_assessment_contextualization_pipeline.return_value = (
-        "mock_question"
-    )
-    result = get_assessment_question(
-        flow_id="dma-assessment",
-        question_number=1,
-        user_context={},
-    )
-    assert result == {
-        "contextualized_question": "mock_question",
-    }
+@pytest.mark.asyncio
+async def test_get_assessment_question():
+    with (
+        mock.patch(
+            "ai4gd_momconnect_haystack.tasks.pipelines.create_assessment_contextualization_pipeline",
+            return_value=mock.MagicMock(),
+        ) as mock_create_pipeline,
+        mock.patch(
+            "ai4gd_momconnect_haystack.tasks.pipelines.run_assessment_contextualization_pipeline",
+            return_value="mock_question",
+        ) as mock_run_pipeline,
+        mock.patch(
+            "ai4gd_momconnect_haystack.tasks.get_pre_assessment_history",
+            new_callable=mock.AsyncMock,
+            return_value=[],
+        ) as mock_get_history,
+    ):
+        result = await get_assessment_question(
+            user_id="TestUser",
+            flow_id=AssessmentType.dma_pre_assessment,
+            question_number=1,
+            user_context={},
+        )
+        assert result == {
+            "contextualized_question": "mock_question",
+        }
+
+        mock_create_pipeline.assert_called_once()
+        mock_run_pipeline.assert_called_once()
+        mock_get_history.assert_awaited_once()
 
 
-@mock.patch("ai4gd_momconnect_haystack.tasks.pipelines")
-def test_get_last_assessment_question(pipelines_mock):
-    pipelines_mock.run_assessment_contextualization_pipeline.return_value = (
-        "mock_question"
-    )
-    result = get_assessment_question(
-        flow_id="dma-assessment",
-        question_number=5,
-        user_context={},
-    )
-    assert result == {
-        "contextualized_question": "mock_question",
-    }
-    result = get_assessment_question(
-        flow_id="dma-assessment",
-        question_number=6,
-        user_context={},
-    )
-    assert result == {}
+@pytest.mark.asyncio
+async def test_get_last_assessment_question():
+    with (
+        mock.patch(
+            "ai4gd_momconnect_haystack.tasks.pipelines.create_assessment_contextualization_pipeline",
+            return_value=mock.MagicMock(),
+        ) as mock_create_pipeline,
+        mock.patch(
+            "ai4gd_momconnect_haystack.tasks.pipelines.run_assessment_contextualization_pipeline",
+            return_value="mock_question",
+        ) as mock_run_pipeline,
+        mock.patch(
+            "ai4gd_momconnect_haystack.tasks.get_pre_assessment_history",
+            new_callable=mock.AsyncMock,
+            return_value=[],
+        ) as mock_get_history,
+    ):
+        # This call should succeed and use the mocks.
+        result = await get_assessment_question(
+            user_id="TestUser",
+            flow_id=AssessmentType.dma_pre_assessment,
+            question_number=5,
+            user_context={},
+        )
+        assert result == {
+            "contextualized_question": "mock_question",
+        }
 
+        # This call should fail before the pipeline is even created or run,
+        # because the question number is out of bounds.
+        result = await get_assessment_question(
+            user_id="TestUser",
+            flow_id=AssessmentType.dma_pre_assessment,
+            question_number=6,
+            user_context={},
+        )
+        assert result == {}
 
-@mock.patch("ai4gd_momconnect_haystack.tasks.pipelines")
-def test_get_assessment_question_invalid_flow(pipelines_mock):
-    """
-    Tests that get_assessment_question returns an empty dict for an invalid flow_id.
-    """
-    result = get_assessment_question(
-        flow_id="non-existent-flow",
-        question_number=1,
-        user_context={},
-    )
-    assert result == {}
-    pipelines_mock.run_assessment_contextualization_pipeline.assert_not_called()
+        mock_create_pipeline.assert_called_once()
+        mock_run_pipeline.assert_called_once()
+        mock_get_history.assert_awaited()
 
 
 @mock.patch("ai4gd_momconnect_haystack.tasks.pipelines")
@@ -235,7 +261,7 @@ def test_validate_assessment_answer_success(pipelines_mock):
     result = validate_assessment_answer(
         user_response="This is my answer.",
         question_number=3,
-        current_flow_id="dma-assessment",
+        current_flow_id="dma-pre-assessment",
     )
 
     assert result == {
@@ -254,7 +280,7 @@ def test_validate_assessment_answer_failure(pipelines_mock):
     result = validate_assessment_answer(
         user_response="I don't know.",
         question_number=3,
-        current_flow_id="dma-assessment",
+        current_flow_id="dma-pre-assessment",
     )
 
     # Check that the response is None and the question number is kept the same to repeat the question

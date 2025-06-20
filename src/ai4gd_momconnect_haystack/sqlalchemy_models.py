@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Any
 
 from sqlalchemy import String, JSON, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
@@ -12,10 +11,10 @@ class ChatHistory(Base):
     __tablename__ = "chat_history"
 
     user_id: Mapped[str] = mapped_column(String, primary_key=True, index=True)
-    onboarding_history: Mapped[list[dict[str, Any]]] = mapped_column(
+    onboarding_history: Mapped[list[dict[str, str]]] = mapped_column(
         JSON, nullable=False
     )
-    anc_survey_history: Mapped[list[dict[str, Any]]] = mapped_column(
+    anc_survey_history: Mapped[list[dict[str, str]]] = mapped_column(
         JSON, nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -29,3 +28,12 @@ class ChatHistory(Base):
         return (
             f"<ChatHistory(user_id='{self.user_id}', updated_at='{self.updated_at}')>"
         )
+
+
+class PreAssessmentQuestionHistory(Base):
+    __tablename__ = "pre_assessment_question_history"
+
+    user_id: Mapped[str] = mapped_column(String, primary_key=True, index=True)
+    assessment_id: Mapped[str] = mapped_column(String, primary_key=True, index=True)
+    question_number: Mapped[int] = mapped_column(primary_key=True, index=True)
+    question: Mapped[str] = mapped_column(String, nullable=False)

@@ -7,14 +7,20 @@ from pathlib import Path
 from dotenv import load_dotenv
 from haystack.dataclasses import ChatMessage
 from pydantic import ValidationError
+from sqlalchemy import delete
+
+from ai4gd_momconnect_haystack.sqlalchemy_models import PreAssessmentQuestionHistory
 
 from . import tasks
-from .database import init_db
+from .database import AsyncSessionLocal, init_db
 from .pydantic_models import AssessmentRun
 from .utilities import (
+    AssessmentType,
     generate_scenario_id,
+    get_pre_assessment_history,
     load_json_and_validate,
     save_json_file,
+    save_pre_assessment_question,
 )
 
 load_dotenv()
@@ -209,6 +215,7 @@ async def run_simulation():
         logger.info("\n--- Simulating DMA ---")
         current_assessment_step = 0
         iterations = 0
+        flow_id = AssessmentType.dma_pre_assessment
         user_context["goal"] = "Complete the assessment"
         max_assessment_steps = 10  # Safety break
         question_number = 1
@@ -219,8 +226,9 @@ async def run_simulation():
             print("-" * 20)
             logger.info(f"Assessment Step: Requesting question {question_number}")
 
-            result = tasks.get_assessment_question(
-                flow_id="dma-assessment",
+            result = await tasks.get_assessment_question(
+                user_id=user_id,
+                flow_id=flow_id,
                 question_number=question_number,
                 user_context=user_context,
             )
@@ -228,6 +236,13 @@ async def run_simulation():
                 logger.info("Assessment flow complete.")
                 break
             contextualized_question = result["contextualized_question"]
+            if "-pre" in flow_id.value:
+                await save_pre_assessment_question(
+                    user_id=user_id,
+                    assessment_type=flow_id,
+                    question_number=question_number,
+                    question=contextualized_question,
+                )
 
             # Simulate User Response
             user_response = input(contextualized_question + "\n> ")
@@ -259,7 +274,7 @@ async def run_simulation():
                 pass
 
             result = tasks.validate_assessment_answer(
-                user_response, question_number, "dma-assessment"
+                user_response, question_number, flow_id.value
             )
             if not result:
                 logger.warning(
@@ -267,7 +282,7 @@ async def run_simulation():
                 )
                 continue
             processed_user_response = result["processed_user_response"]
-            current_assessment_step = result["current_assessment_step"]
+            current_assessment_step = result["next_question_number"]
             dma_assessment_turns.append(
                 {
                     "question_number": current_assessment_step,
@@ -277,6 +292,26 @@ async def run_simulation():
                 }
             )
             question_number = current_assessment_step
+
+        # Inspect the pre-assessment questions that were stored as history,
+        # before deleting them:
+        if "-pre" in flow_id.value:
+            history = await get_pre_assessment_history(user_id, flow_id)
+            if history:
+                logger.info(
+                    "Stored the following pre-assessment questions during simulation:"
+                )
+                for q in history:
+                    logger.info(f"Question {q.question_number}: {q.question}")
+            async with AsyncSessionLocal() as session:
+                async with session.begin():
+                    await session.execute(
+                        delete(PreAssessmentQuestionHistory).where(
+                            PreAssessmentQuestionHistory.user_id == user_id,
+                            PreAssessmentQuestionHistory.assessment_id == flow_id.value,
+                        )
+                    )
+                    await session.commit()
 
     # ** KAB Scenario **
     print("")
@@ -292,9 +327,9 @@ async def run_simulation():
 
     if sim_kab:
         for flow_id in [
-            "knowledge-assessment",
-            "attitude-assessment",
-            "behaviour-pre-assessment",
+            AssessmentType.knowledge_pre_assessment,
+            AssessmentType.attitude_pre_assessment,
+            AssessmentType.behaviour_pre_assessment,
         ]:
             logger.info("\n--- Simulating KAB ---")
             current_assessment_step = 0
@@ -309,7 +344,8 @@ async def run_simulation():
                 print("-" * 20)
                 logger.info(f"Assessment Step: Requesting question {question_number}")
 
-                result = tasks.get_assessment_question(
+                result = await tasks.get_assessment_question(
+                    user_id=user_id,
                     flow_id=flow_id,
                     question_number=question_number,
                     user_context=user_context,
@@ -318,6 +354,13 @@ async def run_simulation():
                     logger.info("Assessment flow complete.")
                     break
                 contextualized_question = result["contextualized_question"]
+                if "-pre" in flow_id.value:
+                    await save_pre_assessment_question(
+                        user_id=user_id,
+                        assessment_type=flow_id,
+                        question_number=question_number,
+                        question=contextualized_question,
+                    )
 
                 # Simulate User Response
                 user_response = input(contextualized_question + "\n> ")
@@ -349,7 +392,7 @@ async def run_simulation():
                     pass
 
                 result = tasks.validate_assessment_answer(
-                    user_response, question_number, flow_id
+                    user_response, question_number, flow_id.value
                 )
                 if not result:
                     logger.warning(
@@ -357,8 +400,8 @@ async def run_simulation():
                     )
                     continue
                 processed_user_response = result["processed_user_response"]
-                current_assessment_step = result["current_assessment_step"]
-                if flow_id == "knowledge-assessment":
+                current_assessment_step = result["next_question_number"]
+                if flow_id.value == "knowledge-pre-assessment":
                     kab_k_assessment_turns.append(
                         {
                             "question_number": current_assessment_step,
@@ -367,7 +410,7 @@ async def run_simulation():
                             "llm_extracted_user_response": processed_user_response,
                         }
                     )
-                elif flow_id == "attitude-assessment":
+                elif flow_id.value == "attitude-pre-assessment":
                     kab_a_assessment_turns.append(
                         {
                             "question_number": current_assessment_step,
@@ -386,6 +429,27 @@ async def run_simulation():
                         }
                     )
                 question_number = current_assessment_step
+
+            # Inspect the pre-assessment questions that were stored as history,
+            # before deleting them:
+            if "-pre" in flow_id.value:
+                history = await get_pre_assessment_history(user_id, flow_id)
+                if history:
+                    logger.info(
+                        "Stored the following pre-assessment questions during simulation:"
+                    )
+                    for q in history:
+                        logger.info(f"Question {q.question_number}: {q.question}")
+                async with AsyncSessionLocal() as session:
+                    async with session.begin():
+                        await session.execute(
+                            delete(PreAssessmentQuestionHistory).where(
+                                PreAssessmentQuestionHistory.user_id == user_id,
+                                PreAssessmentQuestionHistory.assessment_id
+                                == flow_id.value,
+                            )
+                        )
+                        await session.commit()
 
     # ** ANC Survey Scenario **
     print("")
@@ -488,9 +552,6 @@ async def run_simulation():
         for msg in chat_history:
             logger.info(f"{msg.role.value}:\n{msg.text}")
         chat_history = []
-
-    current_assessment_step = result["current_assessment_step"]
-    processed_user_response = result["processed_user_response"]
 
     # --- End of Simulation ---
     # Compile simulation results for manual evals.

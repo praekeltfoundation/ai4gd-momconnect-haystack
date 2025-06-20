@@ -7,7 +7,7 @@ from haystack.dataclasses import ChatMessage
 from sentry_sdk import get_client as get_sentry_client
 
 from ai4gd_momconnect_haystack.api import app, setup_sentry
-from ai4gd_momconnect_haystack.utilities import ChatTypes
+from ai4gd_momconnect_haystack.utilities import ChatType
 
 
 def test_health():
@@ -95,11 +95,11 @@ async def test_onboarding_chitchat():
         }
 
         get_or_create_chat_history.assert_awaited_once_with(
-            user_id="TestUser", history_type=ChatTypes.onboarding
+            user_id="TestUser", history_type=ChatType.onboarding
         )
 
         save_chat_history.assert_awaited_once_with(
-            user_id="TestUser", messages=mock.ANY, history_type=ChatTypes.onboarding
+            user_id="TestUser", messages=mock.ANY, history_type=ChatType.onboarding
         )
         saved_messages = save_chat_history.call_args.kwargs["messages"]
         assert len(saved_messages) == 4
@@ -159,12 +159,12 @@ async def test_onboarding_first_question():
 
         # Assert that history creation was attempted
         get_or_create_chat_history.assert_awaited_once_with(
-            user_id="TestUser", history_type=ChatTypes.onboarding
+            user_id="TestUser", history_type=ChatType.onboarding
         )
 
         # Assert that the new history is saved correctly
         save_chat_history.assert_awaited_once_with(
-            user_id="TestUser", messages=mock.ANY, history_type=ChatTypes.onboarding
+            user_id="TestUser", messages=mock.ANY, history_type=ChatType.onboarding
         )
         saved_messages = save_chat_history.call_args.kwargs["messages"]
         # History should be initialized with the persona and the first question
@@ -228,11 +228,11 @@ async def test_onboarding():
         }
 
         get_or_create_chat_history.assert_awaited_once_with(
-            user_id="TestUser", history_type=ChatTypes.onboarding
+            user_id="TestUser", history_type=ChatType.onboarding
         )
 
         save_chat_history.assert_awaited_once_with(
-            user_id="TestUser", messages=mock.ANY, history_type=ChatTypes.onboarding
+            user_id="TestUser", messages=mock.ANY, history_type=ChatType.onboarding
         )
         saved_messages = save_chat_history.call_args.kwargs["messages"]
         assert len(saved_messages) == 3
@@ -247,34 +247,47 @@ async def test_onboarding():
         get_next_onboarding_question.assert_called_once()
 
 
+@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
-@mock.patch("ai4gd_momconnect_haystack.api.get_assessment_question")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_assessment_question", new_callable=mock.AsyncMock
+)
 @mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_answer")
-def test_assessment_chitchat(
-    validate_assessment_answer, get_assessment_question, handle_user_message
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.save_pre_assessment_question",
+    new_callable=mock.AsyncMock,
+)
+async def test_assessment_chitchat(
+    save_pre_assessment_question,
+    validate_assessment_answer,
+    get_assessment_question,
+    handle_user_message,
 ):
     """
     Chitchat should give the user a specific chitchat message, and should not extract
-    an answer, but should still ask the question again
+    an answer, but should still ask the question again.
     """
+    handle_user_message.return_value = "CHITCHAT", "User is chitchatting"
     get_assessment_question.return_value = {
         "contextualized_question": "How confident are you in discussing your maternal health concerns with your healthcare provider?",
         "current_question_number": 1,
     }
-    handle_user_message.return_value = "CHITCHAT", "User is chitchatting"
+
     client = TestClient(app)
     response = client.post(
         "/v1/assessment",
         headers={"Authorization": "Token testtoken"},
         json={
+            "user_id": "TestUser",
             "user_context": {},
             "user_input": "Hello!",
-            "flow_id": "dma-assessment",
+            "flow_id": "dma-pre-assessment",
             "question_number": 1,
             "previous_question": "How are you feeling?",
         },
     )
+
     assert response.status_code == 200
     assert response.json() == {
         "question": "How confident are you in discussing your maternal health concerns with your healthcare provider?",
@@ -282,36 +295,53 @@ def test_assessment_chitchat(
         "intent": "CHITCHAT",
         "intent_related_response": "User is chitchatting",
     }
+
+    handle_user_message.assert_called_once_with("How are you feeling?", "Hello!")
     validate_assessment_answer.assert_not_called()
+    get_assessment_question.assert_awaited_once()
+    save_pre_assessment_question.assert_awaited_once()
 
 
+@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
-@mock.patch("ai4gd_momconnect_haystack.api.get_assessment_question")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_assessment_question", new_callable=mock.AsyncMock
+)
 @mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_answer")
-def test_assessment_initial_message(
-    validate_assessment_answer, get_assessment_question, handle_user_message
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.save_pre_assessment_question",
+    new_callable=mock.AsyncMock,
+)
+async def test_assessment_initial_message(
+    save_pre_assessment_question,
+    validate_assessment_answer,
+    get_assessment_question,
+    handle_user_message,
 ):
     """
     On the first interaction with the user, we don't have a user input. This should be
-    treated as a Journey Response and we should not check the intent or extract an answer
+    treated as a Journey Response and we should not check the intent or extract an answer.
     """
     get_assessment_question.return_value = {
         "contextualized_question": "How confident are you in discussing your maternal health concerns with your healthcare provider?",
         "current_question_number": 1,
     }
+
     client = TestClient(app)
     response = client.post(
         "/v1/assessment",
         headers={"Authorization": "Token testtoken"},
         json={
+            "user_id": "TestUser",
             "user_context": {},
             "user_input": "",
-            "flow_id": "dma-assessment",
+            "flow_id": "dma-pre-assessment",
             "question_number": 1,
             "previous_question": "",
         },
     )
+
     assert response.status_code == 200
     assert response.json() == {
         "question": "How confident are you in discussing your maternal health concerns with your healthcare provider?",
@@ -319,8 +349,11 @@ def test_assessment_initial_message(
         "intent": "JOURNEY_RESPONSE",
         "intent_related_response": "",
     }
+
     handle_user_message.assert_not_called()
     validate_assessment_answer.assert_not_called()
+    get_assessment_question.assert_awaited_once()
+    save_pre_assessment_question.assert_awaited_once()
 
 
 @pytest.mark.asyncio

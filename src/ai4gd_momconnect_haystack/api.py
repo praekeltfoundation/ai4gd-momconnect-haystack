@@ -1,4 +1,3 @@
-from enum import Enum
 from os import environ
 from pathlib import Path
 from typing import Annotated, Any
@@ -20,11 +19,13 @@ from .tasks import (
     validate_assessment_answer,
 )
 from .utilities import (
-    ChatTypes,
+    AssessmentType,
+    ChatType,
     get_or_create_chat_history,
     load_json_and_validate,
     save_chat_history,
-    SurveyTypes,
+    SurveyType,
+    save_pre_assessment_question,
 )
 
 load_dotenv()
@@ -90,7 +91,7 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     user_id = request.user_id
     user_input = request.user_input
     chat_history = await get_or_create_chat_history(
-        user_id=user_id, history_type=ChatTypes.onboarding
+        user_id=user_id, history_type=ChatType.onboarding
     )
 
     if user_input:
@@ -122,7 +123,7 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     await save_chat_history(
         user_id=request.user_id,
         messages=chat_history,
-        history_type=ChatTypes.onboarding,
+        history_type=ChatType.onboarding,
     )
     return OnboardingResponse(
         question=question or "",
@@ -132,15 +133,8 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     )
 
 
-class AssessmentType(str, Enum):
-    dma_assessment = "dma-assessment"
-    knowledge_assessment = "knowledge-assessment"
-    attitude_assessment = "attitude-assessment"
-    behaviour_pre_assessment = "behaviour-pre-assessment"
-    behaviour_post_assessment = "behaviour-post-assessment"
-
-
 class AssessmentRequest(BaseModel):
+    user_id: str
     user_input: str
     user_context: dict[str, Any]
     flow_id: AssessmentType
@@ -156,7 +150,7 @@ class AssessmentResponse(BaseModel):
 
 
 @app.post("/v1/assessment")
-def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
+async def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
     if request.user_input:
         intent, intent_related_response = handle_user_message(
             request.previous_question, request.user_input
@@ -174,16 +168,26 @@ def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
     else:
         next_question_number = request.question_number
 
-    question = get_assessment_question(
+    question = await get_assessment_question(
+        user_id=request.user_id,
         flow_id=request.flow_id,
         question_number=next_question_number,
         user_context=request.user_context,
     )
-    contextualized_question = question["contextualized_question"] or ""
-    current_question_number = question["current_question_number"]
+    # If it's a pre-assessment, save the generated question for reuse.
+    contextualized_question = ""
+    if question:
+        contextualized_question = question["contextualized_question"]
+        if "-pre" in request.flow_id:
+            await save_pre_assessment_question(
+                user_id=request.user_id,
+                assessment_type=request.flow_id,
+                question_number=next_question_number,
+                question=contextualized_question,
+            )
     return AssessmentResponse(
         question=contextualized_question,
-        next_question=current_question_number,
+        next_question=next_question_number,
         intent=intent,
         intent_related_response=intent_related_response,
     )
@@ -191,7 +195,7 @@ def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
 
 class SurveyRequest(BaseModel):
     user_id: str
-    survey_id: SurveyTypes
+    survey_id: SurveyType
     user_input: str
     user_context: dict[str, Any]
 
