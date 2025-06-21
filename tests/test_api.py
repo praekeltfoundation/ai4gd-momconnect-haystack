@@ -59,9 +59,9 @@ def test_onboarding_chitchat(
     captured in the message history
     """
     extract_onboarding_data_from_response.return_value = {"area_type": "City"}
-    get_next_onboarding_question.return_value = (
-        "Which province are you currently living in? 🏡"
-    )
+    get_next_onboarding_question.return_value = {
+        "contextualized_question": "Which province are you currently living in? 🏡"
+    }
     handle_user_message.return_value = "CHITCHAT", "User is chitchatting"
     client = TestClient(app)
     response = client.post(
@@ -98,9 +98,9 @@ def test_onboarding_first_question(
     input. That should be handled correctly and not seen as chitchat
     """
     extract_onboarding_data_from_response.return_value = {"area_type": "City"}
-    get_next_onboarding_question.return_value = (
-        "Which province are you currently living in? 🏡"
-    )
+    get_next_onboarding_question.return_value = {
+        "contextualized_question": "Which province are you currently living in? 🏡"
+    }
     handle_user_message.return_value = "CHITCHAT", "User is chitchatting"
     client = TestClient(app)
     response = client.post(
@@ -136,9 +136,9 @@ def test_onboarding(
     input. That should be handled correctly and not seen as chitchat
     """
     extract_onboarding_data_from_response.return_value = {"area_type": "City"}
-    get_next_onboarding_question.return_value = (
-        "Which province are you currently living in? 🏡"
-    )
+    get_next_onboarding_question.return_value = {
+        "contextualized_question": "Which province are you currently living in? 🏡"
+    }
     handle_user_message.return_value = "JOURNEY_RESPONSE", ""
     client = TestClient(app)
     response = client.post(

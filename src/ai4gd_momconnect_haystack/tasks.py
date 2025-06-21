@@ -39,7 +39,7 @@ assessment_flow_map = {
 ANC_SURVEY_MAP = {item["title"]: item for item in all_anc_survey_questions}
 
 
-def get_next_onboarding_question(user_context: dict, chat_history: list) -> str | None:
+def get_next_onboarding_question(user_context: dict, chat_history: list) -> dict | None:
     """
     Gets the next contextualized onboarding question.
     """
@@ -86,7 +86,10 @@ def get_next_onboarding_question(user_context: dict, chat_history: list) -> str 
     else:
         logger.info(f"Original question was: '{current_step_data['content']}'")
 
-    return contextualized_question
+    return {
+        "contextualized_question": contextualized_question,
+        "question_number": chosen_question_number,
+    }
 
 
 def extract_onboarding_data_from_response(
@@ -274,7 +277,7 @@ def get_anc_survey_question(user_context: dict, chat_history: list) -> dict | No
     return {
         "contextualized_question": final_question_text.strip(),
         "is_final_step": is_final,
-        "question_indentifier": next_step_id,
+        "question_identifier": next_step_id,
     }
 
 

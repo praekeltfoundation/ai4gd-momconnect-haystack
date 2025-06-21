@@ -99,9 +99,15 @@ def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
     question = get_next_onboarding_question(
         user_context=user_context, chat_history=chat_history
     )
-    chat_history.append(f"System to User: {question}")
+    question_text = ""
+    if question:
+        question_text = question.get("contextualized_question", "")
+
+    if question_text:
+        chat_history.append(f"System to User: {question_text}")
+
     return OnboardingResponse(
-        question=question or "",
+        question=question_text,
         user_context=user_context,
         chat_history=chat_history,
         intent=intent,
