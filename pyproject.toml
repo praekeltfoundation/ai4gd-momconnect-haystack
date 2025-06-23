@@ -13,7 +13,7 @@ dependencies = [
     "sentry-sdk[fastapi]>=2.29.1",
     "prometheus-fastapi-instrumentator>=7.1.0",
     "sqlalchemy>=2.0.29",
-    "aiosqlite>=0.20.0",
+    "psycopg>=3.2.5",
 ]
 
 [dependency-groups]
@@ -22,6 +22,7 @@ dev = [
     "pytest>=8.3.5",
     "ruff>=0.11.12",
     "deepeval>=0.24.38",
+    "aiosqlite>=0.20.0",
 ]
 
 [project.scripts]

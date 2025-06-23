@@ -214,15 +214,13 @@ async def run_simulation():
     if sim_dma:
         logger.info("\n--- Simulating DMA ---")
         current_assessment_step = 0
-        iterations = 0
         flow_id = AssessmentType.dma_pre_assessment
         user_context["goal"] = "Complete the assessment"
         max_assessment_steps = 10  # Safety break
         question_number = 1
 
         # Simulate Assessment
-        while iterations < max_assessment_steps:
-            iterations += 1
+        for _ in range(max_assessment_steps):
             print("-" * 20)
             logger.info(f"Assessment Step: Requesting question {question_number}")
 
@@ -333,14 +331,12 @@ async def run_simulation():
         ]:
             logger.info("\n--- Simulating KAB ---")
             current_assessment_step = 0
-            iterations = 0
             question_number = 1
             user_context["goal"] = "Complete the assessment"
             max_assessment_steps = 20  # Safety break
 
             # Simulate Assessments
-            while iterations < max_assessment_steps:
-                iterations += 1
+            for _ in range(max_assessment_steps):
                 print("-" * 20)
                 logger.info(f"Assessment Step: Requesting question {question_number}")
 
@@ -472,12 +468,14 @@ async def run_simulation():
             "goal": "Complete the ANC survey",
         }
         survey_complete = False
-        iterations = 0
         max_survey_steps = 25  # Safety break
 
         # Simulate ANC Survey
-        while iterations < max_survey_steps and not survey_complete:
-            iterations += 1
+        for _ in range(max_survey_steps):
+            if survey_complete:
+                logger.info("Survey flow complete.")
+                break
+
             print("-" * 20)
             logger.info("ANC Survey Step: Requesting next question...")
 
@@ -525,10 +523,6 @@ async def run_simulation():
                 # intent must be JOURNEY_RESPONSE
                 pass
 
-            if survey_complete:
-                logger.info("Survey flow complete.")
-                break
-
             previous_context = anc_user_context.copy()
             anc_user_context = tasks.extract_anc_data_from_response(
                 user_response, anc_user_context, chat_history
@@ -548,6 +542,7 @@ async def run_simulation():
                         "llm_extracted_user_response": anc_user_context[updated_field],
                     }
                 )
+
         logger.info("ANC Survey Chat History:")
         for msg in chat_history:
             logger.info(f"{msg.role.value}:\n{msg.text}")

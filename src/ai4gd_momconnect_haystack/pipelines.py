@@ -539,7 +539,9 @@ def create_assessment_contextualization_pipeline() -> Pipeline | None:
     {{ documents[0].content }}
 
     Valid responses:
-    The user can respond with one of the options described in the following JSON string: {{ documents[0].meta.valid_responses_and_scores }}.
+    {% for valid_response in documents[0].meta.valid_responses %}
+    - "{{ valid_response }}"
+    {% endfor %}
 
     Review the Original Assessment Question. If you think it's needed, make minor
     adjustments to ensure that the question is clear and directly applicable to the
@@ -1091,14 +1093,7 @@ def run_assessment_contextualization_pipeline(
             )
             return None
 
-        valid_responses_and_scores = json.loads(
-            retrieved_docs[0].meta.get("valid_responses_and_scores", "[]")
-        )
-        valid_responses = [
-            item["response"]
-            for item in valid_responses_and_scores
-            if "response" in item
-        ]
+        valid_responses = retrieved_docs[0].meta.get("valid_responses", [])
         print(f"Valid responses for question {question_number}: {valid_responses}")
 
         # Get validated JSON from the validator

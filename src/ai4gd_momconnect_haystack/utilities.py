@@ -28,11 +28,8 @@ class AssessmentType(str, Enum):
     behaviour_post_assessment = "behaviour-post-assessment"
 
 
-class SurveyType(str, Enum):
+class HistoryType(str, Enum):
     anc = "anc"
-
-
-class ChatType(str, Enum):
     onboarding = "onboarding"
 
 
@@ -107,7 +104,7 @@ def chat_messages_to_json(messages: list[ChatMessage]) -> list[dict[str, Any]]:
 
 
 async def get_or_create_chat_history(
-    user_id: str, history_type: ChatType | SurveyType
+    user_id: str, history_type: HistoryType
 ) -> list[ChatMessage]:
     """
     Retrieves an Onboarding chat history for a given user_id.
@@ -121,29 +118,23 @@ async def get_or_create_chat_history(
         chat_history = []
 
         if db_history:
-            if history_type == "onboarding":
-                for cm in db_history.onboarding_history:
-                    if cm["role"] == "user":
-                        chat_history.append(ChatMessage.from_user(text=cm["text"]))
-                    elif cm["role"] == "assistant":
-                        chat_history.append(ChatMessage.from_assistant(text=cm["text"]))
-                    else:
-                        chat_history.append(ChatMessage.from_system(text=cm["text"]))
-            elif history_type == "anc":
-                for cm in db_history.anc_survey_history:
-                    if cm["role"] == "user":
-                        chat_history.append(ChatMessage.from_user(text=cm["text"]))
-                    elif cm["role"] == "assistant":
-                        chat_history.append(ChatMessage.from_assistant(text=cm["text"]))
-                    else:
-                        chat_history.append(ChatMessage.from_system(text=cm["text"]))
-            else:
-                logger.error(f"Unknown chat history type requested: {history_type}")
+            if history_type == HistoryType.onboarding:
+                db_chat_history = db_history.onboarding_history
+            elif history_type == HistoryType.anc:
+                db_chat_history = db_history.anc_survey_history
+
+            for cm in db_chat_history:
+                if cm["role"] == "user":
+                    chat_history.append(ChatMessage.from_user(text=cm["text"]))
+                elif cm["role"] == "assistant":
+                    chat_history.append(ChatMessage.from_assistant(text=cm["text"]))
+                else:
+                    chat_history.append(ChatMessage.from_system(text=cm["text"]))
         return chat_history
 
 
 async def save_chat_history(
-    user_id: str, messages: list[ChatMessage], history_type: ChatType | SurveyType
+    user_id: str, messages: list[ChatMessage], history_type: HistoryType
 ) -> None:
     """Saves or updates the chat history for a given user_id."""
     async with AsyncSessionLocal() as session:

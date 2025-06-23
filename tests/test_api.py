@@ -7,7 +7,7 @@ from haystack.dataclasses import ChatMessage
 from sentry_sdk import get_client as get_sentry_client
 
 from ai4gd_momconnect_haystack.api import app, setup_sentry
-from ai4gd_momconnect_haystack.utilities import ChatType
+from ai4gd_momconnect_haystack.utilities import HistoryType
 
 
 def test_health():
@@ -95,19 +95,18 @@ async def test_onboarding_chitchat():
         }
 
         get_or_create_chat_history.assert_awaited_once_with(
-            user_id="TestUser", history_type=ChatType.onboarding
+            user_id="TestUser", history_type=HistoryType.onboarding
         )
 
         save_chat_history.assert_awaited_once_with(
-            user_id="TestUser", messages=mock.ANY, history_type=ChatType.onboarding
+            user_id="TestUser", messages=mock.ANY, history_type=HistoryType.onboarding
         )
         saved_messages = save_chat_history.call_args.kwargs["messages"]
-        assert len(saved_messages) == 4
+        assert len(saved_messages) == 3
         assert saved_messages[0].text == "Hi!"
         assert saved_messages[1].text == "Hello!"
-        assert saved_messages[2].text == "User is chitchatting"
         assert (
-            saved_messages[3].text == "Which province are you currently living in? 🏡"
+            saved_messages[2].text == "Which province are you currently living in? 🏡"
         )
 
         extract_onboarding_data_from_response.assert_not_called()
@@ -159,12 +158,12 @@ async def test_onboarding_first_question():
 
         # Assert that history creation was attempted
         get_or_create_chat_history.assert_awaited_once_with(
-            user_id="TestUser", history_type=ChatType.onboarding
+            user_id="TestUser", history_type=HistoryType.onboarding
         )
 
         # Assert that the new history is saved correctly
         save_chat_history.assert_awaited_once_with(
-            user_id="TestUser", messages=mock.ANY, history_type=ChatType.onboarding
+            user_id="TestUser", messages=mock.ANY, history_type=HistoryType.onboarding
         )
         saved_messages = save_chat_history.call_args.kwargs["messages"]
         # History should be initialized with the persona and the first question
@@ -228,11 +227,11 @@ async def test_onboarding():
         }
 
         get_or_create_chat_history.assert_awaited_once_with(
-            user_id="TestUser", history_type=ChatType.onboarding
+            user_id="TestUser", history_type=HistoryType.onboarding
         )
 
         save_chat_history.assert_awaited_once_with(
-            user_id="TestUser", messages=mock.ANY, history_type=ChatType.onboarding
+            user_id="TestUser", messages=mock.ANY, history_type=HistoryType.onboarding
         )
         saved_messages = save_chat_history.call_args.kwargs["messages"]
         assert len(saved_messages) == 3
@@ -416,7 +415,7 @@ async def test_anc_survey():
         get_or_create_chat_history.assert_awaited_once_with(
             user_id="TestUser", history_type="anc"
         )
-        assert save_chat_history.await_count == 2
+        assert save_chat_history.await_count == 1
 
         saved_messages = save_chat_history.call_args.kwargs["messages"]
         assert len(saved_messages) == 3
@@ -481,7 +480,7 @@ async def test_anc_survey_first_question():
         get_or_create_chat_history.assert_awaited_once_with(
             user_id="TestUser", history_type="anc"
         )
-        assert save_chat_history.await_count == 2
+        assert save_chat_history.await_count == 1
 
         saved_messages = save_chat_history.call_args.kwargs["messages"]
         assert len(saved_messages) == 2
@@ -553,7 +552,7 @@ async def test_anc_survey_chitchat():
         get_or_create_chat_history.assert_awaited_once_with(
             user_id="TestUser", history_type="anc"
         )
-        assert save_chat_history.await_count == 2
+        assert save_chat_history.await_count == 1
 
         # The survey logic in api.py doesn't add the chitchat response to the
         # history, only the re-asked question.
@@ -586,10 +585,10 @@ def test_survey_invalid_survey_id():
     assert response.json() == {
         "detail": [
             {
-                "ctx": {"expected": "'anc'"},
+                "ctx": {"expected": "'anc' or 'onboarding'"},
                 "input": "invalid",
                 "loc": ["body", "survey_id"],
-                "msg": "Input should be 'anc'",
+                "msg": "Input should be 'anc' or 'onboarding'",
                 "type": "enum",
             }
         ]

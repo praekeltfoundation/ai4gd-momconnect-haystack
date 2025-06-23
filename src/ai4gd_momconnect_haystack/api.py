@@ -20,11 +20,10 @@ from .tasks import (
 )
 from .utilities import (
     AssessmentType,
-    ChatType,
     get_or_create_chat_history,
+    HistoryType,
     load_json_and_validate,
     save_chat_history,
-    SurveyType,
     save_pre_assessment_question,
 )
 
@@ -91,7 +90,7 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     user_id = request.user_id
     user_input = request.user_input
     chat_history = await get_or_create_chat_history(
-        user_id=user_id, history_type=ChatType.onboarding
+        user_id=user_id, history_type=HistoryType.onboarding
     )
 
     if user_input:
@@ -113,8 +112,6 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     else:
         # If there is no response to the question, the context stays the same
         user_context = request.user_context
-    if intent == "CHITCHAT" and intent_related_response:
-        chat_history.append(ChatMessage.from_assistant(text=intent_related_response))
     question = get_next_onboarding_question(
         user_context=user_context, chat_history=chat_history
     )
@@ -123,7 +120,7 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     await save_chat_history(
         user_id=request.user_id,
         messages=chat_history,
-        history_type=ChatType.onboarding,
+        history_type=HistoryType.onboarding,
     )
     return OnboardingResponse(
         question=question or "",
@@ -195,7 +192,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
 
 class SurveyRequest(BaseModel):
     user_id: str
-    survey_id: SurveyType
+    survey_id: HistoryType
     user_input: str
     user_context: dict[str, Any]
 
@@ -223,19 +220,10 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
     last_question = chat_history[-1] if chat_history else ""
     if request.user_input:
         chat_history.append(ChatMessage.from_user(text=user_input))
-        await save_chat_history(
-            user_id=request.user_id,
-            messages=chat_history,
-            history_type=request.survey_id,
-        )
         intent, intent_related_response = handle_user_message(last_question, user_input)
     else:
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
-        if not chat_history:
-            chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA)]
-            await save_chat_history(
-                user_id=user_id, messages=chat_history, history_type=request.survey_id
-            )
+        chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA)]
     if intent == "JOURNEY_RESPONSE" and request.user_input:
         # There's only one survey type, so we can assume anc until we add more
         # First, extract data from the user's last response to update the context

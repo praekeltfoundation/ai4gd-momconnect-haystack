@@ -1,5 +1,4 @@
 import logging
-import json
 from os import environ
 from pathlib import Path
 from typing import Any
@@ -145,9 +144,10 @@ def ingest_content(
                         "flow_id": flow_id,
                         "question_number": piece["question_number"],
                         "content_type": piece["content_type"],
-                        "valid_responses_and_scores": json.dumps(
-                            piece.get("valid_responses_and_scores", [])
-                        ),
+                        "valid_responses": [
+                            item["response"]
+                            for item in piece.get("valid_responses_and_scores", [])
+                        ],
                     },
                 )
             documents_to_ingest.append(doc)

@@ -6,7 +6,7 @@
             "content": "*So far in this pregnancy, how many times have you gone to the clinic for a pregnancy check-up?* 🫃🏽",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
-                { "resonse": "0 - None", "score": 0 },
+                { "response": "0 - None", "score": 0 },
                 { "response": "1", "score": 1 },
                 { "response": "2", "score": 2 },
                 { "response": "3", "score": 3 },
@@ -24,7 +24,7 @@
             "content": "*In this pregnancy, have you made any changes to your diet based on information from the health worker?* 🫃🏽",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
-                { "resonse": "Yes", "score": 1 },
+                { "response": "Yes", "score": 1 },
                 { "response": "No", "score": 2 },
                 { "response": "Skip", "score": 0 }
             ]
@@ -35,7 +35,7 @@
             "content": "*So far in this pregnancy, how many doses of the tetanus vaccine (Tdap) have you received?* 🫃🏽",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
-                { "resonse": "0", "score": 0 },
+                { "response": "0", "score": 0 },
                 { "response": "1", "score": 1 },
                 { "response": "Skip", "score": 0 }
             ]
