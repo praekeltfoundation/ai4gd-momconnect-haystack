@@ -500,7 +500,7 @@ def create_onboarding_data_extraction_pipeline() -> Pipeline | None:
     """
 
     prompt_builder = ChatPromptBuilder(
-        template=[ChatMessage.from_user(prompt_template)],
+        template=[ChatMessage.from_system(prompt_template)],
         required_variables=["user_context", "chat_history", "user_response"],
     )
 
@@ -557,7 +557,7 @@ def create_assessment_contextualization_pipeline() -> Pipeline | None:
     JSON Response:
     """
     prompt_builder = ChatPromptBuilder(
-        template=[ChatMessage.from_user(prompt_template)],
+        template=[ChatMessage.from_system(prompt_template)],
         required_variables=["user_context", "documents"],
     )
 
@@ -610,7 +610,7 @@ def create_assessment_response_validator_pipeline() -> Pipeline | None:
     Validated Response:
     """
     prompt_builder = ChatPromptBuilder(
-        template=[ChatMessage.from_user(prompt_template)],
+        template=[ChatMessage.from_system(prompt_template)],
         required_variables=["user_response", "valid_responses"],
     )
 
@@ -673,7 +673,7 @@ def create_clinic_visit_navigator_pipeline() -> Pipeline | None:
     """
 
     prompt_builder = ChatPromptBuilder(
-        template=[ChatMessage.from_user(prompt_template)],
+        template=[ChatMessage.from_system(prompt_template)],
         required_variables=["user_context"],
     )
 
@@ -742,7 +742,7 @@ def create_anc_survey_contextualization_pipeline() -> Pipeline | None:
     """
 
     prompt_builder = ChatPromptBuilder(
-        template=[ChatMessage.from_user(prompt_template)],
+        template=[ChatMessage.from_system(prompt_template)],
         required_variables=[
             "user_context",
             "chat_history",
@@ -801,7 +801,7 @@ def create_clinic_visit_data_extraction_pipeline() -> Pipeline | None:
     """
 
     prompt_builder = ChatPromptBuilder(
-        template=[ChatMessage.from_user(prompt_template)],
+        template=[ChatMessage.from_system(prompt_template)],
         required_variables=["user_context", "chat_history", "user_response"],
     )
 
@@ -850,7 +850,7 @@ def create_intent_detection_pipeline() -> Pipeline | None:
     JSON Response:
     """
     prompt_builder = ChatPromptBuilder(
-        template=[ChatMessage.from_user(prompt_template)],
+        template=[ChatMessage.from_system(prompt_template)],
         required_variables=["last_question", "user_response"],
     )
 
@@ -894,7 +894,7 @@ def create_faq_answering_pipeline() -> Pipeline | None:
     Answer:
     """
     prompt_builder = ChatPromptBuilder(
-        template=[ChatMessage.from_user(prompt_template)],
+        template=[ChatMessage.from_system(prompt_template)],
     )
 
     document_store = setup_document_store()
