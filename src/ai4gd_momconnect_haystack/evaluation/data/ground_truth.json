@@ -1,6 +1,6 @@
 {"scenarios":
   [
-    {
+  {
       "scenario_id": "behaviour-pre-assessment_user_123_250616-0635",
       "flow_type": "behaviour-pre-assessment",
       "description": "Assessment evaluation for Naledi, handling conversational answers to scaled questions.",

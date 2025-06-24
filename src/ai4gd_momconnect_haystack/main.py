@@ -53,8 +53,7 @@ SCORABLE_ASSESSMENTS = {
 
 
 def _get_user_response(
-    gt_scenarios: list[dict[str, Any]] | None,
-    gt_flows: dict[str, Any],
+    gt_lookup: dict[str, dict],
     flow_id: str,
     contextualized_question: str,
     turn_identifier_key: str,
@@ -64,11 +63,13 @@ def _get_user_response(
     Gets a user's response, either from ground truth data or from stdin.
     Returns the user's response as a string, or None if a GT turn is not found.
     """
-    if gt_scenarios:
+    if gt_lookup:
+        scenario = gt_lookup.get(flow_id, {})
+        turns = scenario.get("turns", [])
         gt_turn = next(
             (
                 turn
-                for turn in gt_flows.get(flow_id, [])
+                for turn in turns
                 if turn.get(turn_identifier_key) == turn_identifier_value
             ),
             None,
@@ -98,13 +99,13 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
     simulation_results = []
 
     # --- NEW: Pre-process GT data for easy lookup ---
-    gt_flows = {}
+    gt_lookup_by_flow = {}
     if gt_scenarios:
         logger.info("Running in AUTOMATED mode.")
         for scenario in gt_scenarios:
             flow_type = scenario.get("flow_type")
             if flow_type:
-                gt_flows[flow_type] = scenario.get("turns", [])
+                gt_lookup_by_flow[flow_type] = scenario
     else:
         logger.info("Running in INTERACTIVE mode.")
     # --- END NEW ---
@@ -129,7 +130,7 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
     chat_history: list[str] = []
     onboarding_turns = []
 
-    sim_onboarding = "onboarding" in gt_flows
+    sim_onboarding = "onboarding" in gt_lookup_by_flow
     sim_dma = False
     sim_kab = False
     sim_anc_survey = False
@@ -148,8 +149,13 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
     if sim_onboarding:
         # Simulate Onboarding
         flow_id = "onboarding"
+        gt_scenario = gt_lookup_by_flow.get(flow_id)
+        scenario_id_to_use = (
+            gt_scenario.get("scenario_id") if gt_scenario 
+            else generate_scenario_id(flow_type=flow_id, username="user_123")
+        )
         run_results: dict[str, Any] = {
-            "scenario_id": generate_scenario_id(flow_type=flow_id, username="user_123"),
+            "scenario_id": scenario_id_to_use,
             "flow_type": flow_id,
             "turns": None,
         }
@@ -176,17 +182,20 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     "System to User: " + contextualized_question + "\n> "
                 )
                 ### MODIFIED: Get user_response from GT data or input() ###
+                print(f"Question #: {question_number}")
+                print(f"Question: {contextualized_question}")
                 user_response = _get_user_response(
-                    gt_scenarios=gt_scenarios,
-                    gt_flows=gt_flows,
+                    gt_lookup=gt_lookup_by_flow,
                     flow_id=flow_id,
                     contextualized_question=contextualized_question,
                     turn_identifier_key="question_number",
                     turn_identifier_value=question_number,
                 )
+                print
                 if user_response is None:
                     break
                 ### END MODIFIED ###
+                print(f"Use_response: {user_response}")
                 chat_history.append("User to System: " + user_response + "\n> ")
 
                 # Classify user's intent and act accordingly
@@ -267,7 +276,7 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
     # ** DMA Scenario **
     print("")
-    sim_dma = "dma-assessment" in gt_flows
+    sim_dma = "dma-assessment" in gt_lookup_by_flow
     if not gt_scenarios:
         while True:
             sim = input("Simulate DMA? (Y/N)\n> ")
@@ -280,6 +289,7 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 print("Please enter 'Y' or 'N'.")
 
     if sim_dma:
+        
         logger.info("\n--- Simulating DMA ---")
         user_context["goal"] = "Complete the assessment"
         max_assessment_steps = 10  # Safety break
@@ -288,10 +298,15 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
         # Simulate Assessment
 
         flow_id = "dma-assessment"
+        gt_scenario = gt_lookup_by_flow.get(flow_id)
+        scenario_id_to_use = (
+            gt_scenario.get("scenario_id") if gt_scenario
+            else generate_scenario_id(flow_type=flow_id, username="user_123")
+        )
         run_results = {
-            "scenario_id": generate_scenario_id(flow_type=flow_id, username="user_123"),
+            "scenario_id": scenario_id_to_use,
             "flow_type": flow_id,
-            "turns": None,
+            "turns": [],
         }
         dma_turns = []
 
@@ -316,8 +331,7 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             print(f"Question #: {question_number}")
             print(f"Question: {contextualized_question}")
             user_response = _get_user_response(
-                gt_scenarios=gt_scenarios,
-                gt_flows=gt_flows,
+                gt_lookup=gt_lookup_by_flow,
                 flow_id=flow_id,
                 contextualized_question=contextualized_question,
                 turn_identifier_key="question_number",
@@ -355,7 +369,7 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
         "attitude-assessment",
         "behaviour-pre-assessment",
     ]
-    kab_flows_in_gt = [flow for flow in kab_flow_ids if flow in gt_flows]
+    kab_flows_in_gt = [flow for flow in kab_flow_ids if flow in gt_lookup_by_flow]
     sim_kab = bool(kab_flows_in_gt)
     if not gt_scenarios:
         print("")
@@ -379,10 +393,13 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             max_assessment_steps = 20  # Safety break
 
             # Simulate Assessments
+            gt_scenario = gt_lookup_by_flow.get(flow_id)
+            scenario_id_to_use = (
+                gt_scenario.get("scenario_id") if gt_scenario
+                else generate_scenario_id(flow_type=flow_id, username="user_123")
+            )
             run_results = {
-                "scenario_id": generate_scenario_id(
-                    flow_type=flow_id, username="user_123"
-                ),
+                "scenario_id":  scenario_id_to_use,
                 "flow_type": flow_id,
                 "turns": None,
             }
@@ -408,8 +425,7 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 print(f"Question: {contextualized_question}")
                 user_response = ""
                 user_response = _get_user_response(
-                    gt_scenarios=gt_scenarios,
-                    gt_flows=gt_flows,
+                    gt_lookup=gt_lookup_by_flow,
                     flow_id=flow_id,
                     contextualized_question=contextualized_question,
                     turn_identifier_key="question_number",
@@ -443,7 +459,7 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             simulation_results.append(run_results)
 
     # ** ANC Survey Scenario **
-    sim_anc_survey = "anc-survey" in gt_flows
+    sim_anc_survey = "anc-survey" in gt_lookup_by_flow
     if not gt_scenarios:
         print("")
         while True:
@@ -468,8 +484,13 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
         # Simulate ANC Survey
         flow_id = "anc-survey"
+        gt_scenario = gt_lookup_by_flow.get(flow_id)
+        scenario_id_to_use = (
+            gt_scenario.get("scenario_id") if gt_scenario
+            else generate_scenario_id(flow_type=flow_id, username="user_123")
+        )
         run_results = {
-            "scenario_id": generate_scenario_id(flow_type=flow_id, username="user_123"),
+            "scenario_id": scenario_id_to_use,
             "flow_type": flow_id,
             "turns": None,
         }
@@ -495,16 +516,18 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 "System to User: " + contextualized_question + "\n> "
             )
             ### MODIFIED: Get user_response from GT data or input() ###
+            print(f"Question title: {question_identifier}")
+            print(f"Question: {contextualized_question}")
             user_response = ""
             # Find the specific turn in the GT list by searching for the matching question_number
             user_response = _get_user_response(
-                gt_scenarios=gt_scenarios,
-                gt_flows=gt_flows,
+                gt_lookup=gt_lookup_by_flow,
                 flow_id=flow_id,
                 contextualized_question=contextualized_question,
-                turn_identifier_key="title",
+                turn_identifier_key="question_name",
                 turn_identifier_value=question_identifier,
             )
+            print(f"Use_response: {user_response}")
             if user_response is None:
                 break
             ### END MODIFIED ###
@@ -569,7 +592,12 @@ def _process_run(run: AssessmentRun, all_doc_stores: dict) -> dict:
     return run.model_dump()
 
 
-def main() -> None:
+def main(
+    RESULT_PATH=OUTPUT_PATH,
+    GT_FILE_PATH=GT_FILE_PATH,
+    is_automated=False,
+    save_simulation=False
+) -> None:
     """
     Runs the interactive simulation, orchestrates scoring on the in-memory
     results, and saves the final augmented report.
@@ -580,13 +608,17 @@ def main() -> None:
     logging.info("Simulation complete. Starting validation and scoring process...")
 
     # Simple check for the '--automated' flag without using argparse
-    is_automated = "--automated"  # Placeholder None
+    # is_automated = "--automated"  # Placeholder None
     raw_simulation_output: list[dict[str, Any]] = []
 
     if is_automated:
         logging.info("Starting simulation in AUTOMATED mode...")
         gt_data = read_json(GT_FILE_PATH)
-        gt_scenarios: list | None = gt_data.get("scenarios")
+        gt_scenarios_from_json: list | None = gt_data.get("scenarios")
+        l_ = [s.get("selected_for_evaluation", True) for s in gt_scenarios_from_json]
+        gt_scenarios = [
+            s for s in gt_scenarios_from_json if s.get("enabled", True)
+        ]
         if not gt_scenarios:
             logging.critical(
                 f"Failed to load ground truth file from {GT_FILE_PATH}. Exiting."
@@ -628,12 +660,19 @@ def main() -> None:
     ]
 
     # 5. Save the final, augmented report.
-    if final_augmented_output:
+    if save_simulation and final_augmented_output:
         # TODO: This section will be replaced with a database write operation.
         # For now, it saves the output to a local JSON file for inspection.
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_extention = datetime.now().strftime("%y%m%d-%H%M")
+        SIMULATION_FILE_PATH = RESULT_PATH / f"simulation_run_results_{file_extention}.json"
+        
         save_json_file(
             final_augmented_output,
-            OUTPUT_PATH / f"final_augmented_output_{timestamp}.json",
+            SIMULATION_FILE_PATH,
         )
-        logging.info("Processing complete. Final output generated.")
+        logging.info("Processing complete. Final output generated and save to {}")
+        return SIMULATION_FILE_PATH
+
+# MODIFIED: Allow script to be run directly
+if __name__ == "__main__":
+    main()
