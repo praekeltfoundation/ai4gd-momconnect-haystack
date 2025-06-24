@@ -27,19 +27,30 @@ def raw_assessment_questions() -> list[dict[str, Any]]:
             "question_number": 1,
             "question_name": "confident_in_making_health_decisions",
             "content": "Can you make decisions?",
-            "valid_responses": {"No": 0, "A little": 1, "Yes": 2},
+            # UPDATED: Changed field name and structure
+            "valid_responses_and_scores": [
+                {"response": "No", "score": 0},
+                {"response": "A little", "score": 1},
+                {"response": "Yes", "score": 2},
+            ],
         },
         {
             "question_number": 2,
             "question_name": "confident_in_talking_to_health_worker",
             "content": "Can you talk to a worker?",
-            "valid_responses": {"No": 0, "A little": 1, "Yes": 2},
+            # UPDATED: Changed field name and structure
+            "valid_responses_and_scores": [
+                {"response": "No", "score": 0},
+                {"response": "A little", "score": 1},
+                {"response": "Yes", "score": 2},
+            ],
         },
         {
             "question_number": 3,
             "question_name": "no_valid_responses",
             "content": "This question has no score options.",
-            "valid_responses": {},  # Empty dict is valid, just not scorable
+            # UPDATED: Changed field name and structure
+            "valid_responses_and_scores": [],
         },
     ]
 

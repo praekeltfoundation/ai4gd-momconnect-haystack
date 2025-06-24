@@ -50,11 +50,10 @@ SERVICE_PERSONA = load_json_and_validate(SERVICE_PERSONA_PATH, dict)
 
 # Define which assessments from the doc stores are scorable
 SCORABLE_ASSESSMENTS = {
-    "dma-assessment",
+    "dma-pre-assessment",
+    "knowledge-pre-assessment",
+    "attitude-pre-assessment",
     "behaviour-pre-assessment",
-    "knowledge-assessment",
-    "attitude-assessment",
-    # "behaviour-pre-assessment"
 }
 
 # TODO: Align simulation prompts with doc_store for valid responses.
@@ -140,7 +139,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
         "other": {},
     }
     max_onboarding_steps = 10  # Safety break
-    chat_history: list[str] = []
+    chat_history: list[ChatMessage] = []
     onboarding_turns = []
 
     sim_onboarding = "onboarding" in gt_lookup_by_flow
@@ -205,7 +204,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     turn_identifier_key="question_number",
                     turn_identifier_value=question_number,
                 )
-                print
+
                 if user_response is None:
                     break
                 ### END MODIFIED ###
@@ -294,7 +293,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
     # ** DMA Scenario **
     print("")
-    sim_dma = "dma-assessment" in gt_lookup_by_flow
+    sim_dma = "dma-pre-assessment" in gt_lookup_by_flow
     if not gt_scenarios:
         while True:
             sim = input("Simulate DMA? (Y/N)\n> ")
@@ -308,7 +307,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
     if sim_dma:
         logger.info("\n--- Simulating DMA ---")
-        current_assessment_step = 0
         flow_id = AssessmentType.dma_pre_assessment
         user_context["goal"] = "Complete the assessment"
         max_assessment_steps = 10  # Safety break
@@ -358,13 +356,13 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             print(f"Question: {contextualized_question}")
             user_response = await _get_user_response(
                 gt_lookup=gt_lookup_by_flow,
-                flow_id="dma-assessment",
+                flow_id=flow_id.value,
                 contextualized_question=contextualized_question,
                 turn_identifier_key="question_number",
                 turn_identifier_value=question_number,
             )
-            # if user_response is None:
-            #     break
+            if user_response is None:
+                break
             print(f"Use_response: {user_response}")
 
             # Classify user's intent and act accordingly
@@ -428,16 +426,15 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 )
                 continue
             processed_user_response = result["processed_user_response"]
-            current_assessment_step = result["next_question_number"]
             dma_turns.append(
                 {
-                    "question_number": current_assessment_step,
+                    "question_number": question_number,
                     "llm_utterance": contextualized_question,
                     "user_utterance": user_response,
                     "llm_extracted_user_response": processed_user_response,
                 }
             )
-            question_number = current_assessment_step
+            question_number = result["next_question_number"]
 
         # Inspect the pre-assessment questions that were stored as history,
         # before deleting them:
@@ -469,7 +466,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
         AssessmentType.attitude_pre_assessment,
         AssessmentType.behaviour_pre_assessment,
     ]
-    kab_flows_in_gt = [flow for flow in kab_flow_ids if flow in gt_lookup_by_flow]
+    kab_flows_in_gt = [flow for flow in kab_flow_ids if flow.value in gt_lookup_by_flow]
     sim_kab = bool(kab_flows_in_gt)
     if not gt_scenarios:
         print("")
@@ -488,7 +485,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
         for flow_id in flows_to_run:
             logger.info("\n--- Simulating KAB ---")
-            current_assessment_step = 0
             question_number = 1
             user_context["goal"] = "Complete the assessment"
             max_assessment_steps = 20  # Safety break
@@ -502,7 +498,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             )
             run_results = {
                 "scenario_id": scenario_id_to_use,
-                "flow_type": flow_id,
+                "flow_type": flow_id.value,
                 "turns": None,
             }
             kab_turns = []
@@ -530,20 +526,19 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     )
 
                 # Simulate User Response
-                ### MODIFIED: Get user_response from GT data or input() ###
+                # Get user_response from GT data or input() #
                 print(f"Question #: {question_number}")
                 print(f"Question: {contextualized_question}")
                 user_response = ""
                 user_response = await _get_user_response(
                     gt_lookup=gt_lookup_by_flow,
-                    flow_id=flow_id,
+                    flow_id=flow_id.value,
                     contextualized_question=contextualized_question,
                     turn_identifier_key="question_number",
                     turn_identifier_value=question_number,
                 )
-                # if user_response is None:
-                #     break
-                ### END MODIFIED ###
+                if user_response is None:
+                    break
                 print(f"Use_response: {user_response}")
 
                 # Classify user's intent and act accordingly
@@ -615,7 +610,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         "llm_extracted_user_response": processed_user_response,
                     }
                 )
-                question_number = current_assessment_step
+                question_number = result["next_question_number"]
 
             # Inspect the pre-assessment questions that were stored as history,
             # before deleting them:
@@ -663,7 +658,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             "gender": user_context.get("gender"),
             "goal": "Complete the ANC survey",
         }
-        anc_chat_history: list[str] = []
         survey_complete = False
         max_survey_steps = 25  # Safety break
 
@@ -783,7 +777,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
     return simulation_results
 
 
-def _process_run(run: AssessmentRun, all_doc_stores: dict) -> dict:
+def _process_run(run: AssessmentRun) -> dict:
     """
     Processes a single validated simulation run. It scores the run if applicable,
     otherwise returns the raw data.
@@ -795,12 +789,14 @@ def _process_run(run: AssessmentRun, all_doc_stores: dict) -> dict:
 
     logging.info(f"Processing scorable assessment: {run.flow_type}")
 
-    assessment_questions = tasks.load_and_validate_assessment_questions(
-        run.flow_type, all_doc_stores
-    )
+    assessment_questions = tasks.load_and_validate_assessment_questions(run.flow_type)
 
+    print(f"ASSESSMENT Q: {assessment_questions}")
     if not assessment_questions:
         logging.warning(
+            f"Could not load/validate questions for '{run.flow_type}'. Appending raw run data."
+        )
+        print(
             f"Could not load/validate questions for '{run.flow_type}'. Appending raw run data."
         )
         return run.model_dump()
@@ -808,6 +804,7 @@ def _process_run(run: AssessmentRun, all_doc_stores: dict) -> dict:
     scored_data = tasks.score_assessment_from_simulation(
         [run], run.flow_type, assessment_questions
     )
+    print(f"ASSESSMENT Q: {assessment_questions}")
 
     if scored_data:
         return {
@@ -837,7 +834,7 @@ async def async_main(
     # # 1. Run the simulation to get the raw output directly in memory.
     # raw_simulation_output = await run_simulation()
     # logging.info("Simulation complete. Starting validation and scoring process...")
-# 
+    #
     # Simple check for the '--automated' flag without using argparse
     # is_automated = "--automated"  # Placeholder None
     raw_simulation_output: list[dict[str, Any]] = []
@@ -885,12 +882,8 @@ async def async_main(
         )
         return
 
-    all_doc_stores = {**doc_store_dma, **doc_store_kab}
-
     # 4. Process each validated simulation run using the helper function.
-    final_augmented_output = [
-        _process_run(run, all_doc_stores) for run in simulation_output
-    ]
+    final_augmented_output = [_process_run(run) for run in simulation_output]
 
     # 5. Save the final, augmented report.
     if save_simulation and final_augmented_output:
@@ -905,7 +898,9 @@ async def async_main(
             final_augmented_output,
             SIMULATION_FILE_PATH,
         )
-        logging.info(f"Processing complete. Final output generated and save to {SIMULATION_FILE_PATH}")
+        logging.info(
+            f"Processing complete. Final output generated and save to {SIMULATION_FILE_PATH}"
+        )
         return SIMULATION_FILE_PATH
 
 

@@ -72,7 +72,9 @@ async def test_onboarding_chitchat():
         ) as _,
         mock.patch(
             "ai4gd_momconnect_haystack.api.get_next_onboarding_question",
-            return_value={"contextualized_question":"Which province are you currently living in? 🏡"},
+            return_value={
+                "contextualized_question": "Which province are you currently living in? 🏡"
+            },
         ) as _,
         mock.patch(
             "ai4gd_momconnect_haystack.api.extract_onboarding_data_from_response",
@@ -138,7 +140,9 @@ async def test_onboarding_first_question():
         ) as extract_onboarding_data_from_response,
         mock.patch(
             "ai4gd_momconnect_haystack.api.get_next_onboarding_question",
-            return_value={"contextualized_question": "Which province are you currently living in? 🏡"},
+            return_value={
+                "contextualized_question": "Which province are you currently living in? 🏡"
+            },
         ) as _,
     ):
         client = TestClient(app)
@@ -208,7 +212,9 @@ async def test_onboarding():
         ) as extract_onboarding_data_from_response,
         mock.patch(
             "ai4gd_momconnect_haystack.api.get_next_onboarding_question",
-            return_value={"contextualized_question": "Which province are you currently living in? 🏡"},
+            return_value={
+                "contextualized_question": "Which province are you currently living in? 🏡"
+            },
         ) as get_next_onboarding_question,
     ):
         client = TestClient(app)

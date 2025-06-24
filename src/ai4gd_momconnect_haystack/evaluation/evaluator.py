@@ -379,9 +379,14 @@ def main():
             )
 
         print("--- Running Automated Simulation ---")
-        output_file_path = asyncio.run(run_main_simulation(
-            RESULT_PATH=script_dir / "data", is_automated=True, save_simulation=True
-        ))
+        output_file_path = asyncio.run(
+            run_main_simulation(
+                GT_FILE_PATH=args.gt_file,
+                RESULT_PATH=script_dir / "data",
+                is_automated=True,
+                save_simulation=True,
+            )
+        )
 
         if output_file_path and output_file_path.exists():
             print(

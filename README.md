@@ -190,3 +190,51 @@ Run the following commands from the root directory:
 ## Testing
 There are automated tests, they can be run with:
 - `uv run pytest`
+
+## Evaluation
+The project includes a script to evaluate the performance of the LLM pipelines against a predefined ground truth.
+
+### Ground Truth Files
+The ground truth files define the scenarios for the evaluation. They are located in `src/ai4gd_momconnect_haystack/evaluation/data/` and include:
+- `onboarding_gt.json`
+- `dma_gt.json`
+- `kab_gt.json`
+- `anc_gt.json`
+
+### How to Run
+There are two ways to run the evaluation script:
+
+**1. Generate a New Simulation and Evaluate It (Recommended)**
+
+This method first runs an automated simulation based on a ground truth file and then immediately evaluates the results. Use the `--run-simulation` flag and specify which ground truth file to use with `--gt-file`.
+
+<details>
+<summary>Click to view example command</summary>
+
+```bash
+docker-compose run --remove-orphans python-app uv run python src/ai4gd_momconnect_haystack/evaluation/evaluator.py \
+  --run-simulation \
+  --gt-file src/ai4gd_momconnect_haystack/evaluation/data/kab_gt.json \
+  --save-report
+```
+&lt;</details>
+
+
+**2. Evaluate an Existing Simulation File**
+
+Alternatively, if you have an existing simulation run output, you can evaluate it directly against a ground truth (gt) file. This is done by passing the --results-file flag, which allows you to re-evaluate a past run without re-running the simulation.
+
+<details>
+<summary>Click to view example command</summary>
+
+```bash
+docker-compose run --remove-orphans python-app uv run python src/ai4gd_momconnect_haystack/evaluation/evaluator.py \
+  --results-file src/ai4gd_momconnect_haystack/evaluation/data/simulation_run_results_250624-1132.json \
+  --gt-file src/ai4gd_momconnect_haystack/evaluation/data/kab_gt.json \
+  --save-report
+```
+&lt;</details>
+
+**Report Output**
+
+Using the --save-report flag will generate a text file containing both a detailed turn-by-turn analysis and a final performance summary. The report will be saved in the same directory as the results file with a .report.txt extension.
