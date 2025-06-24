@@ -1,17 +1,26 @@
+import asyncio
 import logging
 from datetime import datetime
 from os import environ
 from pathlib import Path
 
 from dotenv import load_dotenv
+from haystack.dataclasses import ChatMessage
 from pydantic import ValidationError
+from sqlalchemy import delete
+
+from ai4gd_momconnect_haystack.sqlalchemy_models import PreAssessmentQuestionHistory
 
 from . import tasks
-from .models import AssessmentRun
+from .database import AsyncSessionLocal, init_db
+from .pydantic_models import AssessmentRun
 from .utilities import (
+    AssessmentType,
     generate_scenario_id,
+    get_pre_assessment_history,
     load_json_and_validate,
     save_json_file,
+    save_pre_assessment_question,
 )
 
 load_dotenv()
@@ -28,6 +37,9 @@ DATA_PATH = Path("src/ai4gd_momconnect_haystack/")
 DOC_STORE_DMA_PATH = DATA_PATH / "static_content" / "dma.json"
 DOC_STORE_KAB_PATH = DATA_PATH / "static_content" / "kab.json"
 OUTPUT_PATH = DATA_PATH / "run_output"
+SERVICE_PERSONA_PATH = DATA_PATH / "static_content" / "service_persona.json"
+
+SERVICE_PERSONA = load_json_and_validate(SERVICE_PERSONA_PATH, dict)
 
 # Define which assessments from the doc stores are scorable
 SCORABLE_ASSESSMENTS = {
@@ -44,7 +56,7 @@ SCORABLE_ASSESSMENTS = {
 # for scoring. These must be aligned to ensure correct data extraction and scoring.
 
 
-def run_simulation():
+async def run_simulation():
     """
     Runs a simulation of the onboarding and assessment process using the pipelines.
     """
@@ -54,6 +66,7 @@ def run_simulation():
     # --- Simulation ---
     # ** Onboarding Scenario **
     logger.info("\n--- Simulating Onboarding ---")
+    user_id = "TestUser"
     user_context = {  # Simulation data collected progressively
         "age": "33",
         "gender": "female",
@@ -70,7 +83,11 @@ def run_simulation():
     max_onboarding_steps = 10  # Safety break
     chat_history = []
     onboarding_turns = []
-    flow_type = "onboarding"
+    dma_assessment_turns = []
+    kab_k_assessment_turns = []
+    kab_a_assessment_turns = []
+    kab_b_assessment_turns = []
+    anc_survey_turns = []
 
     sim_onboarding = False
     sim_dma = False
@@ -88,6 +105,7 @@ def run_simulation():
             print("Please enter 'Y' or 'N'.")
 
     if sim_onboarding:
+        chat_history.append(ChatMessage.from_system(text=SERVICE_PERSONA))
         # Simulate Onboarding
         for attempt in range(max_onboarding_steps):
             print("-" * 20)
@@ -99,26 +117,25 @@ def run_simulation():
             if not contextualized_question:
                 logger.info("Onboarding flow complete.")
                 break
+            chat_history.append(
+                ChatMessage.from_assistant(text=contextualized_question)
+            )
 
             # Simulate User Response & Data Extraction
-            chat_history.append("System to User: " + contextualized_question + "\n> ")
             # Keep getting a user response until it is one that continues the journey:
             intent = None
             while intent != "JOURNEY_RESPONSE":
-                chat_history.append(
-                    "System to User: " + contextualized_question + "\n> "
-                )
                 user_response = input(contextualized_question + "\n> ")
-                chat_history.append("User to System: " + user_response + "\n> ")
+                chat_history.append(ChatMessage.from_user(text=user_response))
 
                 # Classify user's intent and act accordingly
-                intent, message_to_user = tasks.handle_user_message(
+                intent, intent_related_response = tasks.handle_user_message(
                     contextualized_question, user_response
                 )
                 # If a question about the study or about health was asked, print the
                 # response that would be sent to users
                 if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
-                    print(message_to_user)
+                    print(intent_related_response)
                 elif intent in [
                     "ASKING_TO_STOP_MESSAGES",
                     "ASKING_TO_DELETE_DATA",
@@ -126,7 +143,7 @@ def run_simulation():
                 ]:
                     print(f"Turn must be notified that user is {intent}")
                 elif intent == "CHITCHAT":
-                    print(message_to_user)
+                    print(intent_related_response)
                     print(
                         (
                             f"User is chitchatting and needs to still respond to "
@@ -136,7 +153,6 @@ def run_simulation():
                 else:
                     # intent must be JOURNEY_RESPONSE
                     pass
-            chat_history.append("User to System: " + user_response + "\n> ")
 
             ### Endpoint 2: Turn can call to get extracted data from a user response.
             previous_context = user_context.copy()
@@ -178,6 +194,10 @@ def run_simulation():
                             "llm_extracted_user_response": user_context[updated_field],
                         }
                     )
+        logger.info("Onboarding Chat History:")
+        for msg in chat_history:
+            logger.info(f"{msg.role.value}:\n{msg.text}")
+        chat_history = []
 
     # ** DMA Scenario **
     print("")
@@ -191,10 +211,10 @@ def run_simulation():
         else:
             print("Please enter 'Y' or 'N'.")
 
-    assessment_turns = []
-
     if sim_dma:
         logger.info("\n--- Simulating DMA ---")
+        current_assessment_step = 0
+        flow_id = AssessmentType.dma_pre_assessment
         user_context["goal"] = "Complete the assessment"
         max_assessment_steps = 10  # Safety break
         question_number = 1
@@ -204,8 +224,9 @@ def run_simulation():
             print("-" * 20)
             logger.info(f"Assessment Step: Requesting question {question_number}")
 
-            result = tasks.get_assessment_question(
-                flow_id="dma-assessment",
+            result = await tasks.get_assessment_question(
+                user_id=user_id,
+                flow_id=flow_id,
                 question_number=question_number,
                 user_context=user_context,
             )
@@ -213,19 +234,82 @@ def run_simulation():
                 logger.info("Assessment flow complete.")
                 break
             contextualized_question = result["contextualized_question"]
+            if "-pre" in flow_id.value:
+                await save_pre_assessment_question(
+                    user_id=user_id,
+                    assessment_type=flow_id,
+                    question_number=question_number,
+                    question=contextualized_question,
+                )
 
             # Simulate User Response
             user_response = input(contextualized_question + "\n> ")
 
+            # Classify user's intent and act accordingly
+            intent, intent_related_response = tasks.handle_user_message(
+                contextualized_question, user_response
+            )
+            # If a question about the study or about health was asked, print the
+            # response that would be sent to users
+            if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
+                print(intent_related_response)
+            elif intent in [
+                "ASKING_TO_STOP_MESSAGES",
+                "ASKING_TO_DELETE_DATA",
+                "REPORTING_AIRTIME_NOT_RECEIVED",
+            ]:
+                print(f"Turn must be notified that user is {intent}")
+            elif intent == "CHITCHAT":
+                print(intent_related_response)
+                print(
+                    (
+                        f"User is chitchatting and needs to still respond to "
+                        f"the previous question: {contextualized_question}"
+                    )
+                )
+            else:
+                # intent must be JOURNEY_RESPONSE
+                pass
+
             result = tasks.validate_assessment_answer(
-                user_response, question_number, "dma-assessment"
+                user_response, question_number, flow_id.value
             )
             if not result:
                 logger.warning(
                     f"Response validation failed for question {question_number}."
                 )
                 continue
-            question_number = result["next_question_number"]
+            processed_user_response = result["processed_user_response"]
+            current_assessment_step = result["next_question_number"]
+            dma_assessment_turns.append(
+                {
+                    "question_number": current_assessment_step,
+                    "llm_utterance": contextualized_question,
+                    "user_utterance": user_response,
+                    "llm_extracted_user_response": processed_user_response,
+                }
+            )
+            question_number = current_assessment_step
+
+        # Inspect the pre-assessment questions that were stored as history,
+        # before deleting them:
+        if "-pre" in flow_id.value:
+            history = await get_pre_assessment_history(user_id, flow_id)
+            if history:
+                logger.info(
+                    "Stored the following pre-assessment questions during simulation:"
+                )
+                for q in history:
+                    logger.info(f"Question {q.question_number}: {q.question}")
+            async with AsyncSessionLocal() as session:
+                async with session.begin():
+                    await session.execute(
+                        delete(PreAssessmentQuestionHistory).where(
+                            PreAssessmentQuestionHistory.user_id == user_id,
+                            PreAssessmentQuestionHistory.assessment_id == flow_id.value,
+                        )
+                    )
+                    await session.commit()
 
     # ** KAB Scenario **
     print("")
@@ -241,11 +325,12 @@ def run_simulation():
 
     if sim_kab:
         for flow_id in [
-            "knowledge-assessment",
-            "attitude-assessment",
-            "behaviour-pre-assessment",
+            AssessmentType.knowledge_pre_assessment,
+            AssessmentType.attitude_pre_assessment,
+            AssessmentType.behaviour_pre_assessment,
         ]:
             logger.info("\n--- Simulating KAB ---")
+            current_assessment_step = 0
             question_number = 1
             user_context["goal"] = "Complete the assessment"
             max_assessment_steps = 20  # Safety break
@@ -255,7 +340,8 @@ def run_simulation():
                 print("-" * 20)
                 logger.info(f"Assessment Step: Requesting question {question_number}")
 
-                result = tasks.get_assessment_question(
+                result = await tasks.get_assessment_question(
+                    user_id=user_id,
                     flow_id=flow_id,
                     question_number=question_number,
                     user_context=user_context,
@@ -264,19 +350,102 @@ def run_simulation():
                     logger.info("Assessment flow complete.")
                     break
                 contextualized_question = result["contextualized_question"]
+                if "-pre" in flow_id.value:
+                    await save_pre_assessment_question(
+                        user_id=user_id,
+                        assessment_type=flow_id,
+                        question_number=question_number,
+                        question=contextualized_question,
+                    )
 
                 # Simulate User Response
                 user_response = input(contextualized_question + "\n> ")
 
+                # Classify user's intent and act accordingly
+                intent, intent_related_response = tasks.handle_user_message(
+                    contextualized_question, user_response
+                )
+                # If a question about the study or about health was asked, print the
+                # response that would be sent to users
+                if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
+                    print(intent_related_response)
+                elif intent in [
+                    "ASKING_TO_STOP_MESSAGES",
+                    "ASKING_TO_DELETE_DATA",
+                    "REPORTING_AIRTIME_NOT_RECEIVED",
+                ]:
+                    print(f"Turn must be notified that user is {intent}")
+                elif intent == "CHITCHAT":
+                    print(intent_related_response)
+                    print(
+                        (
+                            f"User is chitchatting and needs to still respond to "
+                            f"the previous question: {contextualized_question}"
+                        )
+                    )
+                else:
+                    # intent must be JOURNEY_RESPONSE
+                    pass
+
                 result = tasks.validate_assessment_answer(
-                    user_response, question_number, flow_id
+                    user_response, question_number, flow_id.value
                 )
                 if not result:
                     logger.warning(
                         f"Response validation failed for question {question_number}."
                     )
                     continue
-                question_number = result["next_question_number"]
+                processed_user_response = result["processed_user_response"]
+                current_assessment_step = result["next_question_number"]
+                if flow_id.value == "knowledge-pre-assessment":
+                    kab_k_assessment_turns.append(
+                        {
+                            "question_number": current_assessment_step,
+                            "llm_utterance": contextualized_question,
+                            "user_utterance": user_response,
+                            "llm_extracted_user_response": processed_user_response,
+                        }
+                    )
+                elif flow_id.value == "attitude-pre-assessment":
+                    kab_a_assessment_turns.append(
+                        {
+                            "question_number": current_assessment_step,
+                            "llm_utterance": contextualized_question,
+                            "user_utterance": user_response,
+                            "llm_extracted_user_response": processed_user_response,
+                        }
+                    )
+                else:
+                    kab_b_assessment_turns.append(
+                        {
+                            "question_number": current_assessment_step,
+                            "llm_utterance": contextualized_question,
+                            "user_utterance": user_response,
+                            "llm_extracted_user_response": processed_user_response,
+                        }
+                    )
+                question_number = current_assessment_step
+
+            # Inspect the pre-assessment questions that were stored as history,
+            # before deleting them:
+            if "-pre" in flow_id.value:
+                history = await get_pre_assessment_history(user_id, flow_id)
+                if history:
+                    logger.info(
+                        "Stored the following pre-assessment questions during simulation:"
+                    )
+                    for q in history:
+                        logger.info(f"Question {q.question_number}: {q.question}")
+                async with AsyncSessionLocal() as session:
+                    async with session.begin():
+                        await session.execute(
+                            delete(PreAssessmentQuestionHistory).where(
+                                PreAssessmentQuestionHistory.user_id == user_id,
+                                PreAssessmentQuestionHistory.assessment_id
+                                == flow_id.value,
+                            )
+                        )
+                        await session.commit()
 
     # ** ANC Survey Scenario **
     print("")
@@ -292,21 +461,26 @@ def run_simulation():
 
     if sim_anc_survey:
         logger.info("\n--- Simulating ANC Survey ---")
+        chat_history.append(ChatMessage.from_system(text=SERVICE_PERSONA))
         anc_user_context = {
             "age": user_context.get("age"),
             "gender": user_context.get("gender"),
             "goal": "Complete the ANC survey",
         }
-        anc_chat_history = []
         survey_complete = False
+        max_survey_steps = 25  # Safety break
 
         # Simulate ANC Survey
-        while not survey_complete:
+        for _ in range(max_survey_steps):
+            if survey_complete:
+                logger.info("Survey flow complete.")
+                break
+
             print("-" * 20)
             logger.info("ANC Survey Step: Requesting next question...")
 
             result = tasks.get_anc_survey_question(
-                user_context=anc_user_context, chat_history=anc_chat_history
+                user_context=anc_user_context, chat_history=chat_history
             )
 
             if not result or not result.get("contextualized_question"):
@@ -317,41 +491,113 @@ def run_simulation():
             survey_complete = result.get("is_final_step", False)
 
             # Simulate User Response
-            anc_chat_history.append(
-                "System to User: " + contextualized_question + "\n> "
+            chat_history.append(
+                ChatMessage.from_assistant(text=contextualized_question)
             )
             user_response = input(contextualized_question + "\n> ")
-            anc_chat_history.append("User to System: " + user_response + "\n> ")
+            chat_history.append(ChatMessage.from_user(text=user_response))
 
-            if survey_complete:
-                logger.info("Survey flow complete.")
-                break
-
-            anc_user_context = tasks.extract_anc_data_from_response(
-                user_response, anc_user_context, anc_chat_history
+            # Classify user's intent and act accordingly
+            intent, intent_related_response = tasks.handle_user_message(
+                contextualized_question, user_response
             )
-            continue
-        # processed_user_response = result['processed_user_response']
-        current_assessment_step = result["current_assessment_step"]
-        processed_user_response = result["processed_user_response"]
-        assessment_turns.append(
+            # If a question about the study or about health was asked, print the
+            # response that would be sent to users
+            if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
+                print(intent_related_response)
+            elif intent in [
+                "ASKING_TO_STOP_MESSAGES",
+                "ASKING_TO_DELETE_DATA",
+                "REPORTING_AIRTIME_NOT_RECEIVED",
+            ]:
+                print(f"Turn must be notified that user is {intent}")
+            elif intent == "CHITCHAT":
+                print(intent_related_response)
+                print(
+                    (
+                        f"User is chitchatting and needs to still respond to "
+                        f"the previous question: {contextualized_question}"
+                    )
+                )
+            else:
+                # intent must be JOURNEY_RESPONSE
+                pass
+
+            previous_context = anc_user_context.copy()
+            anc_user_context = tasks.extract_anc_data_from_response(
+                user_response, anc_user_context, chat_history
+            )
+            # Identify what changed in user_context
+            diff_keys = [
+                k
+                for k in anc_user_context
+                if anc_user_context[k] != previous_context.get(k)
+            ]
+            for updated_field in diff_keys:
+                logger.info(f"Creating turn for extracted field: {updated_field}")
+                anc_survey_turns.append(
+                    {
+                        "llm_utterance": contextualized_question,
+                        "user_utterance": user_response,
+                        "llm_extracted_user_response": anc_user_context[updated_field],
+                    }
+                )
+
+        logger.info("ANC Survey Chat History:")
+        for msg in chat_history:
+            logger.info(f"{msg.role.value}:\n{msg.text}")
+        chat_history = []
+
+    # --- End of Simulation ---
+    # Compile simulation results for manual evals.
+    if onboarding_turns:
+        simulation_results.append(
             {
-                "question_number": current_assessment_step,
-                "llm_utterance": contextualized_question,
-                "user_utterance": user_response,
-                "llm_extracted_user_response": processed_user_response,
+                "scenario_id": generate_scenario_id(
+                    flow_type="onboarding", username=user_id
+                ),  # TODO: Find a way to pass the username dynamically
+                "flow_type": "onboarding",
+                "turns": onboarding_turns,
             }
         )
-
-    simulation_results.append(
-        {
-            "scenario_id": generate_scenario_id(
-                flow_type=flow_type, username="user_123"
-            ),  # TODO: Find a way to pass the username dynamically
-            "flow_type": flow_type,
-            "turns": assessment_turns,
-        }
-    )
+    if dma_assessment_turns:
+        simulation_results.append(
+            {
+                "scenario_id": generate_scenario_id(
+                    flow_type="dma-assessment", username=user_id
+                ),
+                "flow_type": "dma-assessment",
+                "turns": dma_assessment_turns,
+            }
+        )
+    if kab_k_assessment_turns:
+        simulation_results.append(
+            {
+                "scenario_id": generate_scenario_id(
+                    flow_type="knowledge-assessment", username=user_id
+                ),
+                "flow_type": "knowledge-assessment",
+                "turns": kab_k_assessment_turns,
+            }
+        )
+        simulation_results.append(
+            {
+                "scenario_id": generate_scenario_id(
+                    flow_type="attitude-assessment", username=user_id
+                ),
+                "flow_type": "attitude-assessment",
+                "turns": kab_a_assessment_turns,
+            }
+        )
+        simulation_results.append(
+            {
+                "scenario_id": generate_scenario_id(
+                    flow_type="behaviour-pre-assessment", username=user_id
+                ),
+                "flow_type": "behaviour-pre-assessment",
+                "turns": kab_b_assessment_turns,
+            }
+        )
 
     logger.info("--- Simulation Complete ---")
     return simulation_results
@@ -393,15 +639,18 @@ def _process_run(run: AssessmentRun, all_doc_stores: dict) -> dict:
     return run.model_dump()
 
 
-def main() -> None:
+async def async_main() -> None:
     """
     Runs the interactive simulation, orchestrates scoring on the in-memory
     results, and saves the final augmented report.
     """
+    logging.info("Initializing database...")
+    await init_db()
+    logging.info("Database initialized.")
     logging.info("Starting interactive simulation...")
 
     # 1. Run the simulation to get the raw output directly in memory.
-    raw_simulation_output = run_simulation()
+    raw_simulation_output = await run_simulation()
     logging.info("Simulation complete. Starting validation and scoring process...")
 
     # 2. Validate the IN-MEMORY raw output directly using Pydantic.
@@ -441,3 +690,11 @@ def main() -> None:
             OUTPUT_PATH / f"final_augmented_output_{timestamp}.json",
         )
         logging.info("Processing complete. Final output generated.")
+
+
+def main() -> None:
+    """The synchronous entry point for the script."""
+    try:
+        asyncio.run(async_main())
+    except KeyboardInterrupt:
+        print("\nSimulation cancelled by user.")
