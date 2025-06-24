@@ -55,15 +55,16 @@ For every response, we first classify the intent of the user's message. If the i
 ### Onboarding
 Onboarding is handled through the `/v1/onboarding` endpoint. It receives a POST request with a JSON body, with the following fields:
 
+`user_id`: A unique identifier for a user, as a string
+
 `user_input`: The message that the user sent to us, as a string
 
 `user_context`: A dictionary of contact fields that we want to send to the LLM
 
-`chat_history`: (optional) a list of strings of the chat history up until this point (not including `user_input`)
-
 for example:
 ```json
 {
+  "user_id": "1234",
   "user_input": "Hello!",
   "user_context": {}
 }
@@ -75,8 +76,6 @@ It will respond with the following fields:
 
 `user_context`: An updated dictionary of contact fields.
 
-`chat_history`: a list of string of the updated chat history. You can pass this directly to the next request to maintain chat history.
-
 `intent`: (optional) the user's intent. See the ["Intents"](#intents) section for more info.
 
 `intent_related_response`: (optional) a response related to the user's intent. See the ["Intents"](#intents) section for more info.
@@ -86,10 +85,6 @@ for example
 {
   "user_context": {"area_type": "City"},
   "question": "Which province are you currently living in? 🏡",
-  "chat_history": [
-      "User to System: Hello!",
-      "System to User: Which province are you currently living in? 🏡",
-  ],
   "intent": "JOURNEY_RESPONSE",
   "intent_related_response": null
 }
@@ -98,19 +93,22 @@ for example
 ### Assessment
 Assessments are handled through the `/v1/assessment` endpoint. It receives a POST request with a JSON body, with the following fields:
 
+`user_id`: A unique identifier for a user, as a string
+
 `user_input`: The user's message, as a string
 
 `user_context`: The user's contact fields that we want to share with the LLM
 
-`flow_id`: Which assessment to run, as a string. The following assessments are available: `dma-assessment`, `knowledge-assessment`, `attitude-assessment`, `behaviour-pre-assessment`, `behaviour-post-assessment`
+`flow_id`: Which assessment to run, as a string. The following assessments are available: `dma-pre-assessment`, `dma-post-assessment`, `knowledge-pre-assessment`, `knowledge-post-assessment`, `attitude-pre-assessment`, `attitude-post-assessment`, `behaviour-pre-assessment`, `behaviour-post-assessment`
 
 `question_number`: Which question number we are on, as an integer.
 
-`chat_history`: An optional list of strings, showing the conversation history up until this point, without the latest `user_input`
+`previous_question`: The previous question (of the same assessment) that was sent to the user, as a string
 
 for example:
 ```json
 {
+  "user_id": "1234",
   "user_context": {},
   "user_input": "Hello!",
   "flow_id": "dma-assessment",
@@ -124,8 +122,6 @@ The API responds with the following fields:
 
 `next_question`: An integer representing the next question that should be asked. You can pass this directly to the next request's `question_number`
 
-`chat_history`: A list of strings representing the updated chat history up until this point. You can pass this directly to the `chat_history` of the next request to maintain the chat history.
-
 `intent`: (optional) the user's intent. See the ["Intents"](#intents) section for more info.
 
 `intent_related_response`: (optional) a response related to the user's intent. See the ["Intents"](#intents) section for more info.
@@ -135,10 +131,6 @@ for example,
 {
   "question": "How confident are you in discussing your maternal health concerns with your healthcare provider?",
   "next_question": 2,
-  "chat_history": [
-      "User to System: Hello!",
-      "System to User: How confident are you in discussing your maternal health concerns with your healthcare provider?",
-  ],
   "intent": "JOURNEY_RESPONSE",
   "intent_related_response": null
 }
@@ -147,13 +139,13 @@ for example,
 ### Surveys
 Surveys are handled through the `/v1/survey` endpoint. It receives a POST request with a JSON body, with the following fields:
 
+`user_id`: A unique identifier for a user, as a string
+
 `survey_id`: Which survey this is for. Currently there is one survey, `anc`
 
 `user_input`: The message that the user sent to us, as a string
 
 `user_context`: A dictionary of contact fields that we want to send to the LLM
-
-`chat_history`: (optional) a list of strings of the chat history up until this point (not including `user_input`)
 
 for example:
 ```json
@@ -161,7 +153,6 @@ for example:
   "survey_id": "anc",
   "user_input": "I am 20 weeks pregnant",
   "user_context": {},
-  "chat_history": []
 }
 ```
 
@@ -170,8 +161,6 @@ The API will respond with the following fields:
 `question`: The next question to ask the user, as a string. If the survey is complete, this may contain a final thank you message.
 
 `user_context`: An updated dictionary of contact fields based on the user's answers.
-
-`chat_history`: A list of strings of the updated chat history. You can pass this directly to the next request to maintain chat history.
 
 `survey_complete`: A boolean flag indicating if the survey has been completed.
 
@@ -186,10 +175,6 @@ for example:
   "user_context": {
     "weeks_pregnant": 20
   },
-  "chat_history": [
-    "User to System: I am 20 weeks pregnant",
-    "System to User: Have you had any health problems during this pregnancy?"
-  ],
   "survey_complete": false,
   "intent": "JOURNEY_RESPONSE",
   "intent_related_response": null
