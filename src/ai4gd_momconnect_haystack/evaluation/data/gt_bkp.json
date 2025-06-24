@@ -1,0 +1,301 @@
+[
+  {
+    "scenario_id": "onboarding_user_123_250616-0635",
+    "flow_type": "onboarding",
+    "description": "Onboarding evaluation for Naledi, an anxious 19-year-old from a farm in North West.",
+        "turns": [
+      {
+        "question_name": "province",
+        "question_number": 1,
+        "llm_utterance": "Which province do you live in?",
+        "user_utterance": "I live on a farm out in the North West.",
+        "user_response": "North West"
+      },
+      {
+        "question_name": "area_type",
+        "question_number": 2,
+        "llm_utterance": "What kind of area do you live in? 🏘️",
+        "user_utterance": "I live on a farm.",
+        "user_response": "Farm or smallholding"
+      },
+      {
+        "question_name": "relationship_status",
+        "question_number": 3,
+        "llm_utterance": "What’s your current relationship status? 👤",
+        "user_utterance": "I am single.",
+        "user_response": "Single"
+      },
+      {
+        "question_name": "education_level",
+        "question_number": 4,
+        "llm_utterance": "What’s your highest level of education? 📚",
+        "user_utterance": "I only finished Grade 9 at school.",
+        "user_response": "Some high school"
+      },
+      {
+        "question_name": "hunger_days",
+        "question_number": 5,
+        "llm_utterance": "In the last week, how many days did you miss a meal because there wasn’t money for food? 🍞",
+        "user_utterance": "I sometimes go without food, maybe 3-4 days.",
+        "user_response": "3-4 days"
+      },
+      {
+        "question_name": "num_children",
+        "question_number": 6,
+        "llm_utterance": "How many children do you have? Count all your children of any age. 👶🏽",
+        "user_utterance": "I have one little one already.",
+        "user_response": 1
+      },
+      {
+        "question_name": "phone_ownership",
+        "question_number": 7,
+        "llm_utterance": "Do you own the phone you’re using right now? 📱",
+        "user_utterance": "No, I don't own this phone.",
+        "user_response": "No"
+      }
+    ]
+  },
+  {
+    "scenario_id": "dma-assessment_user_123_250616-0635",
+    "flow_type": "dma-pre-assessment",
+    "description": "Assessment evaluation for Naledi, handling conversational answers to scaled questions.",
+    "turns": [
+      {
+        "question_name": "confidence_health_decisions",
+        "question_number": 1,
+        "llm_utterance": "Great! Your answers to these 5 quick questions can help us support you better.\n\nHow much do you agree or disagree with this statement?\n\n**I feel like I can make decisions about my health.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I’m not sure\n• I agree\n• I strongly agree\n• Skip",
+        "user_utterance": "I strongly agree",
+        "user_response": "I strongly agree"
+      },
+      {
+        "question_name": "confidence_discussing_problems",
+        "question_number": 2,
+        "llm_utterance": "Thanks. How about this one?\n\n**I feel like I can talk about my health issues with a health worker.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I’m not sure\n• I agree\n• I strongly agree\n• Skip",
+        "user_utterance": "I strongly agree",
+        "user_response": "I strongly agree" 
+      },
+      {
+        "question_name": "confidence_questioning_provider",
+        "question_number": 3,
+        "llm_utterance": "Here’s the next one 👇🏽\n\nHow much do you agree or disagree with this statement:\n\n**I feel that I can disagree with a health worker about my treatment plan.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I’m not sure\n• I agree\n• I strongly agree\n• Skip",
+        "user_utterance": "I strongly agree",
+        "user_response": "I strongly agree"
+      },
+      {
+        "question_name": "confidence_improving_health",
+        "question_number": 4,
+        "llm_utterance": "Almost done! How much do you agree or disagree with this one:\n\n**I feel that I can do things to improve my health.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I’m not sure\n• I agree\n• I strongly agree\n• Skip",
+        "user_utterance": "I strongly agree",
+        "user_response": "I strongly agree"
+      },
+      {
+        "question_name": "confidence_finding_info",
+        "question_number": 5,
+        "llm_utterance": "Great, thanks ⭐\n\nHere's the last one:\n\n**I feel that I can find information about my health from other places, not just a health worker.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I’m not sure\n• I agree\n• I strongly agree\n• Skip",
+        "user_utterance": "I strongly agree",
+        "user_response": "I strongly agree"
+      }
+    ]
+  },
+  {
+      "scenario_id": "behaviour-pre-assessment_user_123_250616-0635",
+      "flow_type": "behaviour-pre-assessment",
+      "description": "Assessment evaluation for Naledi, handling conversational answers to scaled questions.",
+      "turns": [
+        {
+          "question_name": "intro_message",
+          "llm_utterance": "Hi mom!\n\nHope you’re doing well! 🌸\n\nHaving accurate information about your pregnancy is so important for your and baby’s health.\n\nDo you have a minute for a quick check-in to see if you have all the facts?",
+          "user_utterance": "Get started",
+          "user_response": "Get started"
+        },
+        {
+          "question_number": 1,
+          "llm_utterance": "Excellent 👍🏽\n\nIf you want to skip a question, just type and send `skip`.\n\n*So far in this pregnancy, how many times have you gone to the clinic for a pregnancy check-up?*\n🩷",
+          "user_utterance": "3",
+          "user_response": "3"
+        },
+        {
+          "question_number": 2,
+          "llm_utterance": "*In this pregnancy, have you made any changes to your diet based on information from the health worker?*",
+          "user_utterance": "No",
+          "user_response": "No"
+        },
+        {
+          "question_number": 3,
+          "llm_utterance": "*So far in this pregnancy, how many doses of the tetanus vaccine (Tdap) have you received?*",
+          "user_utterance": "1",
+          "user_response": "1"
+        },
+        {
+          "question_number": 4,
+          "llm_utterance": "*Since becoming pregnant, have you drunk any alcohol or smoked at all?*",
+          "user_utterance": "Yes",
+          "user_response": "Yes"
+        },
+        {
+          "question_name": "thank_you_message",
+          "llm_utterance": "*Pregnancy Health Check*\n\n🩷⚪⚪\n\nThank you for sharing! You’re making healthy decisions for you and your unborn child 💪🏽\n\nRemember:\n\n• A healthy pregnancy needs healthy foods. Follow the health worker’s advice 🥬🥚🥛🍎\n\n• And stay away from alcohol and cigarettes while you are pregnant or breastfeeding. It can harm your baby 🚬🍷\n\nAre you ready to move on to a few more questions? 👇🏽 ",
+          "user_utterance": "Yes",
+          "user_response": "Yes"
+        }
+      ]
+    },
+    {
+      "scenario_id": "knowledge-assessment_user_123_250616-0635",
+      "flow_type": "knowledge-assessment",
+      "description": "Assessment evaluation for Naledi, handling conversational answers to scaled questions.",
+      "turns": [
+        {
+          "question_number": 1,
+          "llm_utterance": "Great!\n\nRemember, you can skip any question - just type and send `skip`.\n\n*When do you think a pregnant woman should get her first pregnancy check-up?* 🩵 ",
+          "user_utterance": "Before 14 weeks",
+          "user_response": "Before 14 weeks"
+        },
+        {
+          "question_number": 2,
+          "llm_utterance": "Thanks. What about this?\n\n*During a pregnancy, which of these means you need to go to the hospital immediately?* 🩵\n\n• You have contractions that stop when you move\n\n• Your tummy stays tight, hard and is very painful\n\n• Your lower back aches all day",
+          "user_utterance": "I don't know",
+          "user_response": "I don't know"
+        },
+        {
+          "question_number": 3,
+          "llm_utterance": "And what about this one …\n\n*How many pregnancy check-ups should you go to during your pregnancy?* 🩵",
+          "user_utterance": "I don't know",
+          "user_response": "I don't know"
+        },
+        {
+          "question_number": 4,
+          "llm_utterance": "The next question is …\n\n*Should a baby be breastfed within the first hour of birth?* 🩵 ",
+          "user_utterance": "yes",
+          "user_response": "yes"
+        },
+        {
+          "question_number": 5,
+          "llm_utterance": "You should get the tetanus vaccine during your pregnancy.\n\n*Who does this vaccine protect?* 🩵",
+          "user_utterance": "I don't know",
+          "user_response": "I don't know"
+        },
+        {
+          "question_number": 6,
+          "llm_utterance": "Next one\n\n*Are iron and folic acid supplements good for you and your unborn baby?* 🩵 ",
+          "user_utterance": "No",
+          "user_response": "No"
+        },
+        {
+          "question_name": "thank_you_message",
+          "llm_utterance": "*Pregnancy Health Check*\n🩷🩵⚪\n\nThank you for taking the time to answer these! MomConnect can help you boost your knowledge about healthy pregnancy.\n\n• It’s best to go to the clinic as soon as you know you’re pregnant. This first pregnancy check-up should be before 14 weeks. You should have 8 or more check-ups in total 🏥\n\n• If your tummy stays tight, hard and is very painful you need to go to the clinic 🤰🏾\n\n• At your pregnancy check-ups, you should get the tetanus vaccine. This helps protect you and your baby after birth 💉 \n\n• Iron and folic acid supplements are important for you and your unborn baby 💪🏽\n\nYou ready for the last 3 pregnancy questions? 👇🏽 ",
+          "user_utterance": "Yes",
+          "user_response": "Yes"
+        }
+      ]
+    },
+    {
+      "scenario_id": "attitude-assessment_user_123_250616-0635",
+      "flow_type": "attitude-assessment",
+      "description": "Assessment evaluation for Naledi, handling conversational answers to scaled questions.",
+      "turns": [
+        {
+          "question_number": 1,
+          "llm_utterance": "Fantastic!\n\nRemember, if you want to skip a question, just type and send `skip`.\n\nLet’s go! Do you agree with this statement?\n\n*Pregnancy check-ups are a good way to check that you and your unborn baby are healthy.*\n💜 \n\n• I strongly agree\n• I agree/Neutral\n• I disagree\n• I strongly disagree",
+          "user_utterance": "I strongly agree",
+          "user_response": "I strongly agree"
+        },
+        {
+          "question_number": 2,
+          "llm_utterance": "What about this one …\n\n*Home birth is safer than giving birth in a hospital.*\n\n• I strongly agree\n• I agree/Neutral\n• I disagree\n• I strongly disagree",
+          "user_utterance": "I disagree",
+          "user_response": "I disagree"
+        },
+        {
+          "question_number": 3,
+          "llm_utterance": "And …\n\n*It’s important for a pregnant woman to get an HIV test when she is pregnant.*\n\n• I strongly agree\n• I agree/Neutral\n• I disagree\n• I strongly disagree",
+          "user_utterance": "I agree",
+          "user_response": "I agree"
+        }
+      ]
+    },
+  {
+    "scenario_id": "anc-survey_user_123_250616-0635",
+    "flow_type": "anc-survey",
+    "turns": [
+      {
+          "question_name": "start",
+          "llm_utterance": "Hi mom 👋🏽\n\nDid you go to your *{{1}} pregnancy check-up* this week? 🏥",
+          "user_utterance": "Yes",
+          "user_response": "Yes, I went"
+      },
+      {
+          "question_name": "Q_seen",
+          "llm_utterance": "Did a health worker see you?",
+          "user_utterance": "Ya",
+          "user_response": "Yes"
+      },
+      {
+          "question_name": "seen_yes",
+          "llm_utterance": "That's good to hear 🌟\n\nWe'd love to know how it went.  \n\nDo you have 2 minutes to tell us about it?",
+          "user_utterance": "Ok",
+          "user_response": "Yes"
+      },
+      {
+          "question_name": "Q_bp",
+          "llm_utterance": "Did someone take your blood pressure at this check-up?",
+          "user_utterance": "I don't know",
+          "user_response": "I don't know"
+      },
+      {
+          "question_name": "Q_experience",
+          "llm_utterance": "How was your overall experience at the check-up?",
+          "user_utterance": "Cool",
+          "user_response": "Good"
+      },
+      {
+          "question_name": "good",
+          "llm_utterance": "Thank you for telling us.\n\nThere are just 2 more questions. Your answers to these will help us understand how we can make services better for pregnant women in South Africa. Can we continue?",
+          "user_utterance": "Yes",
+          "user_response": "Continue"
+      },
+      {
+          "question_name": "Q_visit_bad",
+          "llm_utterance": "We know how busy clinics can get! This can lead to some challenges. \n\nIf you found things difficult, tell us what made you the most uncomfortable or caused you *the biggest problem*:\n\n• No problems - all fine👌\n\n• I didn’t have my maternity record 📝\n\n• I was shamed or embarrassed 😳\n\n• I was not given privacy to discuss my worries or challenges\n\n• I was not given enough information about tests, supplements or my pregnancy ℹ️\n\n• The staff were disrespectful 🤬\n\n• They asked me to pay 💰\n\n• I had to wait a long time ⌛",
+          "user_utterance": "had to wait long time",
+          "user_response": "Waited a long time ⌛"
+      },
+      {
+          "question_name": "Q_visit_other",
+          "llm_utterance": "Can you tell us a bit more about what made you the most uncomfortable or caused you *the biggest problem* at the check-up?\n\nPlease type your reply",
+          "user_utterance": "I was hungry",
+          "user_response": "I was hungry"
+      },
+      {
+          "question_name": "Q_challenges",
+          "llm_utterance": "Getting to these check-ups can sometimes be difficult. If you find it hard, what is your *biggest challenge*?  \n\n• No challenges - all fine👌\n\n• Transport is expensive or it's far to travel 🚌\n\n• I don't have support from my partner or family 🤝\n\n• It's hard to get there during clinic opening hours 🏥\n\n• Something else 😞",
+          "user_utterance": "It's hard to get there during clinic opening hours 🏥",
+          "user_response": "Clinic opening hours 🏥"
+      },
+      {
+          "question_name": "Q_challenges_other",
+          "llm_utterance": "Can you tell us a bit more about this? Please type a reply with some more information.",
+          "user_utterance": "I leave far from clinic and must wake up early",
+          "user_response": "I leave far from clinic and must wake up early"
+      },
+      {
+          "question_name": "intent",
+          "llm_utterance": "Thank you for taking the time to answer our questions! 🌟 \n\nRemember, going to all your pregnancy check-ups is the best way to make sure that you and baby stay healthy 💪🏽 \n\nDuring pregnancy, your body changes a lot. The earlier a possible problem with you or baby is identified, the quicker it can be treated. \n\nDo you think you will go for your <n+1'th> check-up?",
+          "user_utterance": "Ja",
+          "user_response": "Yes, I will"
+      },
+      {
+          "question_name": "thanks",
+          "llm_utterance": "Before you go, one more thing.\n\n*How easy was it to answer these questions?*",
+          "user_utterance": "OK",
+          "user_response": "OK"
+      },
+      {
+          "question_name": "end_1",
+          "llm_utterance": "Thanks for your feedback. We'll be back with some more questions in the next few weeks! 💕\n\nClick on this link to go to MomConnect: https://wa.me/27796312456",
+          "user_utterance": "Go to the main menu",
+          "user_response": "Go to the main menu"
+      }
+    ]
+  }
+]
