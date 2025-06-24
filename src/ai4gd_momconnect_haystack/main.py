@@ -103,7 +103,7 @@ async def _get_user_response(
         return input(contextualized_question + "\n> ")
 
 
-def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
+async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
     """
     Runs a simulation of the onboarding and assessment process using the pipelines.
     """
@@ -184,12 +184,12 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             if not result:
                 logger.info("Onboarding flow complete.")
                 break
-            chat_history.append(
-                ChatMessage.from_assistant(text=contextualized_question)
-            )
 
             contextualized_question = result["contextualized_question"]
             question_number = result["question_number"]
+            chat_history.append(
+                ChatMessage.from_assistant(text=contextualized_question)
+            )
 
             # Simulate User Response & Data Extraction
             # Keep getting a user response until it is one that continues the journey:
@@ -198,7 +198,7 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 ### MODIFIED: Get user_response from GT data or input() ###
                 print(f"Question #: {question_number}")
                 print(f"Question: {contextualized_question}")
-                user_response = _get_user_response(
+                user_response = await _get_user_response(
                     gt_lookup=gt_lookup_by_flow,
                     flow_id=flow_id,
                     contextualized_question=contextualized_question,
@@ -315,17 +315,15 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
         question_number = 1
 
         # Simulate Assessment
-
-        flow_id = "dma-assessment"
         gt_scenario = gt_lookup_by_flow.get(flow_id)
         scenario_id_to_use = (
             gt_scenario.get("scenario_id")
             if gt_scenario
-            else generate_scenario_id(flow_type=flow_id, username="user_123")
+            else generate_scenario_id(flow_type=flow_id.value, username="user_123")
         )
         run_results = {
             "scenario_id": scenario_id_to_use,
-            "flow_type": flow_id,
+            "flow_type": flow_id.value,
             "turns": [],
         }
         dma_turns = []
@@ -358,9 +356,9 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             # Find the specific turn in the GT list by searching for the matching question_number
             print(f"Question #: {question_number}")
             print(f"Question: {contextualized_question}")
-            user_response = _get_user_response(
+            user_response = await _get_user_response(
                 gt_lookup=gt_lookup_by_flow,
-                flow_id=flow_id,
+                flow_id="dma-assessment",
                 contextualized_question=contextualized_question,
                 turn_identifier_key="question_number",
                 turn_identifier_value=question_number,
@@ -500,7 +498,7 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             scenario_id_to_use = (
                 gt_scenario.get("scenario_id")
                 if gt_scenario
-                else generate_scenario_id(flow_type=flow_id, username="user_123")
+                else generate_scenario_id(flow_type=flow_id.value, username="user_123")
             )
             run_results = {
                 "scenario_id": scenario_id_to_use,
@@ -536,7 +534,7 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 print(f"Question #: {question_number}")
                 print(f"Question: {contextualized_question}")
                 user_response = ""
-                user_response = _get_user_response(
+                user_response = await _get_user_response(
                     gt_lookup=gt_lookup_by_flow,
                     flow_id=flow_id,
                     contextualized_question=contextualized_question,
@@ -712,7 +710,7 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             print(f"Question: {contextualized_question}")
             user_response = ""
             # Find the specific turn in the GT list by searching for the matching question_number
-            user_response = _get_user_response(
+            user_response = await _get_user_response(
                 gt_lookup=gt_lookup_by_flow,
                 flow_id=flow_id,
                 contextualized_question=contextualized_question,
@@ -836,10 +834,10 @@ async def async_main(
     logging.info("Database initialized.")
     logging.info("Starting interactive simulation...")
 
-    # 1. Run the simulation to get the raw output directly in memory.
-    raw_simulation_output = await run_simulation()
-    logging.info("Simulation complete. Starting validation and scoring process...")
-
+    # # 1. Run the simulation to get the raw output directly in memory.
+    # raw_simulation_output = await run_simulation()
+    # logging.info("Simulation complete. Starting validation and scoring process...")
+# 
     # Simple check for the '--automated' flag without using argparse
     # is_automated = "--automated"  # Placeholder None
     raw_simulation_output: list[dict[str, Any]] = []
@@ -859,10 +857,10 @@ async def async_main(
                 f"Failed to load ground truth file from {GT_FILE_PATH}. Exiting."
             )
             return
-        raw_simulation_output = run_simulation(gt_scenarios=gt_scenarios)
+        raw_simulation_output = await run_simulation(gt_scenarios=gt_scenarios)
     else:
         logging.info("Starting simulation in INTERACTIVE mode...")
-        raw_simulation_output = run_simulation(gt_scenarios=None)
+        raw_simulation_output = await run_simulation(gt_scenarios=None)
 
     print("_________ RUN OUPUT__________")
     print(raw_simulation_output)

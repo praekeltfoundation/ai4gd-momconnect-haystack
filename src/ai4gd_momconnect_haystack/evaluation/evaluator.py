@@ -6,6 +6,7 @@ A script to evaluate LLM performance based on three criteria for each turn:
 """
 
 import argparse
+import asyncio
 import json
 import logging
 import os
@@ -21,7 +22,7 @@ from deepeval.test_case import LLMTestCase
 # UPDATED SECTION 1: Import the main simulation function
 # ==============================================================================
 # This allows the evaluator to call the main simulation script directly.
-from ai4gd_momconnect_haystack.main import main as run_main_simulation
+from ai4gd_momconnect_haystack.main import async_main as run_main_simulation
 
 # Configure logging to show only important messages
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
@@ -378,9 +379,9 @@ def main():
             )
 
         print("--- Running Automated Simulation ---")
-        output_file_path = run_main_simulation(
+        output_file_path = asyncio.run(run_main_simulation(
             RESULT_PATH=script_dir / "data", is_automated=True, save_simulation=True
-        )
+        ))
 
         if output_file_path and output_file_path.exists():
             print(
