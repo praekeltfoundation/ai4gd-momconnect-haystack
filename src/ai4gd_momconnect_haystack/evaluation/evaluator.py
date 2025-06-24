@@ -86,12 +86,12 @@ def _preprocess_text(text: Any) -> str:
     # Remove emojis using a regex
     emoji_pattern = re.compile(
         "["
-        u"\U0001F600-\U0001F64F"  # emoticons
-        u"\U0001F300-\U0001F5FF"  # symbols & pictographs
-        u"\U0001F680-\U0001F6FF"  # transport & map symbols
-        u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
-        u"\U00002702-\U000027B0"
-        u"\U000024C2-\U0001F251"
+        "\U0001f600-\U0001f64f"  # emoticons
+        "\U0001f300-\U0001f5ff"  # symbols & pictographs
+        "\U0001f680-\U0001f6ff"  # transport & map symbols
+        "\U0001f1e0-\U0001f1ff"  # flags (iOS)
+        "\U00002702-\U000027b0"
+        "\U000024c2-\U0001f251"
         "]+",
         flags=re.UNICODE,
     )
@@ -126,12 +126,18 @@ def run_evaluation_suite(
     llm_results = llm_results_data if isinstance(llm_results_data, list) else []
 
     if not gt_scenarios or not llm_results:
-        exit("Evaluation aborted: could not load or parse ground truth or results data.")
+        exit(
+            "Evaluation aborted: could not load or parse ground truth or results data."
+        )
 
     gt_lookup: dict[tuple, dict] = {}
     for s in gt_scenarios:
         for t in s.get("turns", []):
-            identifier_key = "question_name" if "onboarding" in s["flow_type"] or "anc-survey" in s["flow_type"] else "question_number"
+            identifier_key = (
+                "question_name"
+                if "onboarding" in s["flow_type"] or "anc-survey" in s["flow_type"]
+                else "question_number"
+            )
             identifier = t.get(identifier_key)
             if identifier:
                 gt_lookup[(s["scenario_id"], s["flow_type"], identifier)] = t
@@ -139,7 +145,11 @@ def run_evaluation_suite(
     llm_results_lookup: dict[tuple, dict] = {}
     for s in llm_results:
         for t in s.get("turns", []):
-            identifier_key = "question_name" if "onboarding" in s["flow_type"] or "anc-survey" in s["flow_type"] else "question_number"
+            identifier_key = (
+                "question_name"
+                if "onboarding" in s["flow_type"] or "anc-survey" in s["flow_type"]
+                else "question_number"
+            )
             identifier = t.get(identifier_key)
             if identifier:
                 llm_results_lookup[(s["scenario_id"], s["flow_type"], identifier)] = t
@@ -176,9 +186,7 @@ def run_evaluation_suite(
                 metrics=metrics_list,
             )
 
-            expected_extraction_str = _preprocess_text(
-                gt_turn.get("user_response", "")
-            )
+            expected_extraction_str = _preprocess_text(gt_turn.get("user_response", ""))
             actual_extraction_str = _preprocess_text(
                 llm_result_turn.get("user_response", "")
             )
@@ -220,29 +228,52 @@ def present_results(all_results: dict[tuple, dict], output_file: Path | None = N
     add_line(header)
 
     for (scenario_id, flow_type, turn_identifier), res in all_results.items():
-        turn_header = f"--- Turn: {scenario_id} ({flow_type}) | ID: {turn_identifier} ---"
+        turn_header = (
+            f"--- Turn: {scenario_id} ({flow_type}) | ID: {turn_identifier} ---"
+        )
         add_line(f"\n{Colors.BOLD}{turn_header}{Colors.ENDC}", f"\n{turn_header}")
 
         extraction_details = res.get("extraction_details", "No details available.")
         if res.get("exact_match_passed"):
-            add_line(f"  {Colors.OK}[✅] Extraction Accuracy: PASSED{Colors.ENDC}", "  [✅] Extraction Accuracy: PASSED")
+            add_line(
+                f"  {Colors.OK}[✅] Extraction Accuracy: PASSED{Colors.ENDC}",
+                "  [✅] Extraction Accuracy: PASSED",
+            )
         else:
-            add_line(f"  {Colors.FAIL}[❌] Extraction Accuracy: FAILED{Colors.ENDC}", "  [❌] Extraction Accuracy: FAILED")
-            add_line(f"       {Colors.FAIL}Details: {extraction_details}{Colors.ENDC}", f"       Details: {extraction_details}")
+            add_line(
+                f"  {Colors.FAIL}[❌] Extraction Accuracy: FAILED{Colors.ENDC}",
+                "  [❌] Extraction Accuracy: FAILED",
+            )
+            add_line(
+                f"       {Colors.FAIL}Details: {extraction_details}{Colors.ENDC}",
+                f"       Details: {extraction_details}",
+            )
 
         qc_score = res.get("question_consistency_score", 0.0)
         qc_reason = res.get("question_consistency_reason")
         qc_color = Colors.OK if qc_score >= 0.7 else Colors.FAIL
-        add_line(f"  {qc_color}[ score: {qc_score:.2f} ] Question Consistency{Colors.ENDC}", f"  [ score: {qc_score:.2f} ] Question Consistency")
+        add_line(
+            f"  {qc_color}[ score: {qc_score:.2f} ] Question Consistency{Colors.ENDC}",
+            f"  [ score: {qc_score:.2f} ] Question Consistency",
+        )
         if qc_reason and qc_score < 0.7:
-            add_line(f"       {Colors.WARNING}Reason: {qc_reason}{Colors.ENDC}", f"       Reason: {qc_reason}")
+            add_line(
+                f"       {Colors.WARNING}Reason: {qc_reason}{Colors.ENDC}",
+                f"       Reason: {qc_reason}",
+            )
 
         ra_score = res.get("response_appropriateness_score", 0.0)
         ra_reason = res.get("response_appropriateness_reason")
         ra_color = Colors.OK if ra_score >= 0.7 else Colors.FAIL
-        add_line(f"  {ra_color}[ score: {ra_score:.2f} ] Response Appropriateness{Colors.ENDC}", f"  [ score: {ra_score:.2f} ] Response Appropriateness")
+        add_line(
+            f"  {ra_color}[ score: {ra_score:.2f} ] Response Appropriateness{Colors.ENDC}",
+            f"  [ score: {ra_score:.2f} ] Response Appropriateness",
+        )
         if ra_reason and ra_score < 0.7:
-            add_line(f"       {Colors.WARNING}Reason: {ra_reason}{Colors.ENDC}", f"       Reason: {ra_reason}")
+            add_line(
+                f"       {Colors.WARNING}Reason: {ra_reason}{Colors.ENDC}",
+                f"       Reason: {ra_reason}",
+            )
 
     # --- Build Summary Report ---
     summary_data: dict[str, list] = {}
@@ -264,12 +295,14 @@ def present_results(all_results: dict[tuple, dict], output_file: Path | None = N
         qc_avg = sum(r["question_consistency_score"] for r in results_list) / total
         ra_avg = sum(r["response_appropriateness_score"] for r in results_list) / total
 
-        flow_header = f"📊 {flow_type.capitalize()} Performance ({total} turns evaluated):"
+        flow_header = (
+            f"📊 {flow_type.capitalize()} Performance ({total} turns evaluated):"
+        )
         add_line(f"\n{Colors.BOLD}{flow_header}{Colors.ENDC}", f"\n{flow_header}")
         add_line(f"  - Extraction Accuracy: {ea_rate:.2%}")
         add_line(f"  - Question Consistency Score (Avg): {qc_avg:.2f}")
         add_line(f"  - Response Appropriateness Score (Avg): {ra_avg:.2f}")
-    
+
     add_line("\n" + summary_header)
 
     # --- Save Report to File ---
@@ -278,7 +311,10 @@ def present_results(all_results: dict[tuple, dict], output_file: Path | None = N
             output_file.parent.mkdir(parents=True, exist_ok=True)
             with output_file.open("w", encoding="utf-8") as f:
                 f.write("\n".join(report_lines))
-            add_line(f"\n{Colors.OK}Evaluation report successfully saved to: {output_file}{Colors.ENDC}", f"\nEvaluation report successfully saved to: {output_file}")
+            add_line(
+                f"\n{Colors.OK}Evaluation report successfully saved to: {output_file}{Colors.ENDC}",
+                f"\nEvaluation report successfully saved to: {output_file}",
+            )
         except IOError as e:
             logging.error(f"Could not write report to file '{output_file}': {e}")
 
@@ -302,7 +338,7 @@ def main():
         "--save-report",
         action="store_true",
         help="Save the final evaluation report to a text file. The report will be named after the results file "
-             "(e.g., 'results.json' -> 'results.report.txt').",
+        "(e.g., 'results.json' -> 'results.report.txt').",
     )
     parser.add_argument(
         "--gt-file", type=Path, default=script_dir / "data/ground_truth.json"
@@ -331,7 +367,7 @@ def main():
     os.environ["OPENAI_API_KEY"] = args.openai_key
     if args.deepeval_key:
         os.environ["DEEPEVAL_API_KEY"] = args.deepeval_key
-    
+
     results_path_to_evaluate = args.results_file
 
     if args.run_simulation:
@@ -340,23 +376,23 @@ def main():
                 "Both --run-simulation and --results-file were provided. "
                 "Ignoring --results-file and generating a new simulation run."
             )
-        
+
         print("--- Running Automated Simulation ---")
         output_file_path = run_main_simulation(
-            RESULT_PATH= script_dir / "data",
-            is_automated=True,
-            save_simulation=True
+            RESULT_PATH=script_dir / "data", is_automated=True, save_simulation=True
         )
-        
+
         if output_file_path and output_file_path.exists():
-            print(f"--- Simulation complete. Using generated file: {output_file_path} ---")
+            print(
+                f"--- Simulation complete. Using generated file: {output_file_path} ---"
+            )
             results_path_to_evaluate = output_file_path
         else:
             logging.error(
                 "Simulation run failed or did not produce an output file. Aborting evaluation."
             )
             return
-            
+
     if not results_path_to_evaluate:
         logging.error(
             "No results file specified. Use --results-file <path> or add --run-simulation to generate one."

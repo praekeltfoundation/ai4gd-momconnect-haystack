@@ -151,7 +151,8 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
         flow_id = "onboarding"
         gt_scenario = gt_lookup_by_flow.get(flow_id)
         scenario_id_to_use = (
-            gt_scenario.get("scenario_id") if gt_scenario 
+            gt_scenario.get("scenario_id")
+            if gt_scenario
             else generate_scenario_id(flow_type=flow_id, username="user_123")
         )
         run_results: dict[str, Any] = {
@@ -289,7 +290,6 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 print("Please enter 'Y' or 'N'.")
 
     if sim_dma:
-        
         logger.info("\n--- Simulating DMA ---")
         user_context["goal"] = "Complete the assessment"
         max_assessment_steps = 10  # Safety break
@@ -300,7 +300,8 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
         flow_id = "dma-assessment"
         gt_scenario = gt_lookup_by_flow.get(flow_id)
         scenario_id_to_use = (
-            gt_scenario.get("scenario_id") if gt_scenario
+            gt_scenario.get("scenario_id")
+            if gt_scenario
             else generate_scenario_id(flow_type=flow_id, username="user_123")
         )
         run_results = {
@@ -395,11 +396,12 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             # Simulate Assessments
             gt_scenario = gt_lookup_by_flow.get(flow_id)
             scenario_id_to_use = (
-                gt_scenario.get("scenario_id") if gt_scenario
+                gt_scenario.get("scenario_id")
+                if gt_scenario
                 else generate_scenario_id(flow_type=flow_id, username="user_123")
             )
             run_results = {
-                "scenario_id":  scenario_id_to_use,
+                "scenario_id": scenario_id_to_use,
                 "flow_type": flow_id,
                 "turns": None,
             }
@@ -486,7 +488,8 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
         flow_id = "anc-survey"
         gt_scenario = gt_lookup_by_flow.get(flow_id)
         scenario_id_to_use = (
-            gt_scenario.get("scenario_id") if gt_scenario
+            gt_scenario.get("scenario_id")
+            if gt_scenario
             else generate_scenario_id(flow_type=flow_id, username="user_123")
         )
         run_results = {
@@ -596,7 +599,7 @@ def main(
     RESULT_PATH=OUTPUT_PATH,
     GT_FILE_PATH=GT_FILE_PATH,
     is_automated=False,
-    save_simulation=False
+    save_simulation=False,
 ) -> None:
     """
     Runs the interactive simulation, orchestrates scoring on the in-memory
@@ -615,10 +618,12 @@ def main(
         logging.info("Starting simulation in AUTOMATED mode...")
         gt_data = read_json(GT_FILE_PATH)
         gt_scenarios_from_json: list | None = gt_data.get("scenarios")
-        l_ = [s.get("selected_for_evaluation", True) for s in gt_scenarios_from_json]
-        gt_scenarios = [
-            s for s in gt_scenarios_from_json if s.get("enabled", True)
-        ]
+
+        gt_scenarios = []
+        if gt_scenarios_from_json:
+            gt_scenarios = [s for s in gt_scenarios_from_json if s.get("enabled", True)]
+            # l_ = [s.get("selected_for_evaluation", True) for s in gt_scenarios_from_json]
+
         if not gt_scenarios:
             logging.critical(
                 f"Failed to load ground truth file from {GT_FILE_PATH}. Exiting."
@@ -664,14 +669,17 @@ def main(
         # TODO: This section will be replaced with a database write operation.
         # For now, it saves the output to a local JSON file for inspection.
         file_extention = datetime.now().strftime("%y%m%d-%H%M")
-        SIMULATION_FILE_PATH = RESULT_PATH / f"simulation_run_results_{file_extention}.json"
-        
+        SIMULATION_FILE_PATH = (
+            RESULT_PATH / f"simulation_run_results_{file_extention}.json"
+        )
+
         save_json_file(
             final_augmented_output,
             SIMULATION_FILE_PATH,
         )
         logging.info("Processing complete. Final output generated and save to {}")
         return SIMULATION_FILE_PATH
+
 
 # MODIFIED: Allow script to be run directly
 if __name__ == "__main__":
