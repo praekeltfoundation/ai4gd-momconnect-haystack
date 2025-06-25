@@ -7,7 +7,7 @@ RUN pip install uv
 COPY pyproject.toml ./
 COPY uv.lock ./
 
-RUN uv sync
+RUN uv sync --all-extras
 
 COPY . .
 

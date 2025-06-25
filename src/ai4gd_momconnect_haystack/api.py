@@ -115,15 +115,20 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     question = get_next_onboarding_question(
         user_context=user_context, chat_history=chat_history
     )
+    question_text = ""
     if question:
-        chat_history.append(ChatMessage.from_assistant(text=question))
+        question_text = question.get("contextualized_question", "")
+
+    if question_text:
+        chat_history.append(ChatMessage.from_assistant(text=question_text))
     await save_chat_history(
         user_id=request.user_id,
         messages=chat_history,
         history_type=HistoryType.onboarding,
     )
+
     return OnboardingResponse(
-        question=question or "",
+        question=question_text,
         user_context=user_context,
         intent=intent,
         intent_related_response=intent_related_response,

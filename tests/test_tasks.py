@@ -27,19 +27,27 @@ def raw_assessment_questions() -> list[dict[str, Any]]:
             "question_number": 1,
             "question_name": "confident_in_making_health_decisions",
             "content": "Can you make decisions?",
-            "valid_responses": {"No": 0, "A little": 1, "Yes": 2},
+            "valid_responses_and_scores": [
+                {"response": "No", "score": 0},
+                {"response": "A little", "score": 1},
+                {"response": "Yes", "score": 2},
+            ],
         },
         {
             "question_number": 2,
             "question_name": "confident_in_talking_to_health_worker",
             "content": "Can you talk to a worker?",
-            "valid_responses": {"No": 0, "A little": 1, "Yes": 2},
+            "valid_responses_and_scores": [
+                {"response": "No", "score": 0},
+                {"response": "A little", "score": 1},
+                {"response": "Yes", "score": 2},
+            ],
         },
         {
             "question_number": 3,
             "question_name": "no_valid_responses",
             "content": "This question has no score options.",
-            "valid_responses": {},  # Empty dict is valid, just not scorable
+            "valid_responses_and_scores": [],
         },
     ]
 
@@ -97,13 +105,13 @@ def test_calculate_assessment_score_range(validated_assessment_questions):
         ({"question_number": 1, "llm_extracted_user_response": "Yes"}, 2, None),
         (
             {"question_number": 2, "llm_extracted_user_response": "Maybe"},
-            0,  # Score defaults to 0
+            0,
             "not a valid, scorable option",
         ),
         (
             {"question_number": 99, "llm_extracted_user_response": "Yes"},
-            0,  # Score defaults to 0
-            "Question number 99 not found",  # UPDATED: More specific error check
+            0,
+            "Question number 99 not found",
         ),
     ],
     ids=[
@@ -126,7 +134,6 @@ def test_score_single_turn(
     if expected_error_substring:
         assert expected_error_substring in result["score_error"]
     else:
-        # UPDATED: Safer check for missing key or a value of None.
         assert result.get("score_error") is None
 
 

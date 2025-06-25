@@ -4,6 +4,12 @@ from typing import Any
 from pydantic import BaseModel, Field, model_validator
 
 
+# NEW: A model to represent a single response and its score
+class ResponseScore(BaseModel):
+    response: str
+    score: int
+
+
 class Question(BaseModel):
     """
     Defines a flexible structure for any question from the doc store.
@@ -15,7 +21,12 @@ class Question(BaseModel):
     content: str | None = None
     pre_content: str | None = Field(None, alias="pre-content")
     post_content: str | None = Field(None, alias="post-content")
-    valid_responses: dict[str, int] | list[str]
+
+    # UPDATED: Replaced the old `valid_responses` with the new structure
+    valid_responses_and_scores: list[ResponseScore] | list[str] | None = Field(
+        None, alias="valid_responses_and_scores"
+    )
+
     content_type: str | None = None
     collects: str | None = None
     reason: str | None = None
@@ -31,7 +42,7 @@ class Turn(BaseModel):
     question_number: int | None = None
     llm_utterance: str | None = None
     user_utterance: str | None = None
-    user_response: str = Field(alias="llm_extracted_user_response")
+    user_response: str | None = Field(None, alias="llm_extracted_user_response")
 
     @model_validator(mode="before")
     @classmethod

@@ -12,7 +12,7 @@ from ai4gd_momconnect_haystack.utilities import (
 )
 
 from . import doc_store, pipelines
-from .pydantic_models import AssessmentRun, Question, Turn
+from .pydantic_models import AssessmentRun, Question, Turn, ResponseScore
 
 # --- Configuration ---
 logger = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ ANC_SURVEY_MAP = {item["title"]: item for item in all_anc_survey_questions}
 
 def get_next_onboarding_question(
     user_context: dict, chat_history: list[ChatMessage]
-) -> str | None:
+) -> dict | None:
     """
     Gets the next contextualized onboarding question.
     """
@@ -114,7 +114,10 @@ def get_next_onboarding_question(
     else:
         logger.info(f"Original question was: '{current_step_data['content']}'")
 
-    return contextualized_question
+    return {
+        "contextualized_question": contextualized_question,
+        "question_number": chosen_question_number,
+    }
 
 
 def extract_onboarding_data_from_response(
@@ -370,6 +373,7 @@ def get_anc_survey_question(
     return {
         "contextualized_question": final_question_text.strip(),
         "is_final_step": is_final,
+        "question_identifier": next_step_id,
     }
 
 
@@ -454,18 +458,20 @@ def handle_user_message(
 
 
 def load_and_validate_assessment_questions(
-    assessment_id: str, assessment_data_source: dict
+    assessment_id: str,
 ) -> list[Question] | None:
     """
-    Extracts and validates a specific list of questions from a larger
-    assessment data source (like the KAB or DMA dictionary).
+    Extracts and validates a specific list of questions using the pre-loaded
+    assessment_flow_map.
     """
     logger.info(f"Loading and validating questions for '{assessment_id}'...")
-    raw_question_data = assessment_data_source.get(assessment_id)
+
+    # Use the existing global map to get the raw question data
+    raw_question_data = assessment_flow_map.get(assessment_id)
 
     if not raw_question_data or not isinstance(raw_question_data, list):
         logger.error(
-            f"No valid question data found for '{assessment_id}' in the provided source."
+            f"No valid question data found for '{assessment_id}' in the assessment_flow_map."
         )
         return None
 
@@ -488,11 +494,20 @@ def _calculate_assessment_score_range(
     """
     total_min_score, total_max_score = 0, 0
     for question in assessment_questions:
-        if isinstance(question.valid_responses, dict):
-            scores = list(question.valid_responses.values())
-            if scores:
-                total_min_score += min(scores)
-                total_max_score += max(scores)
+        # Assumes the Pydantic model now has 'valid_responses_and_scores'
+        responses_and_scores = question.valid_responses_and_scores
+        if isinstance(responses_and_scores, list):
+            scores = [
+                item.score
+                for item in responses_and_scores
+                if isinstance(item, ResponseScore) and item.score is not None
+            ]
+        else:
+            scores = []
+
+        if scores:
+            total_min_score += min(scores)
+            total_max_score += max(scores)
     return total_min_score, total_max_score
 
 
@@ -503,8 +518,6 @@ def _score_single_turn(
     """
     Scores a single assessment turn.
     """
-    # This function now safely assumes turn.question_number is not None
-    # because the calling function is responsible for filtering.
     result = turn.model_dump()
     result["score"] = 0
 
@@ -520,13 +533,17 @@ def _score_single_turn(
         )
         return result
 
-    # Add rich details to the result
-    # result["question_name"] = question_data.question_name
-    # result["question_text"] = question_data.content
+    responses_and_scores = getattr(question_data, "valid_responses_and_scores", None)
+    if isinstance(responses_and_scores, list) and all(
+        isinstance(i, ResponseScore) for i in responses_and_scores
+    ):
+        score_val = None
+        # Find the matching response in the list of ResponseScore objects
+        for item in responses_and_scores:
+            if isinstance(item, ResponseScore) and item.response == turn.user_response:
+                score_val = item.score
+                break  # Found a match
 
-    # Calculate the score
-    if isinstance(question_data.valid_responses, dict):
-        score_val = question_data.valid_responses.get(turn.user_response)
         if score_val is not None:
             result["score"] = score_val
         else:
