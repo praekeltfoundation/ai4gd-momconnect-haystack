@@ -3,6 +3,7 @@ A script to evaluate LLM performance based on three criteria for each turn:
 1.  Question Consistency: Is the LLM's question similar to the ground truth question?
 2.  User Response Appropriateness: Is the user's answer relevant to the question?
 3.  Extraction Accuracy: Does the extracted data exactly match the ground truth?
+4.  Intent Classification: Does the classified intent match the ground truth?
 """
 
 import argparse
@@ -17,6 +18,10 @@ from typing import Any
 from deepeval import evaluate
 from deepeval.metrics import AnswerRelevancyMetric, BaseMetric
 from deepeval.test_case import LLMTestCase
+
+import polars as pl
+from sklearn.metrics import classification_report, confusion_matrix
+
 
 # ==============================================================================
 # UPDATED SECTION 1: Import the main simulation function
@@ -169,6 +174,13 @@ def run_evaluation_suite(
             logging.warning(f"No LLM result found for key: {key}")
             continue
 
+        # --- Intent Evaluation ---
+        gt_intent = gt_turn.get("intent")
+        llm_intent = llm_result_turn.get("llm_predicted_intent")
+        intent_match_passed = False
+        if gt_intent and llm_intent:
+            intent_match_passed = (gt_intent.strip().lower() == llm_intent.strip().lower())
+
         try:
             gt_llm_utterance = _preprocess_text(gt_turn.get("llm_utterance", ""))
             llm_utterance = _preprocess_text(llm_result_turn.get("llm_utterance", ""))
@@ -197,6 +209,7 @@ def run_evaluation_suite(
             r_score, r_reason = _get_metric_details(r_appropriateness_result)
 
             collated_results[key] = {
+                "intent_match_passed": intent_match_passed,
                 "exact_match_passed": exact_match_passed,
                 "extraction_details": f"Expected: '{expected_extraction_str}', Got: '{actual_extraction_str}'",
                 "question_consistency_score": q_score,
@@ -209,6 +222,60 @@ def run_evaluation_suite(
                 f"An unexpected error occurred during evaluation for turn {key}: {e}"
             )
     present_results(collated_results, output_file=report_path)
+
+
+def generate_intent_summary_report(all_results: dict[tuple, dict], report_lines: list[str]):
+    """Generates and prints a detailed intent classification report."""
+    y_true = []
+    y_pred = []
+    for key, res in all_results.items():
+        details = res.get("intent_details", "")
+        try:
+            # Extracts from "Expected: 'INTENT_A', Got: 'INTENT_B'"
+            gt_intent = details.split("'")[1]
+            llm_intent = details.split("'")[3]
+            if gt_intent != "None" and llm_intent != "None":
+                y_true.append(gt_intent)
+                y_pred.append(llm_intent)
+        except IndexError:
+            continue
+
+    if not y_true:
+        print("No intent data found to generate a summary report.")
+        return
+
+    header = "=" * 60
+    title = "           INTENT CLASSIFICATION SUMMARY REPORT"
+    report_lines.append("\n\n" + header)
+    report_lines.append(title)
+    report_lines.append(header)
+    print("\n\n" + header)
+    print(title)
+    print(header)
+
+    # Get all unique labels for a complete matrix
+    labels = sorted(list(set(y_true + y_pred)))
+
+    # Generate and add the classification report (Precision, Recall, F1)
+    report = classification_report(y_true, y_pred, labels=labels, zero_division=0)
+    report_lines.append("\n--- Classification Report ---")
+    report_lines.append(report)
+    print("\n--- Classification Report ---")
+    print(report)
+
+    # Generate and add the confusion matrix using Polars
+    cm = confusion_matrix(y_true, y_pred, labels=labels)
+    # Create a Polars DataFrame
+    cm_df = pl.DataFrame(cm, schema=[f"Pred: {l}" for l in labels])
+    # Insert the 'Actual' labels as the first column for clarity
+    cm_df.insert_at_idx(0, pl.Series("Actual", [f"Actual: {l}" for l in labels]))
+
+    report_lines.append("\n--- Confusion Matrix ---")
+    report_lines.append(str(cm_df)) # Use str() for clean text representation
+    report_lines.append(header)
+    print("\n--- Confusion Matrix ---")
+    print(cm_df)
+    print(header)
 
 
 def present_results(all_results: dict[tuple, dict], output_file: Path | None = None):
@@ -234,6 +301,25 @@ def present_results(all_results: dict[tuple, dict], output_file: Path | None = N
         )
         add_line(f"\n{Colors.BOLD}{turn_header}{Colors.ENDC}", f"\n{turn_header}")
 
+        # --- Intent Accuracy ---
+        intent_details = res.get("intent_details", "No details available.")
+        if res.get("intent_match_passed"):
+            add_line(
+                f"  {Colors.OK}[✅] Intent Classification: PASSED{Colors.ENDC}",
+                "  [✅] Intent Classification: PASSED",
+            )
+        else:
+            add_line(
+                f"  {Colors.FAIL}[❌] Intent Classification: FAILED{Colors.ENDC}",
+                "  [❌] Intent Classification: FAILED",
+            )
+        add_line(
+            f"       {Colors.WARNING if res.get('intent_match_passed') else Colors.FAIL}Details: {intent_details}{Colors.ENDC}",
+            f"       Details: {intent_details}",
+        )
+
+        # --- Extraction Accuracy ---
+
         extraction_details = res.get("extraction_details", "No details available.")
         if res.get("exact_match_passed"):
             add_line(
@@ -250,6 +336,7 @@ def present_results(all_results: dict[tuple, dict], output_file: Path | None = N
                 f"       Details: {extraction_details}",
             )
 
+        # --- Semantic Evaluations (Consistency & Appropriateness) ---
         qc_score = res.get("question_consistency_score", 0.0)
         qc_reason = res.get("question_consistency_reason")
         qc_color = Colors.OK if qc_score >= 0.7 else Colors.FAIL
@@ -275,6 +362,9 @@ def present_results(all_results: dict[tuple, dict], output_file: Path | None = N
                 f"       {Colors.WARNING}Reason: {ra_reason}{Colors.ENDC}",
                 f"       Reason: {ra_reason}",
             )
+
+    # --- Intent Summary Report ---
+    generate_intent_summary_report(all_results, report_lines)
 
     # --- Build Summary Report ---
     summary_data: dict[str, list] = {}

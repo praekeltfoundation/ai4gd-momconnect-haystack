@@ -271,6 +271,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                                 "llm_utterance": contextualized_question,
                                 "user_utterance": user_response,
                                 "llm_extracted_user_response": value,
+                                "llm_predicted_intent": intent,
                             }
                         )
                 else:
@@ -281,6 +282,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                             "llm_utterance": contextualized_question,
                             "user_utterance": user_response,
                             "llm_extracted_user_response": user_context[updated_field],
+                            "llm_predicted_intent": intent,
                         }
                     )
         run_results["turns"] = onboarding_turns
@@ -432,6 +434,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     "llm_utterance": contextualized_question,
                     "user_utterance": user_response,
                     "llm_extracted_user_response": processed_user_response,
+                    "llm_predicted_intent": intent,
                 }
             )
             question_number = result["next_question_number"]
@@ -608,6 +611,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         "llm_utterance": contextualized_question,
                         "user_utterance": user_response,
                         "llm_extracted_user_response": processed_user_response,
+                        "llm_predicted_intent": intent
                     }
                 )
                 question_number = result["next_question_number"]
@@ -761,6 +765,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         "llm_utterance": contextualized_question,
                         "user_utterance": user_response,
                         "llm_extracted_user_response": anc_user_context[updated_field],
+                        "llm_predicted_intent": intent,
                     }
                 )
         run_results["turns"] = anc_survey_turns

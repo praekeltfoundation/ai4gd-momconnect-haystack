@@ -43,6 +43,7 @@ class Turn(BaseModel):
     llm_utterance: str | None = None
     user_utterance: str | None = None
     user_response: str | None = Field(None, alias="llm_extracted_user_response")
+    llm_predicted_intent: str | None = Field(None, alias="llm_predicted_intent")
 
     @model_validator(mode="before")
     @classmethod
