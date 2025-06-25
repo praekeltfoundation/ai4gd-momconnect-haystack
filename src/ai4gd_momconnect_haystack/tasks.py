@@ -495,16 +495,19 @@ def _calculate_assessment_score_range(
     total_min_score, total_max_score = 0, 0
     for question in assessment_questions:
         # Assumes the Pydantic model now has 'valid_responses_and_scores'
-        responses_and_scores = getattr(question, "valid_responses_and_scores", None)
-        if isinstance(responses_and_scores, list) and all(
-            isinstance(i, ResponseScore) for i in responses_and_scores
-        ):
+        responses_and_scores = question.valid_responses_and_scores
+        if isinstance(responses_and_scores, list):
             scores = [
-                item.score for item in responses_and_scores if item.score is not None
+                item.score
+                for item in responses_and_scores
+                if isinstance(item, ResponseScore) and item.score is not None
             ]
-            if scores:
-                total_min_score += min(scores)
-                total_max_score += max(scores)
+        else:
+            scores = []
+
+        if scores:
+            total_min_score += min(scores)
+            total_max_score += max(scores)
     return total_min_score, total_max_score
 
 
@@ -530,7 +533,6 @@ def _score_single_turn(
         )
         return result
 
-    # --- UPDATED LOGIC ---
     responses_and_scores = getattr(question_data, "valid_responses_and_scores", None)
     if isinstance(responses_and_scores, list) and all(
         isinstance(i, ResponseScore) for i in responses_and_scores
@@ -538,7 +540,7 @@ def _score_single_turn(
         score_val = None
         # Find the matching response in the list of ResponseScore objects
         for item in responses_and_scores:
-            if item.response == turn.user_response:
+            if isinstance(item, ResponseScore) and item.response == turn.user_response:
                 score_val = item.score
                 break  # Found a match
 

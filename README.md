@@ -194,6 +194,21 @@ There are automated tests, they can be run with:
 ## Evaluation
 The project includes a script to evaluate the performance of the LLM pipelines against a predefined ground truth.
 
+### Command-Line Reference
+
+The following flags can be used to control the behavior of the `evaluator.py` script. The `Argument` column shows what kind of value the flag expects.
+
+| Flag               | Argument | Description                                                                                                                                              | Default Value              |
+| :----------------- | :------- | :------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------- |
+| `--run-simulation` | (None)   | A boolean flag that, when present, executes a new simulation run based on the ground truth file before evaluation.                                         | `False`                    |
+| `--save-report`    | (None)   | A boolean flag that, when present, saves the final evaluation report to a text file. The report is named after the results file (e.g., `results.json` -> `results.report.txt`). | `False`                    |
+| `--gt-file`        | `[PATH]` | The path to the JSON file containing the ground truth scenarios.                                                                                         | `data/ground_truth.json`   |
+| `--results-file`   | `[PATH]` | The path to a specific simulation results JSON file to evaluate. This is ignored if `--run-simulation` is used.                                           | `None`                     |
+| `--openai-key`     | `[KEY]`  | Your OpenAI API key.                                                                                                                                     | `OPENAI_API_KEY` env var   |
+| `--deepeval-key`   | `[KEY]`  | Your DeepEval API key for semantic evaluations.                                                                                                          | `DEEPEVAL_API_KEY` env var |
+| `--eval-model`     | `[MODEL]`| The name of the GPT model to use for the DeepEval semantic metrics.                                                                                        | `gpt-4o`                   |
+| `--threshold`      | `[FLOAT]`| The success threshold (0.0 to 1.0) for the DeepEval semantic metrics.                                                                                      | `0.7`                      |
+
 ### Ground Truth Files
 The ground truth files define the scenarios for the evaluation. They are located in `src/ai4gd_momconnect_haystack/evaluation/data/` and include:
 - `onboarding_gt.json`
