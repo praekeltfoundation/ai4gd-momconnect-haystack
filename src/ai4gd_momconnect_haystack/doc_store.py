@@ -32,6 +32,8 @@ ONBOARDING_FLOW = read_json(data_dir / "onboarding.json")
 # Assessment Questions Data
 DMA_FLOW = read_json(data_dir / "dma.json")
 KAB_FLOW = read_json(data_dir / "kab.json")
+# Assessment End Messaging Data
+ASSESSMENT_END_FLOW = read_json(data_dir / "assessment_ends.json")
 
 # ANC Follow-Up Questions Data
 ANC_SURVEY_FLOW = read_json(data_dir / "anc_survey.json")

@@ -624,6 +624,54 @@ def create_assessment_response_validator_pipeline() -> Pipeline | None:
 
 
 @cache
+def create_assessment_end_response_validator_pipeline() -> Pipeline | None:
+    """
+    Creates a pipeline to validate the user's response to an end-of-assessment
+    message against a dynamic list of valid responses.
+    """
+    llm_generator = get_llm_generator()
+    if not llm_generator:
+        logger.error(
+            "LLM Generator is not available. Cannot create Assessment End Response Validation Pipeline."
+        )
+        return None
+    pipeline = Pipeline()
+
+    prompt_template = """
+    You are an assistant validating a user's response to the previous message shown below.
+    Your task is to determine if the user's answer maps to one of the valid responses beneath the previous message.
+
+    Previous Message:
+    {{ previous_message }}
+
+    Valid Responses:
+    {% for response in valid_responses %}
+    - "{{ response }}"
+    {% endfor %}
+
+    - If the user's response clearly and unambiguously corresponds to one of the valid responses, your output MUST be the exact text of that valid response from the list above.
+    - If the user's response is ambiguous, does not match any valid response, or is nonsense/gibberish, you MUST return the single word: "nonsense".
+
+    User Response:
+    {{ user_response }}
+
+    Validated Response:
+    """
+    prompt_builder = ChatPromptBuilder(
+        template=[ChatMessage.from_system(prompt_template)],
+        required_variables=["user_response", "valid_responses", "previous_message"],
+    )
+
+    pipeline.add_component("prompt_builder", prompt_builder)
+    pipeline.add_component("llm", llm_generator)
+
+    pipeline.connect("prompt_builder.prompt", "llm.messages")
+
+    logger.info("Created Assessment End Response Validation Pipeline.")
+    return pipeline
+
+
+@cache
 def create_clinic_visit_navigator_pipeline() -> Pipeline | None:
     """
     Creates a pipeline that determines the next logical step in the dynamic ANC survey.
@@ -1159,6 +1207,53 @@ def run_assessment_response_validator_pipeline(
 
     except Exception as e:
         logger.error(f"Error running assessment response validation pipeline: {e}")
+        return None
+
+
+def run_assessment_end_response_validator_pipeline(
+    pipeline: Pipeline, user_response: str, valid_responses: list[str], previous_message: str
+) -> str | None:
+    """
+    Run the assessment end response validator pipeline to validate a user's response.
+
+    Args:
+        pipeline: The configured pipeline.
+        user_response: User's response to validate.
+        valid_responses: A list of valid string responses for the message.
+        previous_message: The message to which the user is responding.
+
+    Returns:
+        The validated response string, or None if the response is invalid/nonsense.
+    """
+    try:
+        result = pipeline.run(
+            {
+                "prompt_builder": {
+                    "user_response": user_response,
+                    "valid_responses": valid_responses,
+                    "previous_message": previous_message,
+                }
+            }
+        )
+
+        llm_response = result.get("llm", {})
+        if llm_response and llm_response.get("replies"):
+            validated_text = llm_response["replies"][0].text.strip().strip('"')
+            if validated_text.lower() == "nonsense":
+                return None
+            if validated_text in valid_responses:
+                return validated_text
+            else:
+                logger.warning(
+                    f"LLM returned a response ('{validated_text}') not in the valid list. Treating as invalid."
+                )
+                return None
+        else:
+            logger.warning("No replies found in LLM response for validation")
+            return None
+
+    except Exception as e:
+        logger.error(f"Error running assessment end response validation pipeline: {e}")
         return None
 
 

@@ -260,11 +260,11 @@ async def test_onboarding():
 )
 @mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_answer")
 @mock.patch(
-    "ai4gd_momconnect_haystack.api.save_pre_assessment_question",
+    "ai4gd_momconnect_haystack.api.save_assessment_question",
     new_callable=mock.AsyncMock,
 )
 async def test_assessment_chitchat(
-    save_pre_assessment_question,
+    save_assessment_question,
     validate_assessment_answer,
     get_assessment_question,
     handle_user_message,
@@ -304,7 +304,7 @@ async def test_assessment_chitchat(
     handle_user_message.assert_called_once_with("How are you feeling?", "Hello!")
     validate_assessment_answer.assert_not_called()
     get_assessment_question.assert_awaited_once()
-    save_pre_assessment_question.assert_awaited_once()
+    save_assessment_question.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -315,11 +315,11 @@ async def test_assessment_chitchat(
 )
 @mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_answer")
 @mock.patch(
-    "ai4gd_momconnect_haystack.api.save_pre_assessment_question",
+    "ai4gd_momconnect_haystack.api.save_assessment_question",
     new_callable=mock.AsyncMock,
 )
 async def test_assessment_initial_message(
-    save_pre_assessment_question,
+    save_assessment_question,
     validate_assessment_answer,
     get_assessment_question,
     handle_user_message,
@@ -358,7 +358,7 @@ async def test_assessment_initial_message(
     handle_user_message.assert_not_called()
     validate_assessment_answer.assert_not_called()
     get_assessment_question.assert_awaited_once()
-    save_pre_assessment_question.assert_awaited_once()
+    save_assessment_question.assert_awaited_once()
 
 
 @pytest.mark.asyncio

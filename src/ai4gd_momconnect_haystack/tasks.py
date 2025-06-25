@@ -5,7 +5,7 @@ from typing import Any
 from haystack.dataclasses import ChatMessage
 from pydantic import ValidationError
 
-from ai4gd_momconnect_haystack.sqlalchemy_models import PreAssessmentQuestionHistory
+from ai4gd_momconnect_haystack.sqlalchemy_models import AssessmentHistory
 from ai4gd_momconnect_haystack.utilities import (
     AssessmentType,
     get_pre_assessment_history,
@@ -39,6 +39,11 @@ all_kab_a_questions = doc_store.KAB_FLOW.get("attitude-assessment", [])
 # The kab_b pre and post flows are different, so we use separate IDs
 all_kab_b_pre_questions = doc_store.KAB_FLOW.get(kab_b_pre_flow_id, [])
 all_kab_b_post_questions = doc_store.KAB_FLOW.get(kab_b_post_flow_id, [])
+# We also need content for messaging that happens at the end of assessments:
+dma_end_messaging_pre = doc_store.ASSESSMENT_END_FLOW.get(dma_pre_flow_id, [])
+kab_k_end_messaging_pre = doc_store.ASSESSMENT_END_FLOW.get(kab_k_pre_flow_id, [])
+kab_a_end_messaging_pre = doc_store.ASSESSMENT_END_FLOW.get(kab_a_pre_flow_id, [])
+kab_b_end_messaging_pre = doc_store.ASSESSMENT_END_FLOW.get(kab_b_pre_flow_id, [])
 
 assessment_flow_map = {
     dma_pre_flow_id: all_dma_questions,
@@ -51,6 +56,13 @@ assessment_flow_map = {
     kab_b_post_flow_id: all_kab_b_post_questions,
 }
 
+assessment_end_flow_map = {
+    dma_pre_flow_id: dma_end_messaging_pre,
+    kab_k_pre_flow_id: kab_k_end_messaging_pre,
+    kab_a_pre_flow_id: kab_a_end_messaging_pre,
+    kab_b_pre_flow_id: kab_b_end_messaging_pre,
+}
+
 assessment_map_to_their_pre = {
     dma_pre_flow_id: AssessmentType.dma_pre_assessment,
     dma_post_flow_id: AssessmentType.dma_pre_assessment,
@@ -60,6 +72,17 @@ assessment_map_to_their_pre = {
     kab_a_post_flow_id: AssessmentType.attitude_pre_assessment,
     kab_b_pre_flow_id: AssessmentType.behaviour_pre_assessment,
     kab_b_post_flow_id: AssessmentType.behaviour_pre_assessment,
+}
+
+assessment_map_to_assessment_types = {
+    dma_pre_flow_id: AssessmentType.dma_pre_assessment,
+    dma_post_flow_id: AssessmentType.dma_post_assessment,
+    kab_k_pre_flow_id: AssessmentType.knowledge_pre_assessment,
+    kab_k_post_flow_id: AssessmentType.knowledge_post_assessment,
+    kab_a_pre_flow_id: AssessmentType.attitude_pre_assessment,
+    kab_a_post_flow_id: AssessmentType.attitude_post_assessment,
+    kab_b_pre_flow_id: AssessmentType.behaviour_pre_assessment,
+    kab_b_post_flow_id: AssessmentType.behaviour_post_assessment,
 }
 
 ANC_SURVEY_MAP = {item["title"]: item for item in all_anc_survey_questions}
@@ -172,7 +195,7 @@ async def get_assessment_question(
     # and is now returning to continue.
     pre_assessment_flow_id = assessment_map_to_their_pre[flow_id.value]
     question_history: list[
-        PreAssessmentQuestionHistory
+        AssessmentHistory
     ] = await get_pre_assessment_history(user_id, pre_assessment_flow_id)
     if question_history:
         for q in question_history:
@@ -309,6 +332,32 @@ def validate_assessment_answer(
     return {
         "processed_user_response": processed_user_response,
         "next_question_number": question_number,
+    }
+
+
+def validate_assessment_end_response(
+    previous_message: str, previous_message_nr: int, previous_message_valid_responses: list[str], user_response: str
+) -> dict[str, Any]:
+    """
+    """
+    # Create and run a pipeline that validates the user's response to the previous message
+    validator_pipe = pipelines.create_assessment_end_response_validator_pipeline()
+    processed_user_response = pipelines.run_assessment_end_response_validator_pipeline(
+        validator_pipe, user_response, previous_message_valid_responses, previous_message
+    )
+    # Move to the next step, or try again if the response was invalid
+    if processed_user_response:
+        logger.info(
+            f"Storing validated response for message_number {previous_message_nr}: {processed_user_response}"
+        )
+        next_message_nr = previous_message_nr + 1
+    else:
+        logger.warning(f"Response validation failed for step {previous_message_nr}.")
+        next_message_nr = previous_message_nr
+
+    return {
+        "processed_user_response": processed_user_response,
+        "next_message_number": next_message_nr,
     }
 
 
@@ -457,6 +506,19 @@ def handle_user_message(
     return intent, response
 
 
+def matches_assessment_question_length(
+    n_questions: int, assessment_type: AssessmentType
+):
+    """
+    Checks if the length of a list of AssessmentHistory objects matches the length of questions from the corresponding assessment.
+    """
+    if assessment_type.value == kab_b_post_flow_id:
+        assessment_type = assessment_map_to_their_pre[kab_b_post_flow_id]
+    if len(assessment_flow_map[assessment_type.value]==n_questions):
+        return True
+    return False
+
+
 def load_and_validate_assessment_questions(
     assessment_id: str,
 ) -> list[Question] | None:
@@ -601,3 +663,25 @@ def score_assessment_from_simulation(
         "assessment_max_score": max_possible_score,
         "turns": results,
     }
+
+
+def score_assessment(
+    simulation_output: list[AssessmentRun],
+    assessment_id: str,
+    assessment_questions: list[Question],
+) -> dict[str, Any] | None:
+    question_lookup = {q.question_number: q for q in assessment_questions}
+
+    # ---Score Calculation Logic ---
+    min_possible_score, max_possible_score = _calculate_assessment_score_range(
+        assessment_questions
+    )
+    results = [
+        _score_single_turn(turn, question_lookup)
+        for turn in assessment_run.turns
+        if turn.question_number is not None
+    ]
+    user_total_score = sum(r["score"] for r in results if r.get("score") is not None)
+    score_percentage = (
+        (user_total_score / max_possible_score * 100) if max_possible_score > 0 else 0.0
+    )

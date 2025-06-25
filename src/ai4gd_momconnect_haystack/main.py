@@ -10,7 +10,7 @@ from haystack.dataclasses import ChatMessage
 from pydantic import ValidationError
 from sqlalchemy import delete
 
-from ai4gd_momconnect_haystack.sqlalchemy_models import PreAssessmentQuestionHistory
+from ai4gd_momconnect_haystack.sqlalchemy_models import AssessmentHistory
 
 from . import tasks
 from .database import AsyncSessionLocal, init_db
@@ -340,13 +340,12 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 logger.info("Assessment flow complete.")
                 break
             contextualized_question = result["contextualized_question"]
-            if "-pre" in flow_id.value:
-                await save_pre_assessment_question(
-                    user_id=user_id,
-                    assessment_type=flow_id,
-                    question_number=question_number,
-                    question=contextualized_question,
-                )
+            await save_assessment_question(
+                user_id=user_id,
+                assessment_type=flow_id,
+                question_number=question_number,
+                question=contextualized_question,
+            )
 
             # Simulate User Response
             ### MODIFIED: Get user_response from GT data or input() ###
@@ -449,9 +448,9 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             async with AsyncSessionLocal() as session:
                 async with session.begin():
                     await session.execute(
-                        delete(PreAssessmentQuestionHistory).where(
-                            PreAssessmentQuestionHistory.user_id == user_id,
-                            PreAssessmentQuestionHistory.assessment_id == flow_id.value,
+                        delete(AssessmentHistory).where(
+                            AssessmentHistory.user_id == user_id,
+                            AssessmentHistory.assessment_id == flow_id.value,
                         )
                     )
                     await session.commit()
@@ -517,13 +516,12 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     logger.info("Assessment flow complete.")
                     break
                 contextualized_question = result["contextualized_question"]
-                if "-pre" in flow_id.value:
-                    await save_pre_assessment_question(
-                        user_id=user_id,
-                        assessment_type=flow_id,
-                        question_number=question_number,
-                        question=contextualized_question,
-                    )
+                await save_assessment_question(
+                    user_id=user_id,
+                    assessment_type=flow_id,
+                    question_number=question_number,
+                    question=contextualized_question,
+                )
 
                 # Simulate User Response
                 # Get user_response from GT data or input() #
@@ -625,9 +623,9 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 async with AsyncSessionLocal() as session:
                     async with session.begin():
                         await session.execute(
-                            delete(PreAssessmentQuestionHistory).where(
-                                PreAssessmentQuestionHistory.user_id == user_id,
-                                PreAssessmentQuestionHistory.assessment_id
+                            delete(AssessmentHistory).where(
+                                AssessmentHistory.user_id == user_id,
+                                AssessmentHistory.assessment_id
                                 == flow_id.value,
                             )
                         )

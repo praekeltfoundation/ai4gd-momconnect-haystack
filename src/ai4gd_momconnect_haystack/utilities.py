@@ -7,11 +7,14 @@ from typing import Any
 
 from haystack.dataclasses import ChatMessage
 from pydantic import BaseModel, ValidationError
-from sqlalchemy import delete
+from sqlalchemy import delete, update
 from sqlalchemy.future import select
 
+from ai4gd_momconnect_haystack.pydantic_models import AssessmentRun
+from ai4gd_momconnect_haystack.tasks import matches_assessment_question_length, score_assessment_from_simulation
+
 from .database import AsyncSessionLocal
-from .sqlalchemy_models import ChatHistory, PreAssessmentQuestionHistory
+from .sqlalchemy_models import AssessmentEndMessagingHistory, ChatHistory, AssessmentHistory
 
 
 logger = logging.getLogger(__name__)
@@ -31,6 +34,7 @@ class AssessmentType(str, Enum):
 class HistoryType(str, Enum):
     anc = "anc"
     onboarding = "onboarding"
+    assessment_end = "assessment_end"
 
 
 def read_json(filepath: Path) -> dict:
@@ -122,6 +126,8 @@ async def get_or_create_chat_history(
                 db_chat_history = db_history.onboarding_history
             elif history_type == HistoryType.anc:
                 db_chat_history = db_history.anc_survey_history
+            elif history_type == HistoryType.assessment_end:
+                db_chat_history = db_history.assessment_end_history
 
             for cm in db_chat_history:
                 if cm["role"] == "user":
@@ -151,6 +157,8 @@ async def save_chat_history(
                     db_history.onboarding_history = history_json
                 elif history_type == "anc":
                     db_history.anc_survey_history = history_json
+                elif history_type == "assessment_end":
+                    db_history.assessment_end_history = history_json
                 else:
                     logger.error(f"Unknown chat history type to update: {history_type}")
                     return
@@ -177,47 +185,174 @@ async def save_chat_history(
 
 async def get_pre_assessment_history(
     user_id: str, assessment_type: AssessmentType
-) -> list[PreAssessmentQuestionHistory]:
+) -> list[AssessmentHistory]:
     """
     Retrieves pre-assessment question history for a given user and assessment type.
     If no history exists, an empty list is returned.
     """
     async with AsyncSessionLocal() as session:
         result = await session.execute(
-            select(PreAssessmentQuestionHistory).filter(
-                PreAssessmentQuestionHistory.user_id == user_id,
-                PreAssessmentQuestionHistory.assessment_id == assessment_type.value,
+            select(AssessmentHistory).filter(
+                AssessmentHistory.user_id == user_id,
+                AssessmentHistory.assessment_id == assessment_type.value,
             )
         )
         history = result.scalars().all()
         return list(history)
 
 
-async def save_pre_assessment_question(
+async def save_assessment_question(
     user_id: str,
     assessment_type: AssessmentType,
     question_number: int,
-    question: str,
+    question: str | None,
+    user_response: str | None,
+    score: int | None,
 ) -> None:
     """
-    Saves the pre-assessment question history for a given user, assessment type and question number.
+    Saves or updates a historic assessment question for a given user, assessment type and question number.
+    """
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            result = await session.execute(
+                select(AssessmentHistory).where(
+                    AssessmentHistory.user_id == user_id,
+                    AssessmentHistory.assessment_id == assessment_type.value,
+                    AssessmentHistory.question_number == question_number,
+                )
+            )
+            historic_record = result.scalar_one_or_none()
+
+            if not historic_record:
+                historic_record = AssessmentHistory(
+                    user_id=user_id,
+                    assessment_id=assessment_type.value,
+                    question_number=question_number,
+                )
+                session.add(historic_record)
+
+            if question is not None:
+                historic_record.question = question
+            if user_response is not None:
+                historic_record.user_response = user_response
+            if score is not None:
+                historic_record.score = score
+
+            # If all scores are available for the given assessment
+            result = await session.execute(
+                select(AssessmentHistory).where(
+                    AssessmentHistory.user_id == user_id,
+                    AssessmentHistory.assessment_id == assessment_type.value,
+                    AssessmentHistory.question_number == question_number,
+                    AssessmentHistory.score.is_not(None)
+                ).order_by(
+                    AssessmentHistory.question_number.asc()
+                )
+            )
+            historic_records = result.all()
+            if matches_assessment_question_length(len(historic_records), assessment_type):
+                # Calculate and store an AssessmentResultHistory.
+
+                        # {
+                        #     "question_number": current_assessment_step,
+                        #     "llm_utterance": contextualized_question,
+                        #     "user_utterance": user_response,
+                        #     "llm_extracted_user_response": processed_user_response,
+                        # }
+
+                assessment_run = []
+                turns = []
+                for rec in historic_records:
+                    turns.append(
+                        {
+                            "question_number": rec.question_number,
+                            "llm_utterance": rec.question,
+                            "user_utterance": rec.user_response,
+                            "llm_extracted_user_response": rec.user_response,
+                        }
+                    )
+                assessment_run.append(
+                    AssessmentRun.model_validate(
+                        {
+                            "scenario_id": user_id,
+                            "flow_type": assessment_type.value,
+                            "turns": turns,
+                        }
+                    )
+                )
+        # simulation_results.append(
+        #     {
+        #         "scenario_id": generate_scenario_id(
+        #             flow_type="behaviour-pre-assessment", username=user_id
+        #         ),
+        #         "flow_type": "behaviour-pre-assessment",
+        #         "turns": kab_b_assessment_turns,
+        #     }
+                # score_assessment_from_simulation(
+                #     simulation_output: list[AssessmentRun],
+                #     assessment_id: str,
+                #     assessment_questions: list[Question],
+                # )
+
+
+async def get_assessment_end_messaging_history(
+    user_id: str, assessment_type: AssessmentType
+) -> list[AssessmentEndMessagingHistory]:
+    """
+    Retrieves assessment end messaging history for a given user and assessment type.
+    If no history exists, an empty list is returned.
+    """
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(AssessmentEndMessagingHistory).filter(
+                AssessmentEndMessagingHistory.user_id == user_id,
+                AssessmentEndMessagingHistory.assessment_id == assessment_type.value,
+            ).order_by(
+                AssessmentEndMessagingHistory.message_number.asc()
+            )
+        )
+        history = result.scalars().all()
+        return list(history)
+
+
+async def save_assessment_end_message(
+    user_id: str,
+    assessment_type: AssessmentType,
+    message_number: int,
+    user_response: str,
+) -> None:
+    """
+    Saves the end-of-assessment messaging history for a given user, assessment type and question number.
     This will overwrite any existing history for the same user, assessment type and question number.
     """
     async with AsyncSessionLocal() as session:
         async with session.begin():
-            # First, delete any existing history for this user, assessment type and question number.
-            await session.execute(
-                delete(PreAssessmentQuestionHistory).where(
-                    PreAssessmentQuestionHistory.user_id == user_id,
-                    PreAssessmentQuestionHistory.assessment_id == assessment_type.value,
-                    PreAssessmentQuestionHistory.question_number == question_number,
+            # If a user_response is present, the question should already exist in the database and we can just update it.
+            if user_response:
+                await session.execute(
+                    update(AssessmentEndMessagingHistory)
+                    .where(
+                        AssessmentEndMessagingHistory.user_id == user_id,
+                        AssessmentEndMessagingHistory.assessment_id == assessment_type.value,
+                        AssessmentEndMessagingHistory.message_number == message_number,
+                    )
+                    .values(user_response=user_response)
                 )
-            )
-            new_historic_record = PreAssessmentQuestionHistory(
-                user_id=user_id,
-                assessment_id=assessment_type.value,
-                question_number=question_number,
-                question=question,
-            )
-            session.add(new_historic_record)
+            else:
+                # First, delete any existing history in case there is one
+                await session.execute(
+                    delete(AssessmentEndMessagingHistory).where(
+                        AssessmentEndMessagingHistory.user_id == user_id,
+                        AssessmentEndMessagingHistory.assessment_id == assessment_type.value,
+                        AssessmentEndMessagingHistory.message_number == message_number,
+                    )
+                )
+                # Then write a new record
+                new_historic_record = AssessmentEndMessagingHistory(
+                    user_id=user_id,
+                    assessment_id=assessment_type.value,
+                    message_number=message_number,
+                    user_response=None,
+                )
+                session.add(new_historic_record)
             await session.commit()
