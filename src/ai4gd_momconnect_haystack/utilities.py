@@ -12,6 +12,7 @@ from sqlalchemy.future import select
 from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentEndContentItem,
+    AssessmentEndResponse,
     AssessmentEndScoreBasedMessage,
     AssessmentEndSimpleMessage,
     AssessmentResult,
@@ -535,3 +536,23 @@ def matches_assessment_question_length(
     if len(assessment_flow_map[assessment_type.value]) == n_questions:
         return True
     return False
+
+
+def create_assessment_end_error_response(reason: str) -> AssessmentEndResponse:
+    logger.warning(reason)
+    return AssessmentEndResponse(
+        message="",
+        task="ERROR",
+        intent="",
+        intent_related_response="",
+    )
+
+
+def response_is_required_for(flow_id: str, message_nr: int) -> bool:
+    required_map = {
+        "dma-pre-assessment": [2, 3],
+        "behaviour-pre-assessment": [2],
+        "knowledge-pre-assessment": [2],
+        "attitude-pre-assessment": [2],
+    }
+    return message_nr in required_map.get(flow_id, [])
