@@ -1,0 +1,123 @@
+{
+    "dma-pre-assessment": [
+        {
+            "message_nr": 1,
+            "high-score-content": {
+                "content": "Thank you for answering those!\n\nYou seem comfortable and confident making decisions about your health.\n\nKeep doing what you're doing 🤩\n\nType 'Next' to continue",
+                "valid_responses": ["Next"]
+            },
+            "medium-score-content": {
+                "content": "Thank you for answering those!\n\nYou seem comfortable and confident making decisions about your health.\n\nKeep doing what you're doing 🤩\n\nType 'Next' to continue",
+                "valid_responses": ["Next"]
+            },
+            "low-score-content": {
+                "content": "Thank you for answering those!\n\nYour answers show that you don't feel very confident making decisions about your health.\n\nDon't worry! MomConnect is here to help you be more confident ⭐\n\nType 'Next' to continue",
+                "valid_responses": ["Next"]
+            },
+            "skipped-many-content": {
+                "content": "You skipped more than half the questions, so we can't tell how you feel about healthcare 😞\n\nIt would be great if you could answer them when you feel ready.\n\nCan we remind you tomorrow? Respond with 'Yes' or 'No'.",
+                "valid_responses": ["Yes","No"]
+            }
+        },
+        {
+            "message_nr": 2,
+            "content": "You're finished! Thank you 🏆\n\n*Your life* 🗝️\n\n*Healthcare* ☀️\n\nHow easy was it to finish this?\n- Very easy\n- A little easy\n- OK\n- A little difficult\n- Very difficult",
+            "valid_responses": [
+                "Very easy",
+                "A little easy",
+                "OK",
+                "A little difficult",
+                "Very difficult"
+            ]
+        },
+        {
+            "message_nr": 3,
+            "content": "Thanks for your feedback 💕\n\nYou'll get a reminder for your next clinic check-up on MomConnect.\n\nHere, we'll be sending you some pregnancy health check questions soon. And we'll ask you about your check-up at the clinic 🏥\n\nEvery answer you give helps us make MomConnect better for everyone!\n\nClick on this link to go to MomConnect: https://wa.me/27796312456?text=menu"
+        }
+    ],
+    "behaviour-pre-assessment": [
+        {
+            "message_nr": 1,
+            "high-score-content": {
+                "content": "*Pregnancy Health Check*\n💜⚪⚪\n\nThank you for sharing! You're making healthy decisions for you and your unborn child 💪🏽\n\nRemember:\n\n• A healthy pregnancy needs healthy foods. Follow the health worker's advice 🥬🥚🥛🍎\n\n• And stay away from alcohol and cigarettes while you are pregnant or breastfeeding. It can harm your baby 🚬🍷\n\nAre you ready to move on to a few more questions? 👇🏽\n\nRespond with 'Yes' or 'Remind me tomorrow'",
+                "valid_responses": ["Yes","Remind me tomorrow"]
+            },
+            "medium-score-content": {
+                "content": "*Pregnancy Health Check*\n💜⚪⚪\n\nThank you for sharing.\n\nIt's important to have correct information so that you can make good decisions for you and your unborn child.\n\nYou know you can always get trustworthy information from MomConnect\n\nHere are some top tips about a healthy pregnancy:\n\n• A healthy pregnancy needs healthy foods. Follow the health worker's advice 🥬🥚🥛🍎\n\n• And stay away from alcohol and cigarettes while you are pregnant or breastfeeding. It can harm your baby 🚬🍷\n\nAre you ready to move on to a few more questions? 👇🏽\n\nRespond with 'Yes' or 'Remind me tomorrow'",
+                "valid_responses": ["Yes","Remind me tomorrow"]
+            },
+            "low-score-content": {
+                "content": "*Pregnancy Health Check*\n💜⚪⚪\n\nThank you for sharing.\n\nIt's important to have correct information so that you can make good decisions for you and your unborn child.\n\nYou know you can always get trustworthy information from MomConnect.\n\nHere are some top tips about a healthy pregnancy:\n\n• A healthy pregnancy needs healthy foods. Follow the health worker's advice 🥬🥚🥛🍎\n\n• And stay away from alcohol and cigarettes while you are pregnant or breastfeeding. It can harm your baby 🚬🍷\n\nAre you ready to move on to a few more questions? 👇🏽\n\nRespond with 'Yes' or 'Remind me tomorrow'",
+                "valid_responses": ["Yes","Remind me tomorrow"]
+            },
+            "skipped-many-content": {
+                "content": "We noticed you skipped some of the questions in this section. We can remind you about them tomorrow.\n\nThere are 8 more new questions to do in this health check. Do you want to do them now and finish it?\n\nRespond with 'Yes' or 'Remind me tomorrow'",
+                "valid_responses": ["Yes","Remind me tomorrow"]
+            }
+        }
+    ],
+    "knowledge-pre-assessment": [
+        {
+            "message_nr": 1,
+            "high-score-content": {
+                "content": "*Pregnancy Health Check*\n💜💙⚪\n\nThank you for taking the time to answer these! You know a lot about healthy pregnancy 🙌🏽\n\n*Here are the main points*\n• It's best to go to the clinic as soon as you know you're pregnant. This first pregnancy check-up should be before 14 weeks. You should have 8 or more check-ups in total 🏥\n\n• If your tummy stays tight, hard and is very painful you need to go to the clinic 🤰🏾\n\n• At your pregnancy check-ups, you should get the tetanus vaccine. This helps protect you and your baby after birth 💉\n\n• Iron and folic acid supplements are important for you and your unborn baby 💪🏽\n\nYou ready for the last 3 pregnancy questions? 👇🏽\n\nRespond with 'Yes' or 'Remind me tomorrow'",
+                "valid_responses": ["Yes","Remind me tomorrow"]
+            },
+            "medium-score-content": {
+                "content": "*Pregnancy Health Check*\n💜💙⚪\n\nThank you for taking the time to answer these! MomConnect can help you boost your knowledge about healthy pregnancy.\n\n• It's best to go to the clinic as soon as you know you're pregnant. This first pregnancy check-up should be before 14 weeks. You should have 8 or more check-ups in total 🏥\n\n• If your tummy stays tight, hard and is very painful you need to go to the clinic 🤰🏾\n\n• At your pregnancy check-ups, you should get the tetanus vaccine. This helps protect you and baby after birth 💉\n\n• Iron and folic acid supplements are important for you and your unborn baby 💪🏽\n\nYou ready for the last 3 pregnancy questions? 👇🏽\n\nRespond with 'Yes' or 'Remind me tomorrow'",
+                "valid_responses": ["Yes","Remind me tomorrow"]
+            },
+            "low-score-content": {
+                "content": "*Pregnancy Health Check*\n💜💙⚪\n\nThank you for taking the time to answer these! MomConnect can help you boost your knowledge about healthy pregnancy.\n\n• It's best to go to the clinic as soon as you know you're pregnant. This first pregnancy check-up should be before 14 weeks. You should have 8 or more check-ups in total 🏥\n\n• If your tummy stays tight, hard and is very painful you need to go to the clinic 🤰🏾\n\n• At your pregnancy check-ups, you should get the tetanus vaccine. This helps protect you and your baby after birth 💉\n\n• Iron and folic acid supplements are important for you and your unborn baby 💪🏽\n\nYou ready for the last 3 pregnancy questions? 👇🏽\n\nRespond with 'Yes' or 'Remind me tomorrow'",
+                "valid_responses": ["Yes","Remind me tomorrow"]
+            },
+            "skipped-many-content": {
+                "content": "We noticed you skipped some of the questions in this section. We can remind you about them tomorrow.\n\nThere are 3 new questions to do in this health check. Do you want to do them now and finish it?\n\nRespond with 'Yes' or 'Remind me tomorrow'",
+                "valid_responses": ["Yes","Remind me tomorrow"]
+            }
+        }
+    ],
+    "attitude-pre-assessment": [
+        {
+            "message_nr": 1,
+            "high-score-content": {
+                "content": "*Pregnancy Health Check*\n💜💙💛\n\nThank you for answering all these questions! You have completed all the questions and you know a lot about healthy pregnancy.\n\n*Remember*\n• Keep going to your pregnancy check-ups. This is important for you and baby 🏥\n\n• Try to plan to give birth at a clinic or hospital - it's generally safer. If not, have a skilled birth attendant to help you at the birth 💛\n\n• Get an HIV test when you have your pregnancy check-up. Early treatment can keep you healthy and protect baby 👶🏽\n\nThank you, you've completed the health check!\n\n*How easy was it to complete this?*\n- Very easy\n- A little easy\n- OK\n- A little difficult\n- Very difficult",
+                "valid_responses": [
+                    "Very easy",
+                    "A little easy",
+                    "OK",
+                    "A little difficult",
+                    "Very difficult"
+                ]
+            },
+            "medium-score-content": {
+                "content": "*Pregnancy Health Check*\n💜💙💛\n\nThank you for answering all these questions! When you have all the correct information, you can make the best decisions for you and baby.\n\n*Remember*\n• Keep going to to your pregnancy check-ups. This is important for you and baby 🏥\n\n• Try to plan to give birth in a clinic or hospital - it's generally safer. If not, have a skilled birth attendant to help you at the birth 💛\n\n• Get an HIV test at your pregnancy check-up. Early treatment can keep you healthy and protect the baby 👶🏽\n\nThank you, you've completed the health check!\n\n*How easy was it to complete this?*\n- Very easy\n- A little easy\n- OK\n- A little difficult\n- Very difficult",
+                "valid_responses": [
+                    "Very easy",
+                    "A little easy",
+                    "OK",
+                    "A little difficult",
+                    "Very difficult"
+                ]
+            },
+            "low-score-content": {
+                "content": "*Pregnancy Health Check*\n💜💙💛\n\nThank you for answering all these questions! When you have all the correct information, you can make the best decisions for you and baby.\n\n*Remember*\n• Keep going to to your pregnancy check-ups. This is important for you and your baby 🏥\n\n• Try to plan to give birth in a clinic or hospital - it's generally safer. If not, have a skilled birth attendant to help you at the birth 💛\n\n• Get an HIV test at your pregnancy check-up. Early treatment can keep you healthy and protect the baby 👶🏽\n\nThank you, you've completed the health check!\n\n*How easy was it to complete this?*\n- Very easy\n- A little easy\n- OK\n- A little difficult\n- Very difficult",
+                "valid_responses": [
+                    "Very easy",
+                    "A little easy",
+                    "OK",
+                    "A little difficult",
+                    "Very difficult"
+                ]
+            },
+            "skipped-many-content": {
+                "content": "We noticed you skipped some of your questions.\n\nCan we remind you to answer them again tomorrow? Respond with 'Yes' or 'No'.",
+                "valid_responses": ["Yes","No"]
+            }
+        },
+        {
+            "message_nr": 2,
+            "content": "Thanks for your feedback. We'll be back with some follow-up questions in the next few weeks! 💕\n\nClick on this link to go to MomConnect: https://wa.me/27796312456?text=menu"
+        }
+    ]
+}

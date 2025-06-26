@@ -9,22 +9,33 @@ from haystack.dataclasses import ChatMessage
 from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel
 
+
+from .enums import (
+    AssessmentType,
+    HistoryType,
+)
 from .tasks import (
+    assessment_end_flow_map,
     extract_anc_data_from_response,
     extract_onboarding_data_from_response,
     get_anc_survey_question,
     get_assessment_question,
+    score_assessment_question,
+    validate_assessment_end_response,
     get_next_onboarding_question,
     handle_user_message,
     validate_assessment_answer,
 )
 from .utilities import (
-    AssessmentType,
+    determine_task,
+    get_assessment_end_messaging_history,
+    get_assessment_result,
+    get_content_from_message_data,
     get_or_create_chat_history,
-    HistoryType,
     load_json_and_validate,
+    save_assessment_end_message,
     save_chat_history,
-    save_pre_assessment_question,
+    save_assessment_question,
 )
 
 load_dotenv()
@@ -164,8 +175,22 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
         answer = validate_assessment_answer(
             user_response=request.user_input,
             question_number=request.question_number,
-            current_flow_id=request.flow_id,
+            current_flow_id=request.flow_id.value,
         )
+        if answer["processed_user_response"]:
+            score = score_assessment_question(
+                answer["processed_user_response"],
+                request.question_number,
+                request.flow_id,
+            )
+            await save_assessment_question(
+                user_id=request.user_id,
+                assessment_type=request.flow_id,
+                question_number=request.question_number,
+                question=None,
+                user_response=answer["processed_user_response"],
+                score=score,
+            )
         next_question_number = answer["next_question_number"]
     else:
         next_question_number = request.question_number
@@ -176,20 +201,183 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
         question_number=next_question_number,
         user_context=request.user_context,
     )
-    # If it's a pre-assessment, save the generated question for reuse.
     contextualized_question = ""
     if question:
         contextualized_question = question["contextualized_question"]
-        if "-pre" in request.flow_id:
-            await save_pre_assessment_question(
-                user_id=request.user_id,
-                assessment_type=request.flow_id,
-                question_number=next_question_number,
-                question=contextualized_question,
-            )
+        await save_assessment_question(
+            user_id=request.user_id,
+            assessment_type=request.flow_id,
+            question_number=next_question_number,
+            question=contextualized_question,
+            user_response=None,
+            score=None,
+        )
     return AssessmentResponse(
         question=contextualized_question,
         next_question=next_question_number,
+        intent=intent,
+        intent_related_response=intent_related_response,
+    )
+
+
+class AssessmentEndRequest(BaseModel):
+    user_id: str
+    user_input: str
+    flow_id: AssessmentType
+
+
+class AssessmentEndResponse(BaseModel):
+    message: str
+    task: str
+    intent: str | None
+    intent_related_response: str | None
+
+
+def create_assessment_end_error_response() -> AssessmentEndResponse:
+    return AssessmentEndResponse(
+        message="",
+        task="ERROR",
+        intent="",
+        intent_related_response="",
+    )
+
+
+def response_is_required_for(flow_id: str, message_nr: int) -> bool:
+    required_map = {
+        "dma-pre-assessment": [2, 3],
+        "behaviour-pre-assessment": [2],
+        "knowledge-pre-assessment": [2],
+        "attitude-pre-assessment": [2],
+    }
+    return message_nr in required_map.get(flow_id, [])
+
+
+@app.post("/v1/assessment-end")
+async def assessment_end(
+    request: AssessmentEndRequest, token: str = Depends(verify_token)
+):
+    # Initial Setup and Data Fetching
+    assessment_result = await get_assessment_result(
+        user_id=request.user_id,
+        assessment_type=request.flow_id,
+    )
+    if not assessment_result:
+        return create_assessment_end_error_response()
+
+    score_category = (
+        "skipped-many"
+        if assessment_result.crossed_skip_threshold
+        else assessment_result.category
+    )
+    flow_content_list = assessment_end_flow_map[request.flow_id.value]
+    flow_content_map = {item.message_nr: item for item in flow_content_list}
+    messaging_history = await get_assessment_end_messaging_history(
+        user_id=request.user_id, assessment_type=request.flow_id
+    )
+
+    # Determine Current State and Handle User Input
+    task = ""
+    previous_message_nr = 0
+    if messaging_history:
+        previous_message_nr = messaging_history[-1].message_number
+
+    intent: str | None = None
+    intent_related_response: str | None = None
+
+    if not request.user_input:
+        # This is the start of the assessment-end flow
+        intent, intent_related_response = "JOURNEY_RESPONSE", ""
+        next_message_nr = 1
+    else:
+        # User has responded, process their input
+        if not previous_message_nr or previous_message_nr not in flow_content_map:
+            return create_assessment_end_error_response()
+
+        previous_message_data = flow_content_map[previous_message_nr]
+        previous_message, previous_valid_responses = get_content_from_message_data(
+            previous_message_data, score_category
+        )
+
+        if not previous_message:
+            return create_assessment_end_error_response()
+        intent, intent_related_response = handle_user_message(
+            previous_message, request.user_input
+        )
+        next_message_nr = previous_message_nr + 1
+
+    # Process Intent and Determine Next Step
+    next_message = ""
+    if intent == "JOURNEY_RESPONSE":
+        # Check if the user was responding to a question that requires validation
+        if request.user_input and response_is_required_for(
+            request.flow_id.value, next_message_nr - 1
+        ):
+            if not previous_valid_responses:
+                return create_assessment_end_error_response()
+
+            validation_result = validate_assessment_end_response(
+                previous_message=previous_message,
+                previous_message_nr=previous_message_nr,
+                previous_message_valid_responses=previous_valid_responses,
+                user_response=request.user_input,
+            )
+
+            if validation_result["next_message_number"] == previous_message_nr:
+                # Validation failed, repeat the previous question
+                next_message_nr = previous_message_nr
+                next_message_data = flow_content_map[next_message_nr]
+                next_message, _ = get_content_from_message_data(
+                    next_message_data, score_category
+                )
+            else:
+                # Validation succeeded
+                processed_response = validation_result["processed_user_response"]
+                await save_assessment_end_message(
+                    request.user_id,
+                    request.flow_id,
+                    previous_message_nr,
+                    processed_response,
+                )
+                task = determine_task(
+                    request.flow_id.value,
+                    previous_message_nr,
+                    score_category,
+                    processed_response,
+                )
+        elif request.user_input:
+            # User responded, but it was to a final message that doesn't need validation. End of flow.
+            next_message = ""
+
+    # If we fall through to here OR it's the first message, we need to find the next message to send.
+    if not next_message and next_message_nr in flow_content_map:
+        next_message_data = flow_content_map[next_message_nr]
+        next_message, _ = get_content_from_message_data(
+            next_message_data, score_category
+        )
+
+        # If this is a new question being sent, save a placeholder for it
+        # This covers the initial message and moving to the next valid step
+        if next_message and (
+            not previous_message_nr or next_message_nr > previous_message_nr
+        ):
+            await save_assessment_end_message(
+                request.user_id, request.flow_id, next_message_nr, ""
+            )
+    elif intent != "JOURNEY_RESPONSE":
+        # User's intent was not to continue the journey (e.g., they asked a question).
+        # Re-send the last message.
+        if previous_message_nr in flow_content_map:
+            previous_message_data = flow_content_map[previous_message_nr]
+            next_message, _ = get_content_from_message_data(
+                previous_message_data, score_category
+            )
+        else:
+            # This case is unlikely, but as a fallback, end the flow.
+            next_message = ""
+
+    return AssessmentEndResponse(
+        message=next_message,
+        task=task,
         intent=intent,
         intent_related_response=intent_related_response,
     )
