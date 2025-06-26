@@ -8,6 +8,11 @@ from sentry_sdk import get_client as get_sentry_client
 
 from ai4gd_momconnect_haystack.api import app, setup_sentry
 from ai4gd_momconnect_haystack.enums import HistoryType
+from ai4gd_momconnect_haystack.pydantic_models import (
+    AssessmentEndScoreBasedMessage,
+    AssessmentResult,
+)
+from ai4gd_momconnect_haystack.sqlalchemy_models import AssessmentEndMessagingHistory
 
 
 def test_health():
@@ -471,6 +476,279 @@ async def test_assessment_valid_journey_response(
     save_assessment_question.assert_has_awaits(
         [call_to_save_answer, call_to_save_question], any_order=False
     )
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_assessment_result", new_callable=mock.AsyncMock
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_assessment_end_messaging_history",
+    new_callable=mock.AsyncMock,
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.save_assessment_end_message",
+    new_callable=mock.AsyncMock,
+)
+@mock.patch("ai4gd_momconnect_haystack.api.get_content_from_message_data")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.assessment_end_flow_map",
+    {
+        "dma-pre-assessment": [
+            AssessmentEndScoreBasedMessage.model_validate(
+                {
+                    "message_nr": 1,
+                    "high-score-content": {"content": "High score content"},
+                    "medium-score-content": {"content": "Medium score content"},
+                    "low-score-content": {"content": "Low score content"},
+                    "skipped-many-content": {"content": "Skipped many content"},
+                }
+            )
+        ]
+    },
+)
+async def test_assessment_end_initial_message(
+    mock_get_content,
+    mock_save_message,
+    mock_get_history,
+    mock_get_result,
+):
+    """
+    Tests the initial call to the endpoint with no user_input.
+    It should return the first message of the assessment-end flow.
+    """
+    # --- Mock Setup ---
+    mock_get_result.return_value = AssessmentResult(
+        score=100.0, category="high", crossed_skip_threshold=False
+    )
+    mock_get_history.return_value = []
+    mock_get_content.return_value = ("High score content", None)
+
+    # --- API Call ---
+    client = TestClient(app)
+    response = client.post(
+        "/v1/assessment-end",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "TestUser",
+            "user_input": "",
+            "flow_id": "dma-pre-assessment",
+        },
+    )
+
+    # --- Assertions ---
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "High score content",
+        "task": "",
+        "intent": "JOURNEY_RESPONSE",
+        "intent_related_response": "",
+    }
+
+    mock_get_result.assert_awaited_once()
+    mock_get_history.assert_awaited_once()
+    mock_save_message.assert_awaited_once_with("TestUser", "dma-pre-assessment", 1, "")
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_assessment_result", new_callable=mock.AsyncMock
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_assessment_end_messaging_history",
+    new_callable=mock.AsyncMock,
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.save_assessment_end_message",
+    new_callable=mock.AsyncMock,
+)
+@mock.patch("ai4gd_momconnect_haystack.api.get_content_from_message_data")
+@mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
+@mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_end_response")
+@mock.patch("ai4gd_momconnect_haystack.api.determine_task")
+@mock.patch("ai4gd_momconnect_haystack.api.assessment_end_flow_map")
+@mock.patch("ai4gd_momconnect_haystack.api.response_is_required_for")
+async def test_assessment_end_valid_response_to_required_question(
+    mock_response_required,
+    mock_flow_map,
+    mock_determine_task,
+    mock_validate_response,
+    mock_handle_user_message,
+    mock_get_content,
+    mock_save_message,
+    mock_get_history,
+    mock_get_result,
+):
+    """
+    Tests a valid user response to a message that requires validation.
+    The system should process the answer, save it, and return the next message.
+    """
+    # --- Mock Setup ---
+    mock_get_result.return_value = AssessmentResult(
+        score=100.0, category="high", crossed_skip_threshold=False
+    )
+    mock_get_history.return_value = [
+        AssessmentEndMessagingHistory(message_number=2, user_response="")
+    ]
+    mock_response_required.side_effect = lambda flow, nr: nr == 2
+
+    # Corrected keys to use aliases from the Pydantic model
+    flow_content = [
+        AssessmentEndScoreBasedMessage.model_validate(
+            {
+                "message_nr": 2,
+                "high-score-content": {
+                    "content": "Would you like a summary? (Yes/No)",
+                    "valid_responses": ["Yes", "No"],
+                },
+                "medium-score-content": {"content": "placeholder"},
+                "low-score-content": {"content": "placeholder"},
+                "skipped-many-content": {"content": "placeholder"},
+            }
+        ),
+        AssessmentEndScoreBasedMessage.model_validate(
+            {
+                "message_nr": 3,
+                "high-score-content": {"content": "Thank you for your feedback."},
+                "medium-score-content": {"content": "placeholder"},
+                "low-score-content": {"content": "placeholder"},
+                "skipped-many-content": {"content": "placeholder"},
+            }
+        ),
+    ]
+    mock_flow_map.__getitem__.return_value = flow_content
+
+    mock_get_content.side_effect = [
+        ("Would you like a summary? (Yes/No)", ["Yes", "No"]),
+        ("Thank you for your feedback.", None),
+    ]
+    mock_handle_user_message.return_value = ("JOURNEY_RESPONSE", "")
+    mock_validate_response.return_value = {
+        "processed_user_response": "Yes",
+        "next_message_number": 3,
+    }
+    mock_determine_task.return_value = "SEND_SUMMARY"
+
+    # --- API Call ---
+    client = TestClient(app)
+    response = client.post(
+        "/v1/assessment-end",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "TestUser",
+            "user_input": "Yes please",
+            "flow_id": "dma-pre-assessment",
+        },
+    )
+
+    # --- Assertions ---
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "Thank you for your feedback.",
+        "task": "SEND_SUMMARY",
+        "intent": "JOURNEY_RESPONSE",
+        "intent_related_response": "",
+    }
+
+    mock_validate_response.assert_called_once()
+    mock_determine_task.assert_called_once()
+    assert mock_save_message.await_count == 2
+    call_to_save_answer = mock.call("TestUser", "dma-pre-assessment", 2, "Yes")
+    call_to_save_question = mock.call("TestUser", "dma-pre-assessment", 3, "")
+    mock_save_message.assert_has_awaits(
+        [call_to_save_answer, call_to_save_question], any_order=True
+    )
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_assessment_result", new_callable=mock.AsyncMock
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_assessment_end_messaging_history",
+    new_callable=mock.AsyncMock,
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.save_assessment_end_message",
+    new_callable=mock.AsyncMock,
+)
+@mock.patch("ai4gd_momconnect_haystack.api.get_content_from_message_data")
+@mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
+@mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_end_response")
+@mock.patch("ai4gd_momconnect_haystack.api.assessment_end_flow_map")
+@mock.patch("ai4gd_momconnect_haystack.api.response_is_required_for")
+async def test_assessment_end_invalid_response(
+    mock_response_required,
+    mock_flow_map,
+    mock_validate_response,
+    mock_handle_user_message,
+    mock_get_content,
+    mock_save_message,
+    mock_get_history,
+    mock_get_result,
+):
+    """
+    Tests an invalid user response to a required question.
+    The system should repeat the question.
+    """
+    # --- Mock Setup ---
+    mock_get_result.return_value = AssessmentResult(
+        score=100.0, category="high", crossed_skip_threshold=False
+    )
+    mock_get_history.return_value = [
+        AssessmentEndMessagingHistory(message_number=2, user_response="")
+    ]
+    mock_response_required.return_value = True
+
+    # Corrected keys to use aliases from the Pydantic model
+    flow_content = [
+        AssessmentEndScoreBasedMessage.model_validate(
+            {
+                "message_nr": 2,
+                "high-score-content": {
+                    "content": "Would you like a summary? (Yes/No)",
+                    "valid_responses": ["Yes", "No"],
+                },
+                "medium-score-content": {"content": "placeholder"},
+                "low-score-content": {"content": "placeholder"},
+                "skipped-many-content": {"content": "placeholder"},
+            }
+        )
+    ]
+    mock_flow_map.__getitem__.return_value = flow_content
+
+    mock_get_content.side_effect = [
+        ("Would you like a summary? (Yes/No)", ["Yes", "No"]),
+        ("Would you like a summary? (Yes/No)", ["Yes", "No"]),
+    ]
+    mock_handle_user_message.return_value = ("JOURNEY_RESPONSE", "")
+    mock_validate_response.return_value = {
+        "processed_user_response": None,
+        "next_message_number": 2,
+    }
+
+    # --- API Call ---
+    client = TestClient(app)
+    response = client.post(
+        "/v1/assessment-end",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "TestUser",
+            "user_input": "Maybe, I'm not sure",
+            "flow_id": "dma-pre-assessment",
+        },
+    )
+
+    # --- Assertions ---
+    assert response.status_code == 200
+    assert response.json()["message"] == "Would you like a summary? (Yes/No)"
+    assert response.json()["task"] == ""
+
+    mock_validate_response.assert_called_once()
+    mock_save_message.assert_not_awaited()
 
 
 @pytest.mark.asyncio

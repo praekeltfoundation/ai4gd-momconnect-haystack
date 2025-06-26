@@ -293,68 +293,6 @@ async def save_assessment_question(
             if score is not None:
                 historic_record.score = score
 
-            # # If all scores are available for the given assessment
-            # result = await session.execute(
-            #     select(AssessmentHistory)
-            #     .where(
-            #         AssessmentHistory.user_id == user_id,
-            #         AssessmentHistory.assessment_id == assessment_type.value,
-            #         AssessmentHistory.score.is_not(None),
-            #     )
-            #     .order_by(AssessmentHistory.question_number.asc())
-            # )
-            # historic_records = result.all()
-            # print(f"Number of historic records with scores: {len(historic_records)}")
-            # for rec in historic_records:
-            #     print(rec)
-            # if matches_assessment_question_length(
-            #     len(historic_records), assessment_type
-            # ):
-            #     # Calculate and store an AssessmentResultHistory.
-            #     turns = []
-            #     for rec in historic_records:
-            #         turns.append(
-            #             Turn.model_validate(
-            #                 {
-            #                     "question_number": rec.question_number,
-            #                     "user_response": rec.user_response,
-            #                 }
-            #             )
-            #         )
-            #     assessment_run = AssessmentRun.model_validate(
-            #         {
-            #             "scenario_id": user_id,
-            #             "flow_type": assessment_type.value,
-            #             "turns": turns,
-            #         }
-            #     )
-            #     assessment_result = score_assessment(assessment_run, assessment_type)
-            #     if assessment_result:
-            #         result_history = await session.execute(
-            #             select(AssessmentResultHistory).where(
-            #                 AssessmentResultHistory.user_id == user_id,
-            #                 AssessmentResultHistory.assessment_id
-            #                 == assessment_type.value,
-            #             )
-            #         )
-            #         historic_result_record = result_history.scalar_one_or_none()
-
-            #         if not historic_result_record:
-            #             historic_result_record = AssessmentResultHistory(
-            #                 user_id=user_id,
-            #                 assessment_id=assessment_type.value,
-            #                 category=assessment_result.category,
-            #                 score=assessment_result.score,
-            #                 crossed_skip_threshold=assessment_result.crossed_skip_threshold,
-            #             )
-            #             session.add(historic_result_record)
-            #         else:
-            #             historic_result_record.category = assessment_result.category
-            #             historic_result_record.score = assessment_result.score
-            #             historic_result_record.crossed_skip_threshold = (
-            #                 assessment_result.crossed_skip_threshold
-            #             )
-
 
 async def calculate_and_store_assessment_result(
     user_id: str, assessment_type: AssessmentType
