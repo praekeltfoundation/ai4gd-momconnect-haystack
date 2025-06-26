@@ -12,41 +12,37 @@ import json
 import logging
 import os
 import re
+import warnings
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Tuple, Optional
 
 from deepeval import evaluate
-from deepeval.metrics import AnswerRelevancyMetric, BaseMetric
+from deepeval.metrics import AnswerRelevancyMetric
 from deepeval.test_case import LLMTestCase
-
 import polars as pl
 from sklearn.metrics import classification_report, confusion_matrix
 
-
-# ==============================================================================
-# UPDATED SECTION 1: Import the main simulation function
-# ==============================================================================
 # This allows the evaluator to call the main simulation script directly.
 from ai4gd_momconnect_haystack.main import async_main as run_main_simulation
 
-# Configure logging to show only important messages
+# Configure logging to show only important messages and suppress third-party warnings
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
+warnings.filterwarnings("ignore", category=ResourceWarning, message="unclosed.*")
 
 
 class Colors:
-    """Simple ANSI color codes for terminal output."""
+    """ANSI color codes for console output."""
+    OK = "\033[92m"
+    WARNING = "\033[93m"
+    FAIL = "\033[91m"
+    BOLD = "\033[1m"
+    ENDC = "\033[0m"
 
-    OK = "\033[92m"  # GREEN
-    WARNING = "\033[93m"  # YELLOW
-    FAIL = "\033[91m"  # RED
-    BOLD = "\033[1m"  # BOLD
-    ENDC = "\033[0m"  # RESET
 
-
-def load_json_file(file_path: Path) -> list[dict] | dict | None:
-    """Loads a JSON file, returning its content or None on error."""
+def load_json_file(file_path: Path) -> Optional[List[Dict] | Dict]:
+    """Loads and decodes a JSON file."""
     if not file_path.exists():
-        logging.error(f"File not found at '{file_path}'.")
+        logging.error(f"File not found: '{file_path}'.")
         return None
     try:
         with file_path.open("r", encoding="utf-8") as f:
@@ -56,40 +52,13 @@ def load_json_file(file_path: Path) -> list[dict] | dict | None:
         return None
 
 
-def _get_metric_details(result: Any) -> tuple[float, str | None]:
-    """
-    Safely extracts the score and reason from a deepeval result,
-    providing default values if they don't exist.
-    """
-    score = 0.0
-    reason = None
-    if (
-        result.test_results
-        and result.test_results[0].metrics_data
-        and result.test_results[0].metrics_data[0]
-    ):
-        metric_data = result.test_results[0].metrics_data[0]
-        if metric_data.score is not None:
-            score = metric_data.score
-        if metric_data.reason is not None:
-            reason = metric_data.reason
-    return score, reason
-
-
-def _preprocess_text(text: Any) -> str:
-    """
-    Applies post-processing to a string to normalize it for evaluation.
-    - Converts to lowercase.
-    - Removes emojis.
-    - Strips leading/trailing whitespace.
-    """
+def preprocess_text(text: Any) -> str:
+    """Normalizes text by lowercasing, removing emojis, and stripping whitespace."""
     if not isinstance(text, str):
-        text = str(text)  # Ensure it's a string
+        text = str(text)
 
-    # Convert to lowercase
     text = text.lower()
-
-    # Remove emojis using a regex
+    # Expansive regex to catch a wide range of Unicode emojis and symbols.
     emoji_pattern = re.compile(
         "["
         "\U0001f600-\U0001f64f"  # emoticons
@@ -101,375 +70,268 @@ def _preprocess_text(text: Any) -> str:
         "]+",
         flags=re.UNICODE,
     )
-    text = emoji_pattern.sub(r"", text)
-
-    # Strip leading/trailing whitespace and remove extra spaces
-    text = text.strip()
-    text = re.sub(r"\s+", " ", text)
-
-    return text
+    text = emoji_pattern.sub(r"", text).strip()
+    return re.sub(r"\s+", " ", text)
 
 
-def run_evaluation_suite(
-    gt_path: Path,
-    results_path: Path,
-    eval_model: str,
-    threshold: float,
-    report_path: Path | None = None,
-):
-    """
-    Loads data, runs a three-part evaluation suite, and prints reports.
-    """
-    gt_data = load_json_file(gt_path)
-    llm_results_data = load_json_file(results_path)
+class Evaluator:
+    """Handles the entire evaluation process from data loading to report generation."""
 
-    gt_scenarios = []
-    if isinstance(gt_data, dict):
-        gt_scenarios = gt_data.get("scenarios", [])
-    elif isinstance(gt_data, list):
-        gt_scenarios = gt_data
+    def __init__(self, gt_path: Path, results_path: Path, eval_model: str, threshold: float):
+        self.gt_path = gt_path
+        self.results_path = results_path
+        self.eval_model = eval_model
+        self.threshold = threshold
+        self.collated_results: Dict[Tuple, Dict] = {}
+        self.report_lines: List[str] = []
 
-    llm_results = llm_results_data if isinstance(llm_results_data, list) else []
+    def _build_turn_lookup(self, scenarios: List[Dict]) -> Dict[Tuple, Dict]:
+        """Creates a lookup map from scenario data for quick access."""
+        lookup = {}
+        for s in scenarios:
+            flow_type = s.get("flow_type", "unknown")
+            # The identifier for a turn can vary based on the conversation flow type.
+            identifier_key = "question_name" if "onboarding" in flow_type or "anc-survey" in flow_type else "question_number"
+            for t in s.get("turns", []):
+                if identifier := t.get(identifier_key):
+                    lookup[(s["scenario_id"], flow_type, identifier)] = t
+        return lookup
 
-    if not gt_scenarios or not llm_results:
-        exit(
-            "Evaluation aborted: could not load or parse ground truth or results data."
+    def _extract_deepeval_result(self, result: Any) -> Tuple[float, Optional[str]]:
+        """Safely extracts score and reason from a DeepEval metric result."""
+        try:
+            metric_data = result.test_results[0].metrics_data[0]
+            score = metric_data.score or 0.0
+            reason = metric_data.reason
+            return score, reason
+        except (AttributeError, IndexError):
+            return 0.0, "Result extraction failed."
+
+    def run_suite(self):
+        """Orchestrates the loading, evaluation, and reporting."""
+        print("--- Loading and Collating Evaluation Data ---")
+        gt_data = load_json_file(self.gt_path)
+        llm_results_data = load_json_file(self.results_path)
+
+        gt_scenarios = gt_data.get("scenarios", []) if isinstance(gt_data, dict) else gt_data
+        llm_scenarios = llm_results_data if isinstance(llm_results_data, list) else []
+
+        if not gt_scenarios or not llm_scenarios:
+            exit("Evaluation aborted: Could not load or parse ground truth or results data.")
+
+        gt_lookup = self._build_turn_lookup(gt_scenarios)
+        llm_lookup = self._build_turn_lookup(llm_scenarios)
+
+        relevancy_metric = AnswerRelevancyMetric(
+            threshold=self.threshold, model=self.eval_model, include_reason=True
         )
 
-    gt_lookup: dict[tuple, dict] = {}
-    for s in gt_scenarios:
-        for t in s.get("turns", []):
-            identifier_key = (
-                "question_name"
-                if "onboarding" in s["flow_type"] or "anc-survey" in s["flow_type"]
-                else "question_number"
-            )
-            identifier = t.get(identifier_key)
-            if identifier:
-                gt_lookup[(s["scenario_id"], s["flow_type"], identifier)] = t
+        print("\n--- Running Per-Turn Evaluations (this may take a moment) ---")
+        for key, gt_turn in gt_lookup.items():
+            if not (llm_turn := llm_lookup.get(key)):
+                logging.warning(f"No LLM result found for key: {key}")
+                continue
+            
+            self._evaluate_turn(key, gt_turn, llm_turn, relevancy_metric)
 
-    llm_results_lookup: dict[tuple, dict] = {}
-    for s in llm_results:
-        for t in s.get("turns", []):
-            identifier_key = (
-                "question_name"
-                if "onboarding" in s["flow_type"] or "anc-survey" in s["flow_type"]
-                else "question_number"
-            )
-            identifier = t.get(identifier_key)
-            if identifier:
-                llm_results_lookup[(s["scenario_id"], s["flow_type"], identifier)] = t
+        self._generate_full_report()
 
-    collated_results: dict[tuple, dict] = {}
-    relevancy_metric = AnswerRelevancyMetric(
-        threshold=threshold, model=eval_model, include_reason=True
-    )
-    metrics_list: list[BaseMetric] = [relevancy_metric]
-
-    print("\n--- Running Per-Turn Evaluations (this may take a moment) ---")
-
-    for key, gt_turn in gt_lookup.items():
-        llm_result_turn = llm_results_lookup.get(key)
-        if not llm_result_turn:
-            logging.warning(f"No LLM result found for key: {key}")
-            continue
-
-        # --- Intent Evaluation ---
-        gt_intent = gt_turn.get("intent")
-        llm_intent = llm_result_turn.get("llm_predicted_intent")
-        intent_match_passed = False
-        if gt_intent and llm_intent:
-            intent_match_passed = (gt_intent.strip().lower() == llm_intent.strip().lower())
-
+    def _evaluate_turn(self, key: Tuple, gt_turn: Dict, llm_turn: Dict, metric: AnswerRelevancyMetric):
+        """Runs all evaluations for a single turn and stores the results."""
         try:
-            gt_llm_utterance = _preprocess_text(gt_turn.get("llm_utterance", ""))
-            llm_utterance = _preprocess_text(llm_result_turn.get("llm_utterance", ""))
-            gt_user_utterance = _preprocess_text(gt_turn.get("user_utterance", ""))
+            gt_llm_utterance = preprocess_text(gt_turn.get("llm_utterance", ""))
+            llm_utterance = preprocess_text(llm_turn.get("llm_utterance", ""))
 
+            # Use the follow-up utterance for appropriateness check if it exists.
+            user_utterance = gt_turn.get("follow_up_utterance") or gt_turn.get("user_utterance", "")
+            user_utterance_processed = preprocess_text(user_utterance)
+
+            # Evaluate semantic similarity of questions and relevance of user's answer.
             q_consistency_result = evaluate(
-                test_cases=[
-                    LLMTestCase(input=gt_llm_utterance, actual_output=llm_utterance)
-                ],
-                metrics=metrics_list,
+                test_cases=[LLMTestCase(input=gt_llm_utterance, actual_output=llm_utterance)],
+                metrics=[metric],
             )
             r_appropriateness_result = evaluate(
-                test_cases=[
-                    LLMTestCase(input=llm_utterance, actual_output=gt_user_utterance)
-                ],
-                metrics=metrics_list,
+                test_cases=[LLMTestCase(input=llm_utterance, actual_output=user_utterance_processed)],
+                metrics=[metric],
             )
 
-            expected_extraction_str = _preprocess_text(gt_turn.get("user_response", ""))
-            actual_extraction_str = _preprocess_text(
-                llm_result_turn.get("user_response", "")
-            )
-            exact_match_passed = actual_extraction_str == expected_extraction_str
-
-            q_score, q_reason = _get_metric_details(q_consistency_result)
-            r_score, r_reason = _get_metric_details(r_appropriateness_result)
-
-            collated_results[key] = {
-                "intent_match_passed": intent_match_passed,
-                "exact_match_passed": exact_match_passed,
-                "extraction_details": f"Expected: '{expected_extraction_str}', Got: '{actual_extraction_str}'",
-                "question_consistency_score": q_score,
-                "question_consistency_reason": q_reason,
-                "response_appropriateness_score": r_score,
-                "response_appropriateness_reason": r_reason,
+            q_score, q_reason = self._extract_deepeval_result(q_consistency_result)
+            r_score, r_reason = self._extract_deepeval_result(r_appropriateness_result)
+            
+            self.collated_results[key] = {
+                "initial_intent": {
+                    "expected": gt_turn.get("intent"),
+                    "predicted": llm_turn.get("llm_initial_predicted_intent"),
+                },
+                "final_intent": {
+                    "expected": gt_turn.get("follow_up_intent"),
+                    "predicted": llm_turn.get("llm_final_predicted_intent"),
+                },
+                "extraction": {
+                    "expected": preprocess_text(gt_turn.get("user_response", "")),
+                    "actual": preprocess_text(llm_turn.get("user_response", "")),
+                },
+                "question_consistency": {"score": q_score, "reason": q_reason},
+                "response_appropriateness": {"score": r_score, "reason": r_reason},
             }
+
         except Exception as e:
-            logging.error(
-                f"An unexpected error occurred during evaluation for turn {key}: {e}"
-            )
-    present_results(collated_results, output_file=report_path)
+            logging.error(f"An unexpected error occurred during evaluation for turn {key}: {e}")
 
+    def _generate_full_report(self, output_path: Optional[Path] = None):
+        """Generates and prints all sections of the final report."""
+        self._present_turn_by_turn_report()
+        self._present_intent_classification_report()
+        self._present_performance_summary_report()
 
-def generate_intent_summary_report(all_results: dict[tuple, dict], report_lines: list[str]):
-    """Generates and prints a detailed intent classification report."""
-    y_true = []
-    y_pred = []
-    for key, res in all_results.items():
-        details = res.get("intent_details", "")
-        try:
-            # Extracts from "Expected: 'INTENT_A', Got: 'INTENT_B'"
-            gt_intent = details.split("'")[1]
-            llm_intent = details.split("'")[3]
-            if gt_intent != "None" and llm_intent != "None":
-                y_true.append(gt_intent)
-                y_pred.append(llm_intent)
-        except IndexError:
-            continue
+        if output_path:
+            try:
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                with output_path.open("w", encoding="utf-8") as f:
+                    # Strip ANSI color codes for the file version
+                    clean_report = re.sub(r'\033\[[0-9;]*m', '', "\n".join(self.report_lines))
+                    f.write(clean_report)
+                self._add_line(f"\n{Colors.OK}Evaluation report saved to: {output_path}{Colors.ENDC}")
+            except IOError as e:
+                logging.error(f"Could not write report to file '{output_path}': {e}")
 
-    if not y_true:
-        print("No intent data found to generate a summary report.")
-        return
+    def _add_line(self, line: str):
+        """Helper to print a line to the console and add it to the report buffer."""
+        print(line)
+        self.report_lines.append(line)
 
-    header = "=" * 60
-    title = "           INTENT CLASSIFICATION SUMMARY REPORT"
-    report_lines.append("\n\n" + header)
-    report_lines.append(title)
-    report_lines.append(header)
-    print("\n\n" + header)
-    print(title)
-    print(header)
+    def _present_turn_by_turn_report(self):
+        """Formats and prints the detailed report for each evaluated turn."""
+        self._add_line("\n\n" + "=" * 50)
+        self._add_line("          DETAILED TURN-BY-TURN REPORT")
+        self._add_line("=" * 50)
 
-    # Get all unique labels for a complete matrix
-    labels = sorted(list(set(y_true + y_pred)))
+        for (s_id, flow, t_id), res in self.collated_results.items():
+            self._add_line(f"\n{Colors.BOLD}--- Turn: {s_id} ({flow}) | ID: {t_id} ---{Colors.ENDC}")
 
-    # Generate and add the classification report (Precision, Recall, F1)
-    report = classification_report(y_true, y_pred, labels=labels, zero_division=0)
-    report_lines.append("\n--- Classification Report ---")
-    report_lines.append(report)
-    print("\n--- Classification Report ---")
-    print(report)
+            # Helper to format and print pass/fail status for a given check
+            def print_status(name: str, passed: bool, details: str):
+                color = Colors.OK if passed else Colors.FAIL
+                status = "[✅] PASSED" if passed else "[❌] FAILED"
+                self._add_line(f"  {color}{name}: {status}{Colors.ENDC}")
+                if not passed:
+                    self._add_line(f"       {Colors.FAIL}Details: {details}{Colors.ENDC}")
+            
+            # Intent Checks
+            if res["initial_intent"]["expected"]:
+                match = res["initial_intent"]["expected"] == res["initial_intent"]["predicted"]
+                details = f"Expected: '{res['initial_intent']['expected']}', Got: '{res['initial_intent']['predicted']}'"
+                print_status("Initial Intent", match, details)
+            
+            if res["final_intent"]["expected"]:
+                match = res["final_intent"]["expected"] == res["final_intent"]["predicted"]
+                details = f"Expected: '{res['final_intent']['expected']}', Got: '{res['final_intent']['predicted']}'"
+                print_status("Follow-up Intent", match, details)
 
-    # Generate and add the confusion matrix using Polars
-    cm = confusion_matrix(y_true, y_pred, labels=labels)
-    # Create a Polars DataFrame
-    cm_df = pl.DataFrame(cm, schema=[f"Pred: {l}" for l in labels])
-    # Insert the 'Actual' labels as the first column for clarity
-    cm_df.insert_at_idx(0, pl.Series("Actual", [f"Actual: {l}" for l in labels]))
+            # Extraction Check
+            match = res["extraction"]["expected"] == res["extraction"]["actual"]
+            details = f"Expected: '{res['extraction']['expected']}', Got: '{res['extraction']['actual']}'"
+            print_status("Extraction Accuracy", match, details)
 
-    report_lines.append("\n--- Confusion Matrix ---")
-    report_lines.append(str(cm_df)) # Use str() for clean text representation
-    report_lines.append(header)
-    print("\n--- Confusion Matrix ---")
-    print(cm_df)
-    print(header)
+            # Semantic Score Checks
+            for key, name in [("question_consistency", "Question Consistency"), ("response_appropriateness", "Response Appropriateness")]:
+                score_data = res[key]
+                score = score_data['score']
+                reason = score_data['reason']
+                color = Colors.OK if score >= self.threshold else Colors.FAIL
+                self._add_line(f"  {color}[ score: {score:.2f} ] {name}{Colors.ENDC}")
+                if reason and score < self.threshold:
+                    self._add_line(f"       {Colors.WARNING}Reason: {reason}{Colors.ENDC}")
+    
+    def _present_intent_classification_report(self):
+        """Generates and prints a classification report and confusion matrix for intents."""
+        y_true, y_pred = [], []
+        for res in self.collated_results.values():
+            for intent_type in ["initial_intent", "final_intent"]:
+                if res[intent_type]["expected"]:
+                    y_true.append(res[intent_type]["expected"])
+                    y_pred.append(res[intent_type]["predicted"])
+        
+        if not y_true:
+            return
 
+        self._add_line("\n\n" + "=" * 60)
+        self._add_line("           INTENT CLASSIFICATION SUMMARY REPORT")
+        self._add_line("=" * 60)
 
-def present_results(all_results: dict[tuple, dict], output_file: Path | None = None):
-    """Formats and prints reports and optionally saves them to a file."""
+        labels = sorted(list(set(y_true + y_pred)))
+        class_report = classification_report(y_true, y_pred, labels=labels, zero_division=0)
+        self._add_line("\n--- Classification Report ---")
+        self._add_line(class_report)
 
-    report_lines: list[str] = []
+        cm = confusion_matrix(y_true, y_pred, labels=labels)
+        cm_df = pl.DataFrame(cm, schema=[f"Pred: {l}" for l in labels])
+        cm_df = cm_df.insert_column(0, pl.Series("Actual", [f"Actual: {l}" for l in labels]))
 
-    # --- Build Detailed Report ---
-    def add_line(console_line: str, file_line: str | None = None):
-        """Helper to print to console and add a clean version to the report list."""
-        print(console_line)
-        report_lines.append(file_line if file_line is not None else console_line)
-
-    header = "=" * 50
-    title = "              DETAILED TURN-BY-TURN REPORT"
-    add_line("\n\n" + header, "\n" + header)
-    add_line(title)
-    add_line(header)
-
-    for (scenario_id, flow_type, turn_identifier), res in all_results.items():
-        turn_header = (
-            f"--- Turn: {scenario_id} ({flow_type}) | ID: {turn_identifier} ---"
-        )
-        add_line(f"\n{Colors.BOLD}{turn_header}{Colors.ENDC}", f"\n{turn_header}")
-
-        # --- Intent Accuracy ---
-        intent_details = res.get("intent_details", "No details available.")
-        if res.get("intent_match_passed"):
-            add_line(
-                f"  {Colors.OK}[✅] Intent Classification: PASSED{Colors.ENDC}",
-                "  [✅] Intent Classification: PASSED",
-            )
-        else:
-            add_line(
-                f"  {Colors.FAIL}[❌] Intent Classification: FAILED{Colors.ENDC}",
-                "  [❌] Intent Classification: FAILED",
-            )
-        add_line(
-            f"       {Colors.WARNING if res.get('intent_match_passed') else Colors.FAIL}Details: {intent_details}{Colors.ENDC}",
-            f"       Details: {intent_details}",
-        )
-
-        # --- Extraction Accuracy ---
-
-        extraction_details = res.get("extraction_details", "No details available.")
-        if res.get("exact_match_passed"):
-            add_line(
-                f"  {Colors.OK}[✅] Extraction Accuracy: PASSED{Colors.ENDC}",
-                "  [✅] Extraction Accuracy: PASSED",
-            )
-        else:
-            add_line(
-                f"  {Colors.FAIL}[❌] Extraction Accuracy: FAILED{Colors.ENDC}",
-                "  [❌] Extraction Accuracy: FAILED",
-            )
-            add_line(
-                f"       {Colors.FAIL}Details: {extraction_details}{Colors.ENDC}",
-                f"       Details: {extraction_details}",
-            )
-
-        # --- Semantic Evaluations (Consistency & Appropriateness) ---
-        qc_score = res.get("question_consistency_score", 0.0)
-        qc_reason = res.get("question_consistency_reason")
-        qc_color = Colors.OK if qc_score >= 0.7 else Colors.FAIL
-        add_line(
-            f"  {qc_color}[ score: {qc_score:.2f} ] Question Consistency{Colors.ENDC}",
-            f"  [ score: {qc_score:.2f} ] Question Consistency",
-        )
-        if qc_reason and qc_score < 0.7:
-            add_line(
-                f"       {Colors.WARNING}Reason: {qc_reason}{Colors.ENDC}",
-                f"       Reason: {qc_reason}",
-            )
-
-        ra_score = res.get("response_appropriateness_score", 0.0)
-        ra_reason = res.get("response_appropriateness_reason")
-        ra_color = Colors.OK if ra_score >= 0.7 else Colors.FAIL
-        add_line(
-            f"  {ra_color}[ score: {ra_score:.2f} ] Response Appropriateness{Colors.ENDC}",
-            f"  [ score: {ra_score:.2f} ] Response Appropriateness",
-        )
-        if ra_reason and ra_score < 0.7:
-            add_line(
-                f"       {Colors.WARNING}Reason: {ra_reason}{Colors.ENDC}",
-                f"       Reason: {ra_reason}",
-            )
-
-    # --- Intent Summary Report ---
-    generate_intent_summary_report(all_results, report_lines)
-
-    # --- Build Summary Report ---
-    summary_data: dict[str, list] = {}
-    for (scenario_id, flow_type, question_name), res in all_results.items():
-        if res:
+        self._add_line("\n--- Confusion Matrix ---")
+        self._add_line(str(cm_df))
+        self._add_line("=" * 60)
+        
+    def _present_performance_summary_report(self):
+        """Aggregates results and prints a high-level performance summary."""
+        summary_data: Dict[str, List] = {}
+        for (s_id, flow_type, q_name), res in self.collated_results.items():
             summary_data.setdefault(flow_type, []).append(res)
+        
+        self._add_line("\n\n" + "=" * 50)
+        self._add_line("            PERFORMANCE SUMMARY REPORT")
+        self._add_line("=" * 50)
 
-    summary_header = "=" * 50
-    summary_title = "              PERFORMANCE SUMMARY REPORT"
-    add_line("\n\n" + summary_header, "\n\n" + summary_header)
-    add_line(summary_title)
-    add_line(summary_header)
+        for flow_type, results in summary_data.items():
+            total_turns = len(results)
+            if total_turns == 0: continue
 
-    for flow_type, results_list in summary_data.items():
-        if not results_list:
-            continue
-        total = len(results_list)
-        ea_rate = sum(1 for r in results_list if r["exact_match_passed"]) / total
-        qc_avg = sum(r["question_consistency_score"] for r in results_list) / total
-        ra_avg = sum(r["response_appropriateness_score"] for r in results_list) / total
+            passed_intent = sum(1 for r in results if r['initial_intent']['expected'] and r['initial_intent']['expected'] == r['initial_intent']['predicted'])
+            total_intent = sum(1 for r in results if r['initial_intent']['expected'])
+            passed_intent += sum(1 for r in results if r['final_intent']['expected'] and r['final_intent']['expected'] == r['final_intent']['predicted'])
+            total_intent += sum(1 for r in results if r['final_intent']['expected'])
 
-        flow_header = (
-            f"📊 {flow_type.capitalize()} Performance ({total} turns evaluated):"
-        )
-        add_line(f"\n{Colors.BOLD}{flow_header}{Colors.ENDC}", f"\n{flow_header}")
-        add_line(f"  - Extraction Accuracy: {ea_rate:.2%}")
-        add_line(f"  - Question Consistency Score (Avg): {qc_avg:.2f}")
-        add_line(f"  - Response Appropriateness Score (Avg): {ra_avg:.2f}")
+            intent_acc = (passed_intent / total_intent) if total_intent > 0 else 1.0
+            extraction_acc = sum(1 for r in results if r["extraction"]["expected"] == r["extraction"]["actual"]) / total_turns
+            qc_avg = sum(r["question_consistency"]["score"] for r in results) / total_turns
+            ra_avg = sum(r["response_appropriateness"]["score"] for r in results) / total_turns
 
-    add_line("\n" + summary_header)
+            self._add_line(f"\n{Colors.BOLD}📊 {flow_type.capitalize()} Performance ({total_turns} turns):{Colors.ENDC}")
+            self._add_line(f"  - Intent Accuracy: {intent_acc:.2%}")
+            self._add_line(f"  - Extraction Accuracy: {extraction_acc:.2%}")
+            self._add_line(f"  - Avg. Question Consistency: {qc_avg:.2f}")
+            self._add_line(f"  - Avg. Response Appropriateness: {ra_avg:.2f}")
 
-    # --- Save Report to File ---
-    if output_file:
-        try:
-            output_file.parent.mkdir(parents=True, exist_ok=True)
-            with output_file.open("w", encoding="utf-8") as f:
-                f.write("\n".join(report_lines))
-            add_line(
-                f"\n{Colors.OK}Evaluation report successfully saved to: {output_file}{Colors.ENDC}",
-                f"\nEvaluation report successfully saved to: {output_file}",
-            )
-        except IOError as e:
-            logging.error(f"Could not write report to file '{output_file}': {e}")
+        self._add_line("\n" + "=" * 50)
 
 
 def main():
     """Parses arguments and orchestrates the evaluation."""
-    parser = argparse.ArgumentParser(
-        description="Run a multi-faceted evaluation on LLM results."
-    )
+    parser = argparse.ArgumentParser(description="Run a multi-faceted evaluation on LLM results.")
     script_dir = Path(__file__).resolve().parent
 
-    parser.add_argument(
-        "--run-simulation",
-        action="store_true",
-        help="First run the automated simulation to generate a fresh results file.",
-    )
-    # ==============================================================================
-    # UPDATED SECTION: Improved help text for clarity on file naming.
-    # ==============================================================================
-    parser.add_argument(
-        "--save-report",
-        action="store_true",
-        help="Save the final evaluation report to a text file. The report will be named after the results file "
-        "(e.g., 'results.json' -> 'results.report.txt').",
-    )
-    parser.add_argument(
-        "--gt-file", type=Path, default=script_dir / "data/ground_truth.json"
-    )
-    parser.add_argument(
-        "--results-file",
-        type=Path,
-        help="Path to a specific LLM results file to evaluate. If not provided, --run-simulation must be used.",
-    )
-    parser.add_argument(
-        "--openai-key", type=str, default=os.environ.get("OPENAI_API_KEY")
-    )
-    parser.add_argument(
-        "--deepeval-key", type=str, default=os.environ.get("DEEPEVAL_API_KEY")
-    )
+    parser.add_argument("--run-simulation", action="store_true", help="Run simulation to generate a fresh results file.")
+    parser.add_argument("--save-report", action="store_true", help="Save the report to a text file.")
+    parser.add_argument("--gt-file", type=Path, default=script_dir / "data/ground_truth.json")
+    parser.add_argument("--results-file", type=Path, help="Path to a specific LLM results file to evaluate.")
+    parser.add_argument("--openai-key", type=str, default=os.environ.get("OPENAI_API_KEY"))
+    parser.add_argument("--deepeval-key", type=str, default=os.environ.get("DEEPEVAL_API_KEY"))
     parser.add_argument("--eval-model", type=str, default="gpt-4o")
     parser.add_argument("--threshold", type=float, default=0.7)
-
+    
     args = parser.parse_args()
 
     if not args.openai_key:
-        logging.error(
-            "OpenAI API key not found. Provide it via --openai-key or set OPENAI_API_KEY."
-        )
-        return
+        exit("OpenAI API key not found. Provide it via --openai-key or set OPENAI_API_KEY.")
     os.environ["OPENAI_API_KEY"] = args.openai_key
     if args.deepeval_key:
         os.environ["DEEPEVAL_API_KEY"] = args.deepeval_key
 
-    results_path_to_evaluate = args.results_file
-
+    results_path = args.results_file
     if args.run_simulation:
-        if args.results_file:
-            logging.warning(
-                "Both --run-simulation and --results-file were provided. "
-                "Ignoring --results-file and generating a new simulation run."
-            )
-
         print("--- Running Automated Simulation ---")
-        output_file_path = asyncio.run(
+        output_path = asyncio.run(
             run_main_simulation(
                 GT_FILE_PATH=args.gt_file,
                 RESULT_PATH=script_dir / "data",
@@ -477,39 +339,25 @@ def main():
                 save_simulation=True,
             )
         )
+        if not output_path or not output_path.exists():
+            exit("Simulation failed or did not produce an output file. Aborting.")
+        print(f"--- Simulation complete. Using generated file: {output_path} ---")
+        results_path = output_path
+    
+    if not results_path:
+        exit("No results file specified. Use --results-file <path> or add --run-simulation.")
 
-        if output_file_path and output_file_path.exists():
-            print(
-                f"--- Simulation complete. Using generated file: {output_file_path} ---"
-            )
-            results_path_to_evaluate = output_file_path
-        else:
-            logging.error(
-                "Simulation run failed or did not produce an output file. Aborting evaluation."
-            )
-            return
-
-    if not results_path_to_evaluate:
-        logging.error(
-            "No results file specified. Use --results-file <path> or add --run-simulation to generate one."
-        )
-        return
-
-    report_path = None
-    if args.save_report:
-        report_path = results_path_to_evaluate.with_suffix(".report.txt")
-        # ==============================================================================
-        # NEW SECTION: Add a print statement for user confirmation.
-        # ==============================================================================
-        print(f"--- Evaluation report will be saved to: {report_path} ---")
-
-    run_evaluation_suite(
+    evaluator = Evaluator(
         gt_path=args.gt_file,
-        results_path=results_path_to_evaluate,
+        results_path=results_path,
         eval_model=args.eval_model,
         threshold=args.threshold,
-        report_path=report_path,
     )
+    evaluator.run_suite()
+
+    if args.save_report:
+        report_path = results_path.with_suffix(".report.txt")
+        evaluator._generate_full_report(output_path=report_path)
 
 
 if __name__ == "__main__":
