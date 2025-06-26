@@ -7,7 +7,7 @@ from haystack.dataclasses import ChatMessage
 from sentry_sdk import get_client as get_sentry_client
 
 from ai4gd_momconnect_haystack.api import app, setup_sentry
-from ai4gd_momconnect_haystack.utilities import HistoryType
+from ai4gd_momconnect_haystack.enums import HistoryType
 
 
 def test_health():
@@ -359,6 +359,118 @@ async def test_assessment_initial_message(
     validate_assessment_answer.assert_not_called()
     get_assessment_question.assert_awaited_once()
     save_assessment_question.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_assessment_question", new_callable=mock.AsyncMock
+)
+@mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_answer")
+@mock.patch("ai4gd_momconnect_haystack.api.score_assessment_question")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.save_assessment_question",
+    new_callable=mock.AsyncMock,
+)
+async def test_assessment_valid_journey_response(
+    save_assessment_question,
+    score_assessment_question,
+    validate_assessment_answer,
+    get_assessment_question,
+    handle_user_message,
+):
+    """
+    On a valid user response, the endpoint should validate the answer, score it,
+    save it, and then fetch and return the next question in the flow.
+    """
+    # --- Mock Setup ---
+    # 1. Intent detection identifies a standard journey response.
+    handle_user_message.return_value = "JOURNEY_RESPONSE", ""
+
+    # 2. Validation is successful, processes the answer, and points to question 2.
+    validate_assessment_answer.return_value = {
+        "processed_user_response": "very confident",
+        "next_question_number": 2,
+    }
+
+    # 3. Scoring returns a score for the processed answer.
+    score_assessment_question.return_value = 5
+
+    # 4. The next question (question 2) is fetched.
+    get_assessment_question.return_value = {
+        "contextualized_question": "This is the second question.",
+        "current_question_number": 2,
+    }
+
+    # --- API Call ---
+    client = TestClient(app)
+    response = client.post(
+        "/v1/assessment",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "TestUser",
+            "user_context": {},
+            "user_input": "I feel very confident",
+            "flow_id": "dma-pre-assessment",
+            "question_number": 1,
+            "previous_question": "How confident are you?",
+        },
+    )
+
+    # --- Assertions ---
+    assert response.status_code == 200
+    assert response.json() == {
+        "question": "This is the second question.",
+        "next_question": 2,
+        "intent": "JOURNEY_RESPONSE",
+        "intent_related_response": "",
+    }
+
+    # Assert that the core logic functions were called with the correct arguments
+    handle_user_message.assert_called_once_with(
+        "How confident are you?", "I feel very confident"
+    )
+    validate_assessment_answer.assert_called_once_with(
+        user_response="I feel very confident",
+        question_number=1,
+        current_flow_id="dma-pre-assessment",
+    )
+    score_assessment_question.assert_called_once_with(
+        "very confident", 1, "dma-pre-assessment"
+    )
+    get_assessment_question.assert_awaited_once_with(
+        user_id="TestUser",
+        flow_id="dma-pre-assessment",
+        question_number=2,  # Importantly, it asks for the *next* question
+        user_context={},
+    )
+
+    # Assert that the data was saved correctly in two separate calls
+    assert save_assessment_question.await_count == 2
+
+    # Check the call to save the user's answer and score
+    call_to_save_answer = mock.call(
+        user_id="TestUser",
+        assessment_type="dma-pre-assessment",
+        question_number=1,
+        question=None,
+        user_response="very confident",
+        score=5,
+    )
+    # Check the call to save the new question that was asked
+    call_to_save_question = mock.call(
+        user_id="TestUser",
+        assessment_type="dma-pre-assessment",
+        question_number=2,
+        question="This is the second question.",
+        user_response=None,
+        score=None,
+    )
+
+    save_assessment_question.assert_has_awaits(
+        [call_to_save_answer, call_to_save_question], any_order=False
+    )
 
 
 @pytest.mark.asyncio

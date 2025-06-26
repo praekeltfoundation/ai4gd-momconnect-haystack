@@ -4,7 +4,12 @@ from unittest import mock
 import pytest
 
 # Import the Pydantic models and the functions to be tested
-from ai4gd_momconnect_haystack.pydantic_models import AssessmentRun, Question, Turn
+from ai4gd_momconnect_haystack.enums import AssessmentType
+from ai4gd_momconnect_haystack.pydantic_models import (
+    AssessmentQuestion,
+    AssessmentRun,
+    Turn,
+)
 from ai4gd_momconnect_haystack.tasks import (
     _calculate_assessment_score_range,
     _score_single_turn,
@@ -14,7 +19,6 @@ from ai4gd_momconnect_haystack.tasks import (
     score_assessment_from_simulation,
     validate_assessment_answer,
 )
-from ai4gd_momconnect_haystack.utilities import AssessmentType
 
 # --- Test Data Fixtures ---
 
@@ -53,9 +57,11 @@ def raw_assessment_questions() -> list[dict[str, Any]]:
 
 
 @pytest.fixture
-def validated_assessment_questions(raw_assessment_questions) -> list[Question]:
+def validated_assessment_questions(
+    raw_assessment_questions,
+) -> list[AssessmentQuestion]:
     """Provides a list of validated Pydantic Question models."""
-    return [Question.model_validate(q) for q in raw_assessment_questions]
+    return [AssessmentQuestion.model_validate(q) for q in raw_assessment_questions]
 
 
 @pytest.fixture
@@ -192,7 +198,7 @@ async def test_get_assessment_question():
             return_value="mock_question",
         ) as mock_run_pipeline,
         mock.patch(
-            "ai4gd_momconnect_haystack.tasks.get_pre_assessment_history",
+            "ai4gd_momconnect_haystack.tasks.get_assessment_history",
             new_callable=mock.AsyncMock,
             return_value=[],
         ) as mock_get_history,
@@ -224,7 +230,7 @@ async def test_get_last_assessment_question():
             return_value="mock_question",
         ) as mock_run_pipeline,
         mock.patch(
-            "ai4gd_momconnect_haystack.tasks.get_pre_assessment_history",
+            "ai4gd_momconnect_haystack.tasks.get_assessment_history",
             new_callable=mock.AsyncMock,
             return_value=[],
         ) as mock_get_history,

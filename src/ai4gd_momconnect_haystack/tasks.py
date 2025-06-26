@@ -4,15 +4,21 @@ from typing import Any
 
 from haystack.dataclasses import ChatMessage
 from pydantic import ValidationError
+from sqlalchemy import select
 
-from ai4gd_momconnect_haystack.sqlalchemy_models import AssessmentHistory
-from ai4gd_momconnect_haystack.utilities import (
+from ai4gd_momconnect_haystack.database import AsyncSessionLocal
+from ai4gd_momconnect_haystack.enums import (
     AssessmentType,
-    get_pre_assessment_history,
 )
+from ai4gd_momconnect_haystack.sqlalchemy_models import AssessmentHistory
 
 from . import doc_store, pipelines
-from .pydantic_models import AssessmentRun, Question, Turn, ResponseScore
+from .pydantic_models import (
+    AssessmentQuestion,
+    AssessmentRun,
+    Turn,
+    ResponseScore,
+)
 
 # --- Configuration ---
 logger = logging.getLogger(__name__)
@@ -29,21 +35,21 @@ kab_b_post_flow_id = "behaviour-post-assessment"
 anc_survey_flow_id = "anc-survey"
 faqs_flow_id = "faqs"
 
-all_onboarding_questions = doc_store.ONBOARDING_FLOW.get(onboarding_flow_id, [])
-all_anc_survey_questions = doc_store.ANC_SURVEY_FLOW.get(anc_survey_flow_id, [])
-faq_questions = doc_store.FAQ_DATA.get(faqs_flow_id, [])
+all_onboarding_questions = doc_store.ONBOARDING_FLOW
+all_anc_survey_questions = doc_store.ANC_SURVEY_FLOW
+faq_questions = doc_store.FAQ_DATA
 # The following assessments have the same pre and post flows, so we can use the same IDs
-all_dma_questions = doc_store.DMA_FLOW.get("dma-assessment", [])
-all_kab_k_questions = doc_store.KAB_FLOW.get("knowledge-assessment", [])
-all_kab_a_questions = doc_store.KAB_FLOW.get("attitude-assessment", [])
+all_dma_questions = doc_store.DMA_FLOW
+all_kab_k_questions = doc_store.KAB_K_FLOW
+all_kab_a_questions = doc_store.KAB_A_FLOW
 # The kab_b pre and post flows are different, so we use separate IDs
-all_kab_b_pre_questions = doc_store.KAB_FLOW.get(kab_b_pre_flow_id, [])
-all_kab_b_post_questions = doc_store.KAB_FLOW.get(kab_b_post_flow_id, [])
+all_kab_b_pre_questions = doc_store.KAB_B_PRE_FLOW
+all_kab_b_post_questions = doc_store.KAB_B_POST_FLOW
 # We also need content for messaging that happens at the end of assessments:
-dma_end_messaging_pre = doc_store.ASSESSMENT_END_FLOW.get(dma_pre_flow_id, [])
-kab_k_end_messaging_pre = doc_store.ASSESSMENT_END_FLOW.get(kab_k_pre_flow_id, [])
-kab_a_end_messaging_pre = doc_store.ASSESSMENT_END_FLOW.get(kab_a_pre_flow_id, [])
-kab_b_end_messaging_pre = doc_store.ASSESSMENT_END_FLOW.get(kab_b_pre_flow_id, [])
+dma_end_messaging_pre = doc_store.DMA_ASSESSMENT_END_FLOW
+kab_k_end_messaging_pre = doc_store.KAB_K_ASSESSMENT_END_FLOW
+kab_a_end_messaging_pre = doc_store.KAB_A_ASSESSMENT_END_FLOW
+kab_b_end_messaging_pre = doc_store.KAB_B_ASSESSMENT_END_FLOW
 
 assessment_flow_map = {
     dma_pre_flow_id: all_dma_questions,
@@ -85,7 +91,7 @@ assessment_map_to_assessment_types = {
     kab_b_post_flow_id: AssessmentType.behaviour_post_assessment,
 }
 
-ANC_SURVEY_MAP = {item["title"]: item for item in all_anc_survey_questions}
+ANC_SURVEY_MAP = {item.title: item for item in all_anc_survey_questions}
 
 
 def get_next_onboarding_question(
@@ -107,7 +113,10 @@ def get_next_onboarding_question(
     logger.info("Running next question selection pipeline...")
     next_question_pipeline = pipelines.create_next_onboarding_question_pipeline()
     next_question_result = pipelines.run_next_onboarding_question_pipeline(
-        next_question_pipeline, user_context, remaining_questions_list, chat_history
+        next_question_pipeline,
+        user_context,
+        [q.model_dump() for q in remaining_questions_list],
+        chat_history,
     )
     if not next_question_result:
         logger.error(
@@ -125,7 +134,7 @@ def get_next_onboarding_question(
         (
             q
             for q in all_onboarding_questions
-            if q["question_number"] == chosen_question_number
+            if q.question_number == chosen_question_number
         ),
         None,
     )
@@ -135,7 +144,7 @@ def get_next_onboarding_question(
             f"Could not find question data for question_number {chosen_question_number}. Skipping."
         )
     else:
-        logger.info(f"Original question was: '{current_step_data['content']}'")
+        logger.info(f"Original question was: '{current_step_data.content}'")
 
     return {
         "contextualized_question": contextualized_question,
@@ -182,6 +191,24 @@ def extract_onboarding_data_from_response(
     return user_context
 
 
+async def get_assessment_history(
+    user_id: str, assessment_type: AssessmentType
+) -> list[AssessmentHistory]:
+    """
+    Retrieves assessment question history for a given user and assessment type.
+    If no history exists, an empty list is returned.
+    """
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(AssessmentHistory).filter(
+                AssessmentHistory.user_id == user_id,
+                AssessmentHistory.assessment_id == assessment_type.value,
+            )
+        )
+        history = result.scalars().all()
+        return list(history)
+
+
 async def get_assessment_question(
     user_id: str, flow_id: AssessmentType, question_number: int, user_context: dict
 ) -> dict:
@@ -194,9 +221,9 @@ async def get_assessment_question(
     # the pre-assessment history. This might happen if the user dropped off
     # and is now returning to continue.
     pre_assessment_flow_id = assessment_map_to_their_pre[flow_id.value]
-    question_history: list[
-        AssessmentHistory
-    ] = await get_pre_assessment_history(user_id, pre_assessment_flow_id)
+    question_history: list[AssessmentHistory] = await get_assessment_history(
+        user_id, pre_assessment_flow_id
+    )
     if question_history:
         for q in question_history:
             if q.question_number == question_number:
@@ -294,7 +321,7 @@ def validate_assessment_answer(
     """
     current_question = None
     for q in assessment_flow_map[current_flow_id]:
-        if q["question_number"] == question_number:
+        if q.question_number == question_number:
             current_question = q
     if not current_question:
         logger.error(
@@ -304,16 +331,14 @@ def validate_assessment_answer(
             "processed_user_response": None,
             "next_question_number": question_number,
         }
-    valid_responses_and_scores = current_question.get("valid_responses_and_scores", [])
+    valid_responses_and_scores = current_question.valid_responses_and_scores
     if not valid_responses_and_scores:
         logger.error(f"No valid responses found for question {question_number}.")
         return {
             "processed_user_response": None,
             "next_question_number": question_number,
         }
-    valid_responses = [
-        item["response"] for item in valid_responses_and_scores if "response" in item
-    ]
+    valid_responses = [item.response for item in valid_responses_and_scores]
 
     validator_pipe = pipelines.create_assessment_response_validator_pipeline()
     processed_user_response = pipelines.run_assessment_response_validator_pipeline(
@@ -336,14 +361,19 @@ def validate_assessment_answer(
 
 
 def validate_assessment_end_response(
-    previous_message: str, previous_message_nr: int, previous_message_valid_responses: list[str], user_response: str
+    previous_message: str,
+    previous_message_nr: int,
+    previous_message_valid_responses: list[str],
+    user_response: str,
 ) -> dict[str, Any]:
-    """
-    """
+    """ """
     # Create and run a pipeline that validates the user's response to the previous message
     validator_pipe = pipelines.create_assessment_end_response_validator_pipeline()
     processed_user_response = pipelines.run_assessment_end_response_validator_pipeline(
-        validator_pipe, user_response, previous_message_valid_responses, previous_message
+        validator_pipe,
+        user_response,
+        previous_message_valid_responses,
+        previous_message,
     )
     # Move to the next step, or try again if the response was invalid
     if processed_user_response:
@@ -392,8 +422,13 @@ def get_anc_survey_question(
         logger.error(f"Could not find question content for step_id: '{next_step_id}'")
         return None
 
-    original_question_content = question_data.get("content", "")
-    valid_responses = question_data.get("valid_respnses", [])
+    original_question_content = question_data.content
+    valid_responses = question_data.valid_responses
+    if not valid_responses:
+        logger.error(
+            f"Could not find valid responses for question for step_id: '{next_step_id}'"
+        )
+        return None
 
     # 3. Get the final, contextualized question from the Contextualizer Pipeline
     logger.info(f"Running contextualization pipeline for step: '{next_step_id}'...")
@@ -412,7 +447,7 @@ def get_anc_survey_question(
         )
 
     # 4. Append valid responses to the final question, if they exist
-    valid_responses = question_data.get("valid_responses")
+    valid_responses = question_data.valid_responses
     if valid_responses:
         options = "\n".join(valid_responses)
         final_question_text = f"{contextualized_question}\n\n{options}"
@@ -506,22 +541,9 @@ def handle_user_message(
     return intent, response
 
 
-def matches_assessment_question_length(
-    n_questions: int, assessment_type: AssessmentType
-):
-    """
-    Checks if the length of a list of AssessmentHistory objects matches the length of questions from the corresponding assessment.
-    """
-    if assessment_type.value == kab_b_post_flow_id:
-        assessment_type = assessment_map_to_their_pre[kab_b_post_flow_id]
-    if len(assessment_flow_map[assessment_type.value]==n_questions):
-        return True
-    return False
-
-
 def load_and_validate_assessment_questions(
     assessment_id: str,
-) -> list[Question] | None:
+) -> list[AssessmentQuestion] | None:
     """
     Extracts and validates a specific list of questions using the pre-loaded
     assessment_flow_map.
@@ -538,7 +560,9 @@ def load_and_validate_assessment_questions(
         return None
 
     try:
-        validated_questions = [Question.model_validate(q) for q in raw_question_data]
+        validated_questions = [
+            AssessmentQuestion.model_validate(q) for q in raw_question_data
+        ]
         logger.info(
             f"Successfully validated {len(validated_questions)} questions for '{assessment_id}'."
         )
@@ -549,7 +573,7 @@ def load_and_validate_assessment_questions(
 
 
 def _calculate_assessment_score_range(
-    assessment_questions: list[Question],
+    assessment_questions: list[AssessmentQuestion],
 ) -> tuple[int, int]:
     """
     Calculates the min/max possible scores using validated Question models.
@@ -575,7 +599,7 @@ def _calculate_assessment_score_range(
 
 def _score_single_turn(
     turn: Turn,
-    question_lookup_by_num: dict[int, Question],
+    question_lookup_by_num: dict[int, AssessmentQuestion],
 ) -> dict[str, Any]:
     """
     Scores a single assessment turn.
@@ -619,7 +643,7 @@ def _score_single_turn(
 def score_assessment_from_simulation(
     simulation_output: list[AssessmentRun],
     assessment_id: str,
-    assessment_questions: list[Question],
+    assessment_questions: list[AssessmentQuestion],
 ) -> dict[str, Any] | None:
     """
     Calculates the final score for a specific assessment run.
@@ -665,23 +689,20 @@ def score_assessment_from_simulation(
     }
 
 
-def score_assessment(
-    simulation_output: list[AssessmentRun],
-    assessment_id: str,
-    assessment_questions: list[Question],
-) -> dict[str, Any] | None:
-    question_lookup = {q.question_number: q for q in assessment_questions}
-
-    # ---Score Calculation Logic ---
-    min_possible_score, max_possible_score = _calculate_assessment_score_range(
-        assessment_questions
+def score_assessment_question(
+    user_response: str, question_number: int, flow_id: AssessmentType
+) -> int | None:
+    assessment_questions = load_and_validate_assessment_questions(
+        assessment_map_to_their_pre[flow_id.value]
     )
-    results = [
-        _score_single_turn(turn, question_lookup)
-        for turn in assessment_run.turns
-        if turn.question_number is not None
-    ]
-    user_total_score = sum(r["score"] for r in results if r.get("score") is not None)
-    score_percentage = (
-        (user_total_score / max_possible_score * 100) if max_possible_score > 0 else 0.0
-    )
+    if assessment_questions:
+        question_lookup = {q.question_number: q for q in assessment_questions}
+        score_result = _score_single_turn(
+            Turn.model_validate(
+                {"user_response": user_response, "question_number": question_number}
+            ),
+            question_lookup,
+        )
+        if "score" in score_result.keys():
+            return score_result["score"]
+    return None

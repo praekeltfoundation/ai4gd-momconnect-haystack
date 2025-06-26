@@ -181,6 +181,46 @@ for example:
 }
 ```
 
+### End of pre-assessment journeys
+A short thank you and feedback journey is handled through the `/v1/assessment-end` endpoint. It receives a POST request with a JSON body, with the following fields:
+
+`user_id`: A unique identifier for a user, as a string
+
+`flow_id`: Which assessment this is for. This can be one of `dma-pre-assessment`, `knowledge-pre-assessment`, `behaviour-pre-assessment`, `attitude-pre-assessment`
+
+`user_input`: The message that the user sent to us, as a string
+
+for example:
+```json
+{
+  "user_id": "1234",
+  "flow_id": "dma-pre-assessment",
+  "user_input": "I am 20 weeks pregnant",
+}
+```
+
+The API will respond with the following fields:
+
+`message`: The next message to send to the user, as a string. If the journey is complete, this may contain a final thank you message.
+
+`task`: (optional) a task that needs to be performed by Turn. This can be one of:
+- `REMIND_ME_LATER`: set a reminder to reengage the user in 24 hours.
+- `STORE_FEEDBACK`: save a flow result containing validated feedback shared by the user.
+
+`intent`: (optional) the user's intent. See the ["Intents"](#intents) section for more info.
+
+`intent_related_response`: (optional) a response related to the user's intent. See the ["Intents"](#intents) section for more info.
+
+for example:
+```json
+{
+  "message": "Thank you for answering these questions!",
+  "task": "",
+  "intent": "JOURNEY_RESPONSE",
+  "intent_related_response": null
+}
+```
+
 ## Linting
 Run the following commands from the root directory:
 - `uv run ruff check --fix`

@@ -885,7 +885,7 @@ def create_intent_detection_pipeline() -> Pipeline | None:
     "{{ user_response }}"
 
     Please classify the user's message into one of these intents:
-    - 'JOURNEY_RESPONSE': The user is directly answering or attempting to answer the question asked.
+    - 'JOURNEY_RESPONSE': The user is directly answering, or attempting to answer, or skipping the question asked.
     - 'QUESTION_ABOUT_STUDY': The user is asking a question about the research study itself (e.g., "who are you?", "why are you asking this?").
     - 'HEALTH_QUESTION': The user is asking a new question related to health, pregnancy, or their wellbeing, instead of answering the question.
     - 'ASKING_TO_STOP_MESSAGES': The user expresses a desire to stop receiving messages.
@@ -1211,7 +1211,10 @@ def run_assessment_response_validator_pipeline(
 
 
 def run_assessment_end_response_validator_pipeline(
-    pipeline: Pipeline, user_response: str, valid_responses: list[str], previous_message: str
+    pipeline: Pipeline,
+    user_response: str,
+    valid_responses: list[str],
+    previous_message: str,
 ) -> str | None:
     """
     Run the assessment end response validator pipeline to validate a user's response.
@@ -1291,7 +1294,7 @@ def run_anc_survey_contextualization_pipeline(
     chat_history: list[str],
     original_question: str,
     valid_responses: list[str],
-) -> str | None:
+) -> str:
     """
     Runs the ANC survey contextualization pipeline.
     """
