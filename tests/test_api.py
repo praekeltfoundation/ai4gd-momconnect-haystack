@@ -372,6 +372,10 @@ async def test_assessment_initial_message(
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_assessment_question", new_callable=mock.AsyncMock
 )
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.calculate_and_store_assessment_result",
+    new_callable=mock.AsyncMock,
+)
 @mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_answer")
 @mock.patch("ai4gd_momconnect_haystack.api.score_assessment_question")
 @mock.patch(
@@ -382,12 +386,14 @@ async def test_assessment_valid_journey_response(
     save_assessment_question,
     score_assessment_question,
     validate_assessment_answer,
+    calculate_and_store_assessment_result,  # 2. Add it to the function signature
     get_assessment_question,
     handle_user_message,
 ):
     """
     On a valid user response, the endpoint should validate the answer, score it,
-    save it, and then fetch and return the next question in the flow.
+    save it, calculate the aggregate result, and then fetch and return the
+    next question in the flow.
     """
     # --- Mock Setup ---
     # 1. Intent detection identifies a standard journey response.
@@ -444,6 +450,11 @@ async def test_assessment_valid_journey_response(
     score_assessment_question.assert_called_once_with(
         "very confident", 1, "dma-pre-assessment"
     )
+
+    calculate_and_store_assessment_result.assert_awaited_once_with(
+        "TestUser", "dma-pre-assessment"
+    )
+
     get_assessment_question.assert_awaited_once_with(
         user_id="TestUser",
         flow_id="dma-pre-assessment",

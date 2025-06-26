@@ -1,19 +1,26 @@
 from os import environ
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 import sentry_sdk
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
 from haystack.dataclasses import ChatMessage
 from prometheus_fastapi_instrumentator import Instrumentator
-from pydantic import BaseModel
 
-
-from .enums import (
-    AssessmentType,
-    HistoryType,
+from ai4gd_momconnect_haystack.pydantic_models import (
+    AssessmentEndRequest,
+    AssessmentEndResponse,
+    AssessmentRequest,
+    AssessmentResponse,
+    OnboardingRequest,
+    OnboardingResponse,
+    SurveyRequest,
+    SurveyResponse,
 )
+
+
+from .enums import HistoryType
 from .tasks import (
     assessment_end_flow_map,
     extract_anc_data_from_response,
@@ -27,12 +34,15 @@ from .tasks import (
     validate_assessment_answer,
 )
 from .utilities import (
+    calculate_and_store_assessment_result,
+    create_assessment_end_error_response,
     determine_task,
     get_assessment_end_messaging_history,
     get_assessment_result,
     get_content_from_message_data,
     get_or_create_chat_history,
     load_json_and_validate,
+    response_is_required_for,
     save_assessment_end_message,
     save_chat_history,
     save_assessment_question,
@@ -81,19 +91,6 @@ def verify_token(authorization: Annotated[str, Header()]):
         )
 
     return credential
-
-
-class OnboardingRequest(BaseModel):
-    user_id: str
-    user_input: str
-    user_context: dict[str, Any]
-
-
-class OnboardingResponse(BaseModel):
-    question: str
-    user_context: dict[str, Any]
-    intent: str | None
-    intent_related_response: str | None
 
 
 @app.post("/v1/onboarding")
@@ -146,22 +143,6 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     )
 
 
-class AssessmentRequest(BaseModel):
-    user_id: str
-    user_input: str
-    user_context: dict[str, Any]
-    flow_id: AssessmentType
-    question_number: int
-    previous_question: str
-
-
-class AssessmentResponse(BaseModel):
-    question: str
-    next_question: int
-    intent: str | None
-    intent_related_response: str | None
-
-
 @app.post("/v1/assessment")
 async def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
     if request.user_input:
@@ -190,6 +171,9 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
                 question=None,
                 user_response=answer["processed_user_response"],
                 score=score,
+            )
+            await calculate_and_store_assessment_result(
+                request.user_id, request.flow_id
             )
         next_question_number = answer["next_question_number"]
     else:
@@ -220,38 +204,6 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
     )
 
 
-class AssessmentEndRequest(BaseModel):
-    user_id: str
-    user_input: str
-    flow_id: AssessmentType
-
-
-class AssessmentEndResponse(BaseModel):
-    message: str
-    task: str
-    intent: str | None
-    intent_related_response: str | None
-
-
-def create_assessment_end_error_response() -> AssessmentEndResponse:
-    return AssessmentEndResponse(
-        message="",
-        task="ERROR",
-        intent="",
-        intent_related_response="",
-    )
-
-
-def response_is_required_for(flow_id: str, message_nr: int) -> bool:
-    required_map = {
-        "dma-pre-assessment": [2, 3],
-        "behaviour-pre-assessment": [2],
-        "knowledge-pre-assessment": [2],
-        "attitude-pre-assessment": [2],
-    }
-    return message_nr in required_map.get(flow_id, [])
-
-
 @app.post("/v1/assessment-end")
 async def assessment_end(
     request: AssessmentEndRequest, token: str = Depends(verify_token)
@@ -262,7 +214,7 @@ async def assessment_end(
         assessment_type=request.flow_id,
     )
     if not assessment_result:
-        return create_assessment_end_error_response()
+        return create_assessment_end_error_response("Assessment results not available.")
 
     score_category = (
         "skipped-many"
@@ -291,7 +243,9 @@ async def assessment_end(
     else:
         # User has responded, process their input
         if not previous_message_nr or previous_message_nr not in flow_content_map:
-            return create_assessment_end_error_response()
+            return create_assessment_end_error_response(
+                "User responded while this journey has either not started, or it already ended."
+            )
 
         previous_message_data = flow_content_map[previous_message_nr]
         previous_message, previous_valid_responses = get_content_from_message_data(
@@ -299,7 +253,9 @@ async def assessment_end(
         )
 
         if not previous_message:
-            return create_assessment_end_error_response()
+            return create_assessment_end_error_response(
+                "User responded without this journey having been triggered."
+            )
         intent, intent_related_response = handle_user_message(
             previous_message, request.user_input
         )
@@ -313,7 +269,9 @@ async def assessment_end(
             request.flow_id.value, next_message_nr - 1
         ):
             if not previous_valid_responses:
-                return create_assessment_end_error_response()
+                return create_assessment_end_error_response(
+                    "Valid responses not found in the previous message's data."
+                )
 
             validation_result = validate_assessment_end_response(
                 previous_message=previous_message,
@@ -381,21 +339,6 @@ async def assessment_end(
         intent=intent,
         intent_related_response=intent_related_response,
     )
-
-
-class SurveyRequest(BaseModel):
-    user_id: str
-    survey_id: HistoryType
-    user_input: str
-    user_context: dict[str, Any]
-
-
-class SurveyResponse(BaseModel):
-    question: str
-    user_context: dict[str, Any]
-    survey_complete: bool
-    intent: str | None
-    intent_related_response: str | None
 
 
 @app.post("/v1/survey", response_model=SurveyResponse)

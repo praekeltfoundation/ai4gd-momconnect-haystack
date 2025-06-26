@@ -3,6 +3,11 @@
 from typing import Any, TypeVar
 from pydantic import BaseModel, Field, model_validator
 
+from .enums import (
+    AssessmentType,
+    HistoryType,
+)
+
 
 # A generic model type
 T = TypeVar("T", bound=BaseModel)
@@ -118,3 +123,61 @@ class AssessmentEndSimpleMessage(BaseModel):
 
 
 AssessmentEndItem = AssessmentEndScoreBasedMessage | AssessmentEndSimpleMessage
+
+
+### API Request and Response models ###
+class OnboardingRequest(BaseModel):
+    user_id: str
+    user_input: str
+    user_context: dict[str, Any]
+
+
+class OnboardingResponse(BaseModel):
+    question: str
+    user_context: dict[str, Any]
+    intent: str | None
+    intent_related_response: str | None
+
+
+class AssessmentRequest(BaseModel):
+    user_id: str
+    user_input: str
+    user_context: dict[str, Any]
+    flow_id: AssessmentType
+    question_number: int
+    previous_question: str
+
+
+class AssessmentResponse(BaseModel):
+    question: str
+    next_question: int
+    intent: str | None
+    intent_related_response: str | None
+
+
+class AssessmentEndRequest(BaseModel):
+    user_id: str
+    user_input: str
+    flow_id: AssessmentType
+
+
+class AssessmentEndResponse(BaseModel):
+    message: str
+    task: str
+    intent: str | None
+    intent_related_response: str | None
+
+
+class SurveyRequest(BaseModel):
+    user_id: str
+    survey_id: HistoryType
+    user_input: str
+    user_context: dict[str, Any]
+
+
+class SurveyResponse(BaseModel):
+    question: str
+    user_context: dict[str, Any]
+    survey_complete: bool
+    intent: str | None
+    intent_related_response: str | None
