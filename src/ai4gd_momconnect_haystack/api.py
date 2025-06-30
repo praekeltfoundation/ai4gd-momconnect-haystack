@@ -403,14 +403,16 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
     )
     question = ""
     survey_complete = True
+    next_step = ""
     if question_result:
         question = question_result.get("contextualized_question", "")
         survey_complete = question_result.get("is_final_step", False)
+        next_step = question_result.get("question_identifier", "")
     # Add the new question or a completion message to the history
     if (not question) and survey_complete:
         completion_message = "Thank you for completing the survey!"
         question = completion_message
-    chat_history.append(ChatMessage.from_assistant(text=question))
+    chat_history.append(ChatMessage.from_assistant(text=question, meta={"step_title": next_step}))
     await save_chat_history(
         user_id=request.user_id, messages=chat_history, history_type=request.survey_id
     )
