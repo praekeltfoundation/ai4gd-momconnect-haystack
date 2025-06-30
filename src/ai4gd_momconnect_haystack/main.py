@@ -21,7 +21,6 @@ from ai4gd_momconnect_haystack.assessment_logic import (
 from ai4gd_momconnect_haystack.crud import (
     calculate_and_store_assessment_result,
     get_assessment_end_messaging_history,
-    get_assessment_history,
     get_assessment_result,
     save_assessment_end_message,
     save_assessment_question,
