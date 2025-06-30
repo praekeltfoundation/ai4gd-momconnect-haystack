@@ -412,7 +412,9 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
     if (not question) and survey_complete:
         completion_message = "Thank you for completing the survey!"
         question = completion_message
-    chat_history.append(ChatMessage.from_assistant(text=question, meta={"step_title": next_step}))
+    chat_history.append(
+        ChatMessage.from_assistant(text=question, meta={"step_title": next_step})
+    )
     await save_chat_history(
         user_id=request.user_id, messages=chat_history, history_type=request.survey_id
     )
