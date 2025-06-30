@@ -132,7 +132,7 @@ Metrics Summary
 
 For test case:
 
-  - input: What’s your current relationship status? 👤
+  - input: What's your current relationship status? 👤
   - actual output: What's your current relationship status? Are you single, in a relationship, married, or would you like to skip this question?
   - expected output: None
   - context: None
@@ -192,7 +192,7 @@ Metrics Summary
 
 For test case:
 
-  - input: What’s your highest level of education? 📚
+  - input: What's your highest level of education? 📚
   - actual output: What is the highest level of education you have completed so far? 📚 We want to make sure your profile is complete.
   - expected output: None
   - context: None
@@ -252,7 +252,7 @@ Metrics Summary
 
 For test case:
 
-  - input: In the last week, how many days did you miss a meal because there wasn’t money for food? 🍞
+  - input: In the last week, how many days did you miss a meal because there wasn't money for food? 🍞
   - actual output: Have you had to skip meals in the last week due to lack of money for food? 🍞
   - expected output: None
   - context: None
@@ -372,7 +372,7 @@ Metrics Summary
 
 For test case:
 
-  - input: Do you own the phone you’re using right now? 📱
+  - input: Do you own the phone you're using right now? 📱
   - actual output: Do you currently own the phone you're using to complete the onboarding process? 📱
   - expected output: None
   - context: None
@@ -441,7 +441,7 @@ How much do you agree or disagree with this statement?
 Please reply with one of these options:
 • I strongly disagree
 • I disagree
-• I’m not sure
+• I'm not sure
 • I agree
 • I strongly agree
 • Skip
@@ -525,7 +525,7 @@ For test case:
 Please reply with one of these options:
 • I strongly disagree
 • I disagree
-• I’m not sure
+• I'm not sure
 • I agree
 • I strongly agree
 • Skip
@@ -600,7 +600,7 @@ Metrics Summary
 
 For test case:
 
-  - input: Here’s the next one 👇🏽
+  - input: Here's the next one 👇🏽
 
 How much do you agree or disagree with this statement:
 
@@ -609,7 +609,7 @@ How much do you agree or disagree with this statement:
 Please reply with one of these options:
 • I strongly disagree
 • I disagree
-• I’m not sure
+• I'm not sure
 • I agree
 • I strongly agree
 • Skip
@@ -691,7 +691,7 @@ For test case:
 Please reply with one of these options:
 • I strongly disagree
 • I disagree
-• I’m not sure
+• I'm not sure
 • I agree
 • I strongly agree
 • Skip
@@ -775,7 +775,7 @@ Here's the last one:
 Please reply with one of these options:
 • I strongly disagree
 • I disagree
-• I’m not sure
+• I'm not sure
 • I agree
 • I strongly agree
 • Skip
