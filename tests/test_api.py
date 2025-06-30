@@ -771,7 +771,10 @@ async def test_anc_survey():
     correctly processes the request and constructs the response.
     """
     initial_history = [
-        ChatMessage.from_assistant("Hi! Did you go for your clinic visit?")
+        ChatMessage.from_assistant(
+            "Hi! Did you go for your clinic visit?",
+            meta={"step_title": "clinic_visit_prompt"},
+        )
     ]
     with (
         mock.patch(
@@ -822,12 +825,12 @@ async def test_anc_survey():
         get_or_create_chat_history.assert_awaited_once_with(
             user_id="TestUser", history_type="anc"
         )
-        assert save_chat_history.await_count == 1
+        assert save_chat_history.await_count == 2
 
         saved_messages = save_chat_history.call_args.kwargs["messages"]
         assert len(saved_messages) == 3
         assert saved_messages[0].text == "Hi! Did you go for your clinic visit?"
-        assert saved_messages[1].text == "Yes I did"
+        assert saved_messages[1].text == "Yes, I went"
         assert saved_messages[2].text == "Great! Did you see a nurse or a doctor?"
 
 
@@ -908,7 +911,10 @@ async def test_anc_survey_chitchat():
     try to extract an answer.
     """
     initial_history = [
-        ChatMessage.from_assistant("Hi! Did you go for your clinic visit?")
+        ChatMessage.from_assistant(
+            "Hi! Did you go for your clinic visit?",
+            meta={"step_title": "clinic_visit_prompt"},
+        )
     ]
     with (
         mock.patch(
@@ -964,10 +970,9 @@ async def test_anc_survey_chitchat():
         # The survey logic in api.py doesn't add the chitchat response to the
         # history, only the re-asked question.
         saved_messages = save_chat_history.call_args.kwargs["messages"]
-        assert len(saved_messages) == 3
+        assert len(saved_messages) == 2
         assert saved_messages[0].text == "Hi! Did you go for your clinic visit?"
-        assert saved_messages[1].text == "Hi!"
-        assert saved_messages[2].text == "Hi! Did you go for your clinic visit?"
+        assert saved_messages[1].text == "Hi! Did you go for your clinic visit?"
 
         extract_anc_data_from_response.assert_not_called()
 

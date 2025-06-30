@@ -4,6 +4,12 @@ from unittest import mock
 import pytest
 
 # Import the Pydantic models and the functions to be tested
+from ai4gd_momconnect_haystack.assessment_logic import (
+    _calculate_assessment_score_range,
+    _score_single_turn,
+    score_assessment_from_simulation,
+    validate_assessment_answer,
+)
 from ai4gd_momconnect_haystack.enums import AssessmentType
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentQuestion,
@@ -11,13 +17,9 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     Turn,
 )
 from ai4gd_momconnect_haystack.tasks import (
-    _calculate_assessment_score_range,
-    _score_single_turn,
     extract_onboarding_data_from_response,
     get_assessment_question,
     get_next_onboarding_question,
-    score_assessment_from_simulation,
-    validate_assessment_answer,
 )
 
 # --- Test Data Fixtures ---
@@ -261,46 +263,57 @@ async def test_get_last_assessment_question():
         mock_get_history.assert_awaited()
 
 
-@mock.patch("ai4gd_momconnect_haystack.tasks.pipelines")
-def test_validate_assessment_answer_success(pipelines_mock):
+@mock.patch(
+    "ai4gd_momconnect_haystack.tasks.pipelines.run_assessment_response_validator_pipeline"
+)
+def test_validate_assessment_answer_success(mock_run_pipeline):
     """
     Tests successful validation of a user's response.
     """
-    mock_processed_response = {"answer": "A", "is_valid": True}
-    pipelines_mock.run_assessment_response_validator_pipeline.return_value = (
-        mock_processed_response
-    )
+    mock_processed_response = "A"
+    mock_run_pipeline.return_value = mock_processed_response
 
-    result = validate_assessment_answer(
-        user_response="This is my answer.",
-        question_number=3,
-        current_flow_id="dma-pre-assessment",
-    )
+    with mock.patch(
+        "ai4gd_momconnect_haystack.tasks.pipelines.create_assessment_response_validator_pipeline"
+    ):
+        result = validate_assessment_answer(
+            user_response="This is my answer.",
+            question_number=3,
+            current_flow_id="dma-pre-assessment",
+        )
 
     assert result == {
         "processed_user_response": mock_processed_response,
         "next_question_number": 4,
     }
 
+    mock_run_pipeline.assert_called_once()
 
-@mock.patch("ai4gd_momconnect_haystack.tasks.pipelines")
-def test_validate_assessment_answer_failure(pipelines_mock):
+
+@mock.patch(
+    "ai4gd_momconnect_haystack.tasks.pipelines.run_assessment_response_validator_pipeline"
+)
+def test_validate_assessment_answer_failure(mock_run_pipeline):
     """
     Tests handling of an invalid user response where the pipeline returns nothing.
     """
-    pipelines_mock.run_assessment_response_validator_pipeline.return_value = None
+    mock_run_pipeline.return_value = None
 
-    result = validate_assessment_answer(
-        user_response="I don't know.",
-        question_number=3,
-        current_flow_id="dma-pre-assessment",
-    )
+    with mock.patch(
+        "ai4gd_momconnect_haystack.tasks.pipelines.create_assessment_response_validator_pipeline"
+    ):
+        result = validate_assessment_answer(
+            user_response="I don't know.",
+            question_number=3,
+            current_flow_id="dma-pre-assessment",
+        )
 
-    # Check that the response is None and the question number is kept the same to repeat the question
     assert result == {
         "processed_user_response": None,
         "next_question_number": 3,
     }
+
+    mock_run_pipeline.assert_called_once()
 
 
 @mock.patch("ai4gd_momconnect_haystack.tasks.doc_store")

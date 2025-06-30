@@ -46,21 +46,6 @@ ASSESSMENT_CONTEXT_SCHEMA = {
     "additionalProperties": False,
 }
 
-SURVEY_NAVIGATOR_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "next_step": {
-            "type": "string",
-            "description": "A short identifier for the next logical step in the survey (e.g., 'start', 'Q_seen', 'Q_bp', 'intent', 'thanks'). This MUST match a title in the source content.",
-        },
-        "is_final_step": {
-            "type": "boolean",
-            "description": "True if the survey is complete according to the logic, otherwise false.",
-        },
-    },
-    "required": ["next_step", "is_final_step"],
-}
-
 SURVEY_QUESTION_CONTEXT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -92,6 +77,142 @@ INTENT_DETECTION_SCHEMA = {
     },
     "required": ["intent"],
 }
+
+# --- The ANC Survey flow, statically defined ---
+ANC_SURVEY_FLOW_LOGIC = {
+    "start": lambda ctx: "Q_seen"
+    if ctx.get("start") == "Yes, I went"
+    else "start_not_going"
+    if ctx.get("start") == "No, I'm not going"
+    else "start_going_soon"
+    if ctx.get("start") == "I'm going soon"
+    else None,
+    # I'm going soon
+    "start_going_soon": lambda ctx: "__GOING_SOON_REMINDER_3_DAYS__",
+    # Yes, I went
+    "Q_seen": lambda ctx: "seen_yes"
+    if ctx.get("Q_seen") == "Yes"
+    else "Q_seen_no"
+    if ctx.get("Q_seen") == "No"
+    else None,
+    "seen_yes": lambda ctx: "Q_bp"
+    if ctx.get("seen_yes") == "Yes"
+    else "mom_ANC_remind_me_01"
+    if ctx.get("seen_yes") == "Remind me tomorrow"
+    else None,
+    "Q_seen_no": lambda ctx: "Q_why_no_visit"
+    if ctx.get("Q_seen_no") == "Yes"
+    else "mom_ANC_remind_me_01"
+    if ctx.get("Q_seen_no") == "Remind me tomorrow"
+    else None,
+    "Q_why_no_visit": lambda ctx: "intent"
+    if ctx.get("Q_why_no_visit")
+    in [
+        "Clinic was closed ⛔",
+        "Wait time too long ⌛",
+        "No maternity record 📝",
+        "Asked to pay 💰",
+        "Told to come back 📅",
+        "Staff disrespectful 🤬",
+    ]
+    else "Q_why_no_visit_other"
+    if ctx.get("Q_why_no_visit") == "Something else 😞"
+    else None,
+    "Q_why_no_visit_other": lambda ctx: "intent",
+    "mom_ANC_remind_me_01": lambda ctx: "__NOT_GOING_REMINDER_1_DAY__",
+    "Q_bp": lambda ctx: "Q_experience",
+    "Q_experience": lambda ctx: "bad"
+    if ctx.get("Q_experience") in ["Bad", "Very bad"]
+    else "good"
+    if ctx.get("Q_experience") in ["Very good", "Good", "OK"]
+    else None,
+    "bad": lambda ctx: "Q_visit_bad",
+    "good": lambda ctx: "Q_visit_bad",
+    "Q_visit_good": lambda ctx: "Q_challenges"
+    if ctx.get("Q_visit_good")
+    in [
+        "No problems 👌",
+        "No maternity record 📝",
+        "Shamed/embarrassed 😳",
+        "No privacy 🤐",
+        "Not enough info ℹ️",
+        "Staff disespectful 🤬",
+        "Asked to pay 💰",
+        "Waited a long time ⌛",
+    ]
+    else "Q_visit_other"
+    if ctx.get("Q_visit_good") == "Something else 😞"
+    else None,
+    "Q_visit_bad": lambda ctx: "Q_challenges"
+    if ctx.get("Q_visit_bad")
+    in [
+        "No maternity record 📝",
+        "Shamed/embarrassed 😳",
+        "No privacy 🤐",
+        "Not enough info ℹ️",
+        "Staff disrespectful 🤬",
+        "Asked to pay 💰",
+        "Waited a long time ⌛",
+    ]
+    else "Q_visit_other"
+    if ctx.get("Q_visit_bad") == "Something else 😞"
+    else None,
+    "Q_visit_other": lambda ctx: "Q_challenges",
+    "Q_challenges": lambda ctx: "intent"
+    if ctx.get("Q_challenges")
+    in ["No challenges 👌", "Transport 🚌", "No support 🤝", "Clinic opening hours 🏥"]
+    else "Q_challenges_other"
+    if ctx.get("Q_challenges") == "Something else 😞"
+    else None,
+    "Q_challenges_other": lambda ctx: "intent",
+    # No, I'm not going
+    "start_not_going": lambda ctx: "Q_why_not_go"
+    if ctx.get("start_not_going") == "Yes"
+    else "mom_ANC_remind_me_02"
+    if ctx.get("start_not_going") == "Remind me tomorrow"
+    else None,
+    "mom_ANC_remind_me_02": lambda ctx: "__WENT_REMINDER_1_DAY__",
+    "Q_why_not_go": lambda ctx: "intent"
+    if ctx.get("Q_why_not_go")
+    in [
+        "Didn't know about it 📅",
+        "Didn't know where 📍",
+        "Don't want check-ups ⛔",
+        "Can't go when open 🏥",
+        "Asked to pay 💰",
+        "Wait times too long ⌛",
+        "No support 🤝",
+        "Getting there is hard 🚌",
+        "I forgot 😧",
+    ]
+    else "Q_why_not_go_other"
+    if ctx.get("Q_why_not_go") == "Something else 😞"
+    else None,
+    "Q_why_not_go_other": lambda ctx: "intent",
+    "intent": lambda ctx: "end"
+    if (not ctx.get("first_survey")) and ctx.get("intent") == "Yes, I will"
+    else "feedback_if_first_survey"
+    if ctx.get("first_survey") and ctx.get("intent") == "Yes, I will"
+    else "not_going_next_one"
+    if ctx.get("intent") == "No, I won't"
+    else None,
+    "not_going_next_one": lambda ctx: "end"
+    if not ctx.get("first_survey")
+    else "feedback_if_first_survey"
+    if ctx.get("first_survey")
+    else None,
+    # Feedback and thanks after the user's first survey completion
+    "feedback_if_first_survey": lambda ctx: "end_if_feedback",
+}
+
+
+def get_next_anc_survey_step(current_step: str, user_context: dict) -> str | None:
+    """Determines the next step based on the defined ANC survey flow."""
+    if current_step not in ANC_SURVEY_FLOW_LOGIC:
+        return None
+
+    next_step_func = ANC_SURVEY_FLOW_LOGIC[current_step]
+    return next_step_func(user_context)
 
 
 # --- LLM Generator ---
@@ -220,150 +341,6 @@ def create_onboarding_tool() -> Tool:
     return tool
 
 
-def create_clinic_visit_tool() -> Tool:
-    """Creates the data extraction tool for the ANC survey."""
-    tool = Tool(
-        name="extract_clinic_visit_data",
-        description="Extracts structured data from a user's message about their antenatal clinic visit. Use this to understand if they went, who they saw, their experience, and any other relevant details.",
-        function=extract_clinic_visit_data,
-        parameters={
-            "type": "object",
-            "properties": {
-                "visit_status": {
-                    "type": "string",
-                    "description": "Whether the user attended their clinic appointment.",
-                    "enum": ["Yes, I went", "No, I'm not going", "I'm going soon"],
-                },
-                "reason_for_not_attending": {
-                    "type": "string",
-                    "description": "If the user did not attend and is not going, the reason why.",
-                    "enum": [
-                        "Didn't know about it 📅",
-                        "Didn't know where 📍",
-                        "Don't want check-ups ⛔",
-                        "Can't go when open 🏥",
-                        "Asked to pay 💰",
-                        "Wait times too long ⌛",
-                        "No support 🤝",
-                        "Getting there is hard 🚌",
-                        "I forgot 😧",
-                        "Something else 😞",
-                    ],
-                },
-                "reason_for_not_attending_other": {
-                    "type": "string",
-                    "description": "If the reason for not attending is 'Something else 😞', the user can specify the reason here.",
-                },
-                "professional_seen": {
-                    "type": "string",
-                    "description": "Whether the user saw a health professional, if they visited the clinic.",
-                    "enum": ["Yes", "No"],
-                },
-                "reason_for_not_seeing_professional": {
-                    "type": "string",
-                    "description": "The reason why the user did not see a health professional, if they visited the clinic.",
-                    "enum": [
-                        "Clinic was closed ⛔",
-                        "Wait time too long ⌛",
-                        "No maternity record 📝",
-                        "Asked to pay 💰",
-                        "Told to come back 📅",
-                        "Staff disrespectful 🤬",
-                        "Something else 😞",
-                    ],
-                },
-                "reason_for_not_seeing_professional_other": {
-                    "type": "string",
-                    "description": "If the reason for not seeing a health professional is 'Something else 😞', the user can specify the reason here.",
-                },
-                "blood_pressure_taken": {
-                    "type": "string",
-                    "description": "Whether the user's blood pressure was taken during the visit, if the user was seen by a health professional",
-                    "enum": ["Yes", "No", "I don't know"],
-                },
-                "overall_experience_at_check_up": {
-                    "type": "string",
-                    "description": "The user's overall experience at the clinic, if the user was seen by a health professional",
-                    "enum": ["Very good", "Good", "OK", "Bad", "Very bad"],
-                },
-                "good_experience_challenge": {
-                    "type": "string",
-                    "description": "The challenges the user faced during their clinic visit, if they had an OK or better experience.",
-                    "enum": [
-                        "No problems 👌",
-                        "No maternity record 📝",
-                        "Shamed/embarrassed 😳",
-                        "No privacy 🤐",
-                        "Not enough info ℹ️",
-                        "Staff disespectful 🤬",
-                        "Asked to pay 💰",
-                        "Waited a long time ⌛",
-                        "Something else 😞",
-                    ],
-                },
-                "good_experience_challenge_other": {
-                    "type": "string",
-                    "description": "If the user had an OK or better experience and shared that they faced the challenge 'Something else 😞', the user can specify the challenge here.",
-                },
-                "bad_experience_challenge": {
-                    "type": "string",
-                    "description": "The challenges the user faced during their clinic visit, if they had a bad or very bad experience.",
-                    "enum": [
-                        "No maternity record 📝",
-                        "Shamed/embarrassed 😳",
-                        "No privacy 🤐",
-                        "Not enough info ℹ️",
-                        "Staff disrespectful 🤬",
-                        "Asked to pay 💰",
-                        "Waited a long time ⌛",
-                        "Something else 😞",
-                    ],
-                },
-                "bad_experience_challenge_other": {
-                    "type": "string",
-                    "description": "If the user had a bad or very bad experience and shared that they faced the challenge 'Something else 😞', the user can specify the challenge here.",
-                },
-                "biggest_challenge_of_the_visit": {
-                    "type": "string",
-                    "description": "The biggest challenge the user faced in getting to their clinic visit, given that they attended and were seen by a health professional.",
-                    "enum": [
-                        "No challenges 👌",
-                        "Transport 🚌",
-                        "No support 🤝",
-                        "Clinic opening hours 🏥",
-                        "Something else 😞",
-                    ],
-                },
-                "biggest_challenge_of_the_visit_other": {
-                    "type": "string",
-                    "description": "If the user's biggest challenge in getting to their clinic visit is 'Something else 😞', the user can specify the challenge here.",
-                },
-                "intention_to_attend_next_visit": {
-                    "type": "string",
-                    "description": "Whether the user intends to attend their next clinic visit, regardless of whether they attended the latest one.",
-                    "enum": ["Yes, I will", "No, I won't"],
-                },
-                "survey_difficulty": {
-                    "type": "string",
-                    "description": "If the user found this survey easy or difficult to answer, given that they haven't completed it before.",
-                    "enum": [
-                        "Very easy",
-                        "A little easy",
-                        "OK",
-                        "A little difficult",
-                        "Very difficult",
-                    ],
-                },
-            },
-            "additionalProperties": {
-                "type": "string",
-                "description": "Any other valuable information related to the clinic visit, like tests done, advice received, or specific concerns.",
-            },
-        },
-    )
-    return tool
-
-
 # --- Creation of Pipelines ---
 @cache
 def create_next_onboarding_question_pipeline() -> Pipeline | None:
@@ -380,46 +357,43 @@ def create_next_onboarding_question_pipeline() -> Pipeline | None:
     pipeline = Pipeline()
 
     prompt_template = """
-    {% for message in chat_history %}
-    {% if message.is_from('user') %}
-    user:
-    {{ message.text }}
+{% for message in chat_history %}
+{% if message.is_from('user') %}
+user:
+{{ message.text }}
 
-    {% elif message.is_from('assistant') %}
-    assistant:
-    {{ message.text }}
+{% elif message.is_from('assistant') %}
+assistant:
+{{ message.text }}
 
-    {% else %}
-    system:
-    {{ message.text }}
+{% else %}
+system:
+{{ message.text }}
 
-    {% endif %}
-    {% endfor %}
+{% endif %}
+{% endfor %}
 
-    system:
-    Data already collected:
-    User Context:
-    {% for key, value in user_context.items() %}
-    - {{ key }}: {{ value }}
-    {% endfor %}
+system:
+User Context:
+{% for key, value in user_context.items() %}
+- "{{ key }}": "{{ value }}"
+{% endfor %}
 
-    Remaining questions to complete their profile:
-    {% for q in remaining_questions %}
-    - Question: "{{ q.content }}" (collects data for: "{{ q.collects }}", possible correctly formatted values: "{{ q.valid_responses }}", current question_number for reference: {{ q.question_number }})
-    {% endfor %}
+Remaining questions to complete user profile:
+{% for q in remaining_questions %}
+Question {{ q.question_number }}: "{{ q.content }}" (with valid possible responses: "{{ q.valid_responses }}")
+{% endfor %}
 
-    Considering the information already collected, the chat history, and the remaining questions,
-    which single question would be the most natural and effective to ask next?
+Your task is to select the single remaining question that would be the most natural and effective to ask next and contextualize it if you think it's needed.
+- You can reference the existing chat history and user context above to modify the tonality and/or phrasing for the user, but DO NOT change the core meaning of the question or introduce ambiguity.
+- DO NOT list the valid responses in the contextualized question.
+- Ensure that the dialogue flows smoothly (e.g. the first message in a chat must not start as if there were preceding messages), and to still ask the question in such a way that its valid responses will remain grammatically valid responses to the new version of the question.
 
-    You MUST respond with a valid JSON object containing exactly these fields:
-    - "chosen_question_number" (integer): The question_number of the chosen question from the list above
-    - "contextualized_question" (string): A contextualized version of the question
+You MUST respond with a valid JSON object containing exactly these fields:
+- "chosen_question_number" (integer): The question_number of the chosen question from the list above.
+- "contextualized_question" (string): Your version of the question you chose.
 
-    You can reference the existing User Context and chat history to modify the tonality and/or phrasing,
-    but DO NOT change the core meaning of the question nor introduce ambiguity. Ensure that the chat flows
-    smoothly (e.g. the first message in a chat must not start as if there were preceding messages).
-
-    JSON Response:
+JSON Response:
     """
     chat_template = [
         ChatMessage.from_system(prompt_template),
@@ -460,43 +434,43 @@ def create_onboarding_data_extraction_pipeline() -> Pipeline | None:
     pipeline = Pipeline()
 
     prompt_template = """
-    {% for message in chat_history %}
-    {% if message.is_from('user') %}
-    user:
-    {{ message.text }}
+{% for message in chat_history %}
+{% if message.is_from('user') %}
+user:
+{{ message.text }}
 
-    {% elif message.is_from('assistant') %}
-    assistant:
-    {{ message.text }}
+{% elif message.is_from('assistant') %}
+assistant:
+{{ message.text }}
 
-    {% else %}
-    system:
-    {{ message.text }}
+{% else %}
+system:
+{{ message.text }}
 
-    {% endif %}
-    {% endfor %}
+{% endif %}
+{% endfor %}
 
-    system:
-    Data already collected:
-    User Context:
-    {% for key, value in user_context.items() %}
-    - {{ key }}: {{ value }}
-    {% endfor %}
+system:
+User Context:
+{% for key, value in user_context.items() %}
+- {{ key }}: {{ value }}
+{% endfor %}
 
-    User's latest message: "{{ user_response }}"
+User's latest message:
+"{{ user_response }}"
 
-    Please use the 'extract_onboarding_data' tool to analyze this message. Pay close attention to these **critical rules**:
-    - For the properties 'province', 'area_type', 'relationship_status', 'education_level', 'hunger_days', 'num_children' and 'phone_ownership', extracted data **MUST** adhere strictly to their 'enum' lists. If the user's response for one of these properties does **NOT** contain a word or phrase that *directly and unambiguously* maps to one of the EXACT 'enum' values, **DO NOT include that property in your tool call**. Only store the 'Skip' enum value for these properties if the user explicitly states they want to skip in response to that specific question.
-    - **DO NOT GUESS or INFER** an enum value based on sentiment, vague descriptions, or ambiguous terms. Only include a field if you are highly confident that the user's input matches an allowed 'enum' value.
-    - Do not extract a data point if it clearly has already been collected in the user context, unless the user's latest message explicitly provides new information that updates it.
-    - For properties with numeric ranges like 'hunger_days', you MUST map the user's input to the correct enum category, unless they did not provide valid information. Do not just look for an exact string match. For example:
-        - If the user says "3", you should extract: {"hunger_days": "3-4 days"}
-        - If the user says "one day", you should extract: {"hunger_days": "1-2 days"}
-        - If the user says "6", you should extract: {"hunger_days": "5-7 days"}
-        - If the user says "I haven't been hungry", you should extract: {"hunger_days": "0 days"}
-        - If the user does not provide a mappable, do not include 'hunger_days' in the tool call.
-    - For 'num_children', apply the same numeric mapping logic.
-    - For the open-ended additionalProperties, extract any extra information mentioned AS LONG AS it pertains specifically to maternal health or the use of a maternal health chatbot.
+Please use the 'extract_onboarding_data' tool to analyze the user's latest message and extract their intended response:
+- For the properties 'province', 'area_type', 'relationship_status', 'education_level', 'hunger_days', 'num_children' and 'phone_ownership', extracted data **MUST** adhere strictly to their 'enum' lists. If the user's response for one of these properties does **NOT** contain a word or phrase that *directly and unambiguously* maps to one of the EXACT 'enum' values, **DO NOT include that property in your tool call**. Only store the 'Skip' enum value for these properties if the user explicitly states they want to skip.
+- **DO NOT GUESS or INFER** an enum value based on sentiment, vague descriptions, or ambiguous terms. Only include a field if you are highly confident that the user's input matches an allowed 'enum' value.
+- Do not extract a data point if it clearly has already been collected in the user context, unless the user's latest message explicitly provides new information that updates it.
+- For properties with numeric ranges like 'hunger_days', you MUST map the user's input to the correct enum category whose range contains or corresponds to the user's input, unless they did not provide valid information. Do not just look for an exact string match. As examples:
+    - If the user says "3", you should extract: {"hunger_days": "3-4 days"}
+    - If the user says "one day", you should extract: {"hunger_days": "1-2 days"}
+    - If the user says "6", you should extract: {"hunger_days": "5-7 days"}
+    - If the user says "I haven't been hungry", you should extract: {"hunger_days": "0 days"}
+    - If the user does not provide a mappable, do not include 'hunger_days' in the tool call.
+- For 'num_children', apply similar numeric mapping logic.
+- For the open-ended additionalProperties, extract any extra information mentioned that is not already in one of the expected properties, and AS LONG AS it pertains specifically to maternal health or the use of a maternal health chatbot.
     """
 
     prompt_builder = ChatPromptBuilder(
@@ -528,33 +502,33 @@ def create_assessment_contextualization_pipeline() -> Pipeline | None:
     pipeline = Pipeline()
 
     prompt_template = """
-    You are an assistant helping to personalize assessment questions on a maternal health chatbot service.
-    The user has already provided the following information:
-    User Context:
-    {% for key, value in user_context.items() %}
-    - {{ key }}: {{ value }}
-    {% endfor %}
+You are an assistant helping to personalize assessment questions on a maternal health chatbot service.
+The user has already provided the following information:
+User Context:
+{% for key, value in user_context.items() %}
+- {{ key }}: {{ value }}
+{% endfor %}
 
-    Original Assessment Question to be contextualized:
-    {{ documents[0].content }}
+Original Assessment Question to be contextualized:
+{{ documents[0].content }}
 
-    Valid responses:
-    {% for valid_response in documents[0].meta.valid_responses %}
-    - "{{ valid_response }}"
-    {% endfor %}
+Valid responses:
+{% for valid_response in documents[0].meta.valid_responses %}
+- "{{ valid_response }}"
+{% endfor %}
 
-    Review the Original Assessment Question. If you think it's needed, make minor
-    adjustments to ensure that the question is clear and directly applicable to the
-    user's context. **Crucially, do not change the core meaning, difficulty, or the
-    scale/format of the question.** If no changes are needed, return the original question text.
+Review the Original Assessment Question. If you think it's needed, make minor
+adjustments to ensure that the question is clear and directly applicable to the
+user's context. **Crucially, do not change the core meaning, difficulty, or the
+scale/format of the question.** If no changes are needed, return the original question text.
 
-    You MUST respond with a valid JSON object containing exactly one key:
-    "contextualized_question". The value should be the question text ONLY. DO NOT
-    include the list of possible answers in your response, but make sure that the
-    contextualized question is asked in such a way that the user can still
-    respond with one of the valid responses listed above.
+You MUST respond with a valid JSON object containing exactly one key:
+"contextualized_question". The value should be the question text ONLY. DO NOT
+include the list of possible answers in your response, but make sure that the
+contextualized question is asked in such a way that the user can still
+respond with one of the valid responses listed above.
 
-    JSON Response:
+JSON Response:
     """
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_system(prompt_template)],
@@ -582,7 +556,7 @@ def create_assessment_contextualization_pipeline() -> Pipeline | None:
 def create_assessment_response_validator_pipeline() -> Pipeline | None:
     """
     Creates a pipeline to validate the user's response to an assessment question
-    against a dynamic list of valid responses.
+    against a dynamic list of valid responses, with a guaranteed structured output.
     """
     llm_generator = get_llm_generator()
     if not llm_generator:
@@ -593,33 +567,41 @@ def create_assessment_response_validator_pipeline() -> Pipeline | None:
     pipeline = Pipeline()
 
     prompt_template = """
-    You are an assistant validating a user's response to a question. The only valid possible responses are in the list below.
-    Your task is to determine if the user's answer maps to one of these valid options.
+You are an AI assistant validating a user's response to an assessment question in a chatbot for new mothers in South Africa.
+Your task is to analyze the user's response and determine if it maps to one of the allowed responses provided below.
 
-    Valid Responses:
-    {% for response in valid_responses %}
-    - "{{ response }}"
-    {% endfor %}
+Allowed Responses:
+{% for response in valid_responses %}
+- "{{ response }}"
+{% endfor %}
 
-    - If the user's response clearly and unambiguously corresponds to one of the valid responses, your output MUST be the exact text of that valid response from the list.
-    - If the user's response is ambiguous, does not match any valid response, or is nonsense/gibberish, you MUST return the single word: "nonsense".
+User Response:
+"{{ user_response }}"
 
-    User Response:
-    {{ user_response }}
+You MUST respond with a valid JSON object. The JSON should contain a single key, "validated_response".
 
-    Validated Response:
+- If the user's response clearly and unambiguously corresponds to one of the "Allowed Responses", the value of "validated_response" should be the exact text of that allowed response.
+- If the user's response is ambiguous, does not match any of the allowed responses, or is nonsense/gibberish, you MUST set the value of "validated_response" to "nonsense".
+
+JSON Response:
     """
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_system(prompt_template)],
         required_variables=["user_response", "valid_responses"],
     )
 
+    json_validator = JsonSchemaValidator()
+
     pipeline.add_component("prompt_builder", prompt_builder)
     pipeline.add_component("llm", llm_generator)
+    pipeline.add_component("json_validator", json_validator)
 
     pipeline.connect("prompt_builder.prompt", "llm.messages")
+    pipeline.connect("llm.replies", "json_validator.messages")
 
-    logger.info("Created Assessment Response Validation Pipeline.")
+    logger.info(
+        "Created Assessment Response Validation Pipeline with JSON Schema validation."
+    )
     return pipeline
 
 
@@ -638,94 +620,33 @@ def create_assessment_end_response_validator_pipeline() -> Pipeline | None:
     pipeline = Pipeline()
 
     prompt_template = """
-    You are an assistant validating a user's response to the previous message shown below.
-    Your task is to determine if the user's answer maps to one of the valid responses beneath the previous message.
+You are an AI assistant validating a user's response to the previous message sent by a chatbot for new mothers in South Africa.
+Your task is to analyze the user's response and determine if it maps to one of the allowed responses provided below.
 
-    Previous Message:
-    {{ previous_message }}
+Allowed Responses:
+{% for response in valid_responses %}
+- "{{ response }}"
+{% endfor %}
 
-    Valid Responses:
-    {% for response in valid_responses %}
-    - "{{ response }}"
-    {% endfor %}
+Previous Message:
+"{{ previous_message }}"
 
-    - If the user's response clearly and unambiguously corresponds to one of the valid responses, your output MUST be the exact text of that valid response from the list above.
-    - If the user's response is ambiguous, does not match any valid response, or is nonsense/gibberish, you MUST return the single word: "nonsense".
+User Response:
+"{{ user_response }}"
 
-    User Response:
-    {{ user_response }}
+You MUST respond with a valid JSON object. The JSON should contain a single key, "validated_response".
 
-    Validated Response:
+- If the user's response clearly and unambiguously corresponds to one of the "Allowed Responses", the value of "validated_response" should be the exact text of that allowed response.
+- If the user's response is ambiguous, does not match any of the allowed responses, or is nonsense/gibberish, you MUST set the value of "validated_response" to "nonsense".
+
+JSON Response:
     """
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_system(prompt_template)],
         required_variables=["user_response", "valid_responses", "previous_message"],
     )
 
-    pipeline.add_component("prompt_builder", prompt_builder)
-    pipeline.add_component("llm", llm_generator)
-
-    pipeline.connect("prompt_builder.prompt", "llm.messages")
-
-    logger.info("Created Assessment End Response Validation Pipeline.")
-    return pipeline
-
-
-@cache
-def create_clinic_visit_navigator_pipeline() -> Pipeline | None:
-    """
-    Creates a pipeline that determines the next logical step in the dynamic ANC survey.
-    """
-    llm_generator = get_llm_generator()
-    if not llm_generator:
-        logger.error(
-            "LLM Generator not available. Cannot create Clinic Visit Navigator Pipeline."
-        )
-        return None
-
-    pipeline = Pipeline()
-
-    prompt_template = """
-    You are a survey logic engine. Your task is to determine the next step in a dynamic antenatal clinic visit survey based on the user's data.
-
-    **Survey Logic:**
-    Your decision-making process must follow this logic precisely:
-    1.  **Start:** If no data is present, the first step is always 'start'.
-    2.  **Branch on `visit_status`:**
-        * "No, I'm not going": Next is 'Q_why_not_go'. Then 'intent'. Then 'thanks'.
-        * "I'm going soon": Next is 'start_going_soon'. Then survey is complete.
-        * "Yes, I went": Next is 'Q_seen'.
-    3.  **Branch on `professional_seen`:**
-        * "No": Next is 'Q_why_no_visit'. Then 'intent'. Then 'thanks'.
-        * "Yes": Next is 'Q_bp'. Then 'Q_experience'.
-    4.  **Branch on `overall_experience_at_check_up`:**
-        * "Very good", "Good", "OK": Next is 'Q_visit_good'.
-        * "Bad", "Very bad": Next is 'bad', then 'Q_visit_bad'.
-    5.  **After Experience Branch:** The step after either `Q_visit_good` or `Q_visit_bad` is `Q_challenges`.
-    6.  **Final Steps:** After `Q_challenges`, the next step is `intent`. After `intent`, the next step is `thanks`. After `thanks`, the survey is complete.
-
-    **Data Collected So Far (User Context):**
-    {% for key, value in user_context.items() %}
-    - {{ key }}: {{ value }}
-    {% endfor %}
-
-    Based on the survey logic and the data collected so far, determine the `next_step` identifier.
-    - If all necessary questions for a user's path have been asked, set `is_final_step` to true. The final step before completion is always 'thanks'.
-    - The `next_step` value MUST be a valid title from the survey content (e.g., 'start', 'Q_seen', 'Q_bp').
-
-    You MUST respond with a valid JSON object following this schema:
-    - "next_step" (string): The identifier for the next logical step.
-    - "is_final_step" (boolean): Set to true ONLY if the survey is now complete.
-
-    JSON Response:
-    """
-
-    prompt_builder = ChatPromptBuilder(
-        template=[ChatMessage.from_system(prompt_template)],
-        required_variables=["user_context"],
-    )
-
-    json_validator = JsonSchemaValidator(json_schema=SURVEY_NAVIGATOR_SCHEMA)
+    json_validator = JsonSchemaValidator()
 
     pipeline.add_component("prompt_builder", prompt_builder)
     pipeline.add_component("llm", llm_generator)
@@ -734,7 +655,9 @@ def create_clinic_visit_navigator_pipeline() -> Pipeline | None:
     pipeline.connect("prompt_builder.prompt", "llm.messages")
     pipeline.connect("llm.replies", "json_validator.messages")
 
-    logger.info("Created Clinic Visit Navigator Pipeline.")
+    logger.info(
+        "Created Assessment End Response Validation Pipeline with JSON Schema validation."
+    )
     return pipeline
 
 
@@ -754,39 +677,50 @@ def create_anc_survey_contextualization_pipeline() -> Pipeline | None:
     pipeline = Pipeline()
 
     prompt_template = """
-    You are a conversational assistant for a maternal health chatbot.
-    Your task is to take a standard survey question and make it sound natural and conversational for the user,
-    WITHOUT changing the core meaning of the question or introducing ambiguity.
+{% for message in chat_history %}
+{% if message.is_from('user') %}
+user:
+{{ message.text }}
 
-    User Context:
-    {% for key, value in user_context.items() %}
-    - {{ key }}: {{ value }}
-    {% endfor %}
+{% elif message.is_from('assistant') %}
+assistant:
+{{ message.text }}
 
-    Chat History:
-    {% for message in chat_history %}
-    - {{ message }}
-    {% endfor %}
+{% else %}
+system:
+{{ message.text }}
 
-    Original Question to send:
-    "{{ original_question }}"
+{% endif %}
+{% endfor %}
 
-    Valid Responses:
-    {% for vr in valid_responses %}
-    {{ vr }}
-    {% endfor %}
+system:
+Your task is to take the next survey question and contextualize it for the user, WITHOUT changing the core meaning of the question or introducing ambiguity.
 
-    Please rephrase the "Original Question" to be more personal and friendly.
-    - You can use information from the user context (like their name, if available).
-    - Add emojis where appropriate to maintain a warm tone.
-    - If the original question is already good enough, you can return it as is.
-    - If a list of valid responses is supplied above, ensure that the new contextualized
-      question is phrased such that the valid responses still make sense, and would be
-      grammatically correct.
+User Context:
+{% for key, value in user_context.items() %}
+- {{ key }}: {{ value }}
+{% endfor %}
 
-    You MUST respond with a valid JSON object with one key: "contextualized_question".
+Next survey question:
+"{{ original_question }}"
 
-    JSON Response:
+{% if valid_responses %}
+Allowed Responses:
+{% for vr in valid_responses %}
+- "{{ vr }}"
+{% endfor %}
+{% endif %}
+
+You MUST respond with a valid JSON object with one key: "contextualized_question".
+
+Rephrase the survey question if you think it's needed and return it as the "contextualized_question".
+- You can use information from the user context
+- If the survey question is already good enough, you can return it as is
+{% if valid_responses %}
+- If a list of allowed responses is supplied above, ensure that the new contextualized question is phrased such that the allowed responses would still make sense, and would be grammatically correct in dialogue.
+{% endif %}
+
+JSON Response:
     """
 
     prompt_builder = ChatPromptBuilder(
@@ -795,7 +729,6 @@ def create_anc_survey_contextualization_pipeline() -> Pipeline | None:
             "user_context",
             "chat_history",
             "original_question",
-            "valid_responses",
         ],
     )
 
@@ -812,7 +745,6 @@ def create_anc_survey_contextualization_pipeline() -> Pipeline | None:
     return pipeline
 
 
-@cache
 def create_clinic_visit_data_extraction_pipeline() -> Pipeline | None:
     """
     Creates a pipeline using a tool to extract structured data from a user's
@@ -825,40 +757,45 @@ def create_clinic_visit_data_extraction_pipeline() -> Pipeline | None:
         )
         return None
 
-    extraction_tool = create_clinic_visit_tool()
-    llm_generator.tools = [extraction_tool]
-
     pipeline = Pipeline()
 
     prompt_template = """
-    You are an assistant helping to extract structured information from a user's response to a question about their antenatal clinic (ANC) visit.
+You are an AI assistant helping to extract information from a user's (a new South African mother) response to a pregnancy clinic visit survey question/message into a structured format.
 
-    Data already collected during this survey:
-    {{ user_context }}
+Previous survey question/message:
+"{{ previous_service_message }}"
 
-    Chat history:
-    {{ chat_history }}
+User's latest response:
+- "{{ user_response }}"
 
-    User's latest message: "{{ user_response }}"
+You MUST respond with a valid JSON object. The JSON should contain a single key, "validated_response".
 
-    Please use the 'extract_clinic_visit_data' tool to analyze the user's latest message. Your primary goal is to extract the specific pieces of information the user has provided in this message.
-    - Only extract values that the user has clearly stated.
-    - Match the user's response to the correct 'enum' values where applicable.
-    - If the user provides a reason that matches 'Something else 😞', capture their specific reason in the corresponding '_other' field (e.g., 'reason_for_not_attending_other').
-    - Do not guess or infer information not present in the user's latest message.
+Your task is to analyze the user's response *in light of the previous survey question/message and its expected responses* and determine which of the expected responses it maps to in meaning and intent.
+- If the user response to the previous survey question/message maps to one of the expected responses stated in the previous survey question/message, the value you return in "validated_response" must be the exact text of that matched expected response. The user's response need not be an exact string match of an expected response since they might be using slang, colloquiolisms, synonyms or shortened versions of the response, as long as it maps in meaning and intent, e.g.:
+  - Users might respond with "OK" or "Okay" when they mean "Yes" or "Continue"
+  - Users might respond with shortened versions of the expected responses, e.g. "Yes" instead of "Yes, I will"
+  - Users might respond with "something else" or "other" when they mean "Something else 😞"
+- If the user response does not map to an expected response in intent or meaning, or it is nonsense/gibberish, you must set the value of "validated_response" to "nonsense".
+
+JSON Response:
     """
 
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_system(prompt_template)],
-        required_variables=["user_context", "chat_history", "user_response"],
+        required_variables=["previous_service_message", "user_response"],
     )
+    json_validator = JsonSchemaValidator()
 
     pipeline.add_component("prompt_builder", prompt_builder)
     pipeline.add_component("llm", llm_generator)
+    pipeline.add_component("json_validator", json_validator)
 
     pipeline.connect("prompt_builder.prompt", "llm.messages")
+    pipeline.connect("llm.replies", "json_validator.messages")
 
-    logger.info("Created ANC Survey Data Extraction Pipeline with Tools.")
+    logger.info(
+        "Created dynamic ANC Survey Data Extraction Pipeline with JSON Schema validation."
+    )
     return pipeline
 
 
@@ -876,26 +813,26 @@ def create_intent_detection_pipeline() -> Pipeline | None:
     pipeline = Pipeline()
 
     prompt_template = """
-    You are an intent classifier for a maternal health chatbot. Your task is to analyze the user's latest message and classify it into ONE of the following categories based on its intent.
+You are an intent classifier for a maternal health chatbot. Your task is to analyze the user's latest message and classify it into ONE of the following categories based on its intent.
 
-    Last question the user was asked:
-    "{{ last_question }}"
+Last question the user was asked:
+"{{ last_question }}"
 
-    User's response:
-    "{{ user_response }}"
+User's response:
+"{{ user_response }}"
 
-    Please classify the user's message into one of these intents:
-    - 'JOURNEY_RESPONSE': The user is directly answering, or attempting to answer, or skipping the question asked.
-    - 'QUESTION_ABOUT_STUDY': The user is asking a question about the research study itself (e.g., "who are you?", "why are you asking this?").
-    - 'HEALTH_QUESTION': The user is asking a new question related to health, pregnancy, or their wellbeing, instead of answering the question.
-    - 'ASKING_TO_STOP_MESSAGES': The user expresses a desire to stop receiving messages.
-    - 'ASKING_TO_DELETE_DATA': The user wants to leave the study and have their data deleted.
-    - 'REPORTING_AIRTIME_NOT_RECEIVED': The user is reporting that they have not received their airtime incentive.
-    - 'CHITCHAT': The user is making a conversational comment that is not a direct answer, a question, or a request.
+Please classify the user's message, in light of the last question sent to the user, into one of these intents:
+- 'JOURNEY_RESPONSE': The user is directly answering, attempting to answer, or skipping the question asked.
+- 'QUESTION_ABOUT_STUDY': The user is asking a question about the research study itself (e.g., "who are you?", "why are you asking this?").
+- 'HEALTH_QUESTION': The user is asking a new question related to health, pregnancy, or their wellbeing, instead of answering the question.
+- 'ASKING_TO_STOP_MESSAGES': The user expresses a desire to stop receiving messages.
+- 'ASKING_TO_DELETE_DATA': The user wants to leave the study and have their data deleted.
+- 'REPORTING_AIRTIME_NOT_RECEIVED': The user is reporting that they have not received their airtime incentive.
+- 'CHITCHAT': The user is making a conversational comment that is not a direct answer, a question, or a request.
 
-    You MUST respond with a valid JSON object containing exactly one key: "intent".
+You MUST respond with a valid JSON object containing exactly one key: "intent".
 
-    JSON Response:
+JSON Response:
     """
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_system(prompt_template)],
@@ -911,7 +848,7 @@ def create_intent_detection_pipeline() -> Pipeline | None:
     pipeline.connect("prompt_builder.prompt", "llm.messages")
     pipeline.connect("llm.replies", "json_validator.messages")
 
-    logger.info("Created Intent Detection Pipeline.")
+    logger.info("Created Intent Detection Pipeline with JSON Schema validation.")
     return pipeline
 
 
@@ -929,17 +866,17 @@ def create_faq_answering_pipeline() -> Pipeline | None:
     pipeline = Pipeline()
 
     prompt_template = """
-    You are a helpful assistant for a maternal health chatbot. Answer the user's question based ONLY on the provided context information.
-    If the context does not contain the answer, say that you do not have that information.
+You are a helpful assistant for a maternal health chatbot. Answer the user's question based ONLY on the provided context information.
+If the context does not contain the answer, say that you do not have that information.
 
-    Context:
-    {% for doc in documents %}
-    - {{ doc.content }}
-    {% endfor %}
+Context:
+{% for doc in documents %}
+- {{ doc.content }}
+{% endfor %}
 
-    User's Question: {{ user_question }}
+User's Question: {{ user_question }}
 
-    Answer:
+Answer:
     """
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_system(prompt_template)],
@@ -989,11 +926,9 @@ def run_next_onboarding_question_pipeline(
             }
         )
 
-        # Get validated JSON from the validator
         validated_responses = result.get("json_validator", {}).get("validated", [])
 
         if validated_responses:
-            # Get the first (and should be only) validated response
             chosen_data = json.loads(validated_responses[0].text)
             chosen_question_number = chosen_data.get("chosen_question_number")
             contextualized_question = chosen_data.get("contextualized_question")
@@ -1133,7 +1068,6 @@ def run_assessment_contextualization_pipeline(
             include_outputs_from=["retriever"],
         )
 
-        # Get the original document to access the valid_responses
         retrieved_docs = result.get("retriever", {}).get("documents", [])
         if not retrieved_docs:
             logger.error(
@@ -1142,17 +1076,15 @@ def run_assessment_contextualization_pipeline(
             return None
 
         valid_responses = retrieved_docs[0].meta.get("valid_responses", [])
-        print(f"Valid responses for question {question_number}: {valid_responses}")
 
-        # Get validated JSON from the validator
         validated_json_list = result.get("json_validator", {}).get("validated", [])
         if validated_json_list:
-            # Get the contextualized question from the first valid JSON object
             question_data = json.loads(validated_json_list[0].text)
             contextualized_question_text = question_data.get("contextualized_question")
 
             final_question = f"{contextualized_question_text}\n\n" + "\n".join(
-                valid_responses
+                ["Please reply with one of the following:"]
+                + [f"- '{vr}'" for vr in valid_responses]
             )
             return final_question.strip()
 
@@ -1180,31 +1112,53 @@ def run_assessment_response_validator_pipeline(
         The validated response string, or None if the response is invalid/nonsense.
     """
     try:
+        valid_responses_schema = {
+            "type": "object",
+            "properties": {
+                "validated_response": {
+                    "type": "string",
+                    "description": "The validated response from the user.",
+                    "enum": valid_responses + ["nonsense"],
+                }
+            },
+            "required": ["validated_response"],
+        }
+
         result = pipeline.run(
             {
                 "prompt_builder": {
                     "user_response": user_response,
                     "valid_responses": valid_responses,
-                }
+                },
+                "json_validator": {"json_schema": valid_responses_schema},
             }
         )
 
-        llm_response = result.get("llm", {})
-        if llm_response and llm_response.get("replies"):
-            validated_text = llm_response["replies"][0].text.strip().strip('"')
-            if validated_text.lower() == "nonsense":
-                return None
-            if validated_text in valid_responses:
-                return validated_text
+        if (
+            result
+            and "json_validator" in result
+            and result["json_validator"].get("validated")
+        ):
+            validated_message: ChatMessage = result["json_validator"]["validated"][0]
+            validated_json = json.loads(validated_message.text)
+            validated_response = validated_json.get("validated_response")
+
+            if validated_response != "nonsense":
+                return validated_response
             else:
                 logger.warning(
-                    f"LLM returned a response ('{validated_text}') not in the valid list. Treating as invalid."
+                    f"User response '{user_response}' was validated as 'nonsense'."
                 )
                 return None
         else:
-            logger.warning("No replies found in LLM response for validation")
+            logger.warning(
+                f"Assessment response validation failed. LLM output did not match schema for user response: '{user_response}'"
+            )
             return None
 
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to decode JSON from LLM response: {e}")
+        return None
     except Exception as e:
         logger.error(f"Error running assessment response validation pipeline: {e}")
         return None
@@ -1229,62 +1183,42 @@ def run_assessment_end_response_validator_pipeline(
         The validated response string, or None if the response is invalid/nonsense.
     """
     try:
+        valid_responses_schema = {
+            "type": "object",
+            "properties": {
+                "validated_response": {
+                    "type": "string",
+                    "description": "The validated response from the user.",
+                    "enum": valid_responses + ["nonsense"],
+                }
+            },
+            "required": ["validated_response"],
+        }
         result = pipeline.run(
             {
                 "prompt_builder": {
                     "user_response": user_response,
                     "valid_responses": valid_responses,
                     "previous_message": previous_message,
-                }
+                },
+                "json_validator": {"json_schema": valid_responses_schema},
             }
         )
 
-        llm_response = result.get("llm", {})
-        if llm_response and llm_response.get("replies"):
-            validated_text = llm_response["replies"][0].text.strip().strip('"')
-            if validated_text.lower() == "nonsense":
-                return None
-            if validated_text in valid_responses:
-                return validated_text
-            else:
-                logger.warning(
-                    f"LLM returned a response ('{validated_text}') not in the valid list. Treating as invalid."
-                )
-                return None
+        if (
+            result
+            and "json_validator" in result
+            and result["json_validator"]["validated"]
+        ):
+            validated_json = result["json_validator"]["validated"][0].meta["parsed"]
+            if validated_json["validated_response"] != "nonsense":
+                return validated_json["validated_response"]
         else:
-            logger.warning("No replies found in LLM response for validation")
-            return None
+            logger.warning("Assessment end response validation failed.")
+        return None
 
     except Exception as e:
         logger.error(f"Error running assessment end response validation pipeline: {e}")
-        return None
-
-
-def run_clinic_visit_navigator_pipeline(
-    pipeline: Pipeline, user_context: dict[str, Any]
-) -> dict | None:
-    """
-    Runs the clinic visit navigator pipeline to determine the next survey step.
-    Returns the step identifier, not the full question.
-    """
-    try:
-        result = pipeline.run(
-            {
-                "prompt_builder": {
-                    "user_context": user_context,
-                }
-            }
-        )
-        validated_responses = result.get("json_validator", {}).get("validated", [])
-        if validated_responses:
-            next_step_data = json.loads(validated_responses[0].text)
-            logger.info(f"LLM chose next survey step: {next_step_data}")
-            return next_step_data
-        else:
-            logger.warning("Navigator pipeline failed to produce valid JSON response.")
-            return None
-    except Exception as e:
-        logger.error(f"Error running clinic visit navigator pipeline: {e}")
         return None
 
 
@@ -1326,54 +1260,71 @@ def run_anc_survey_contextualization_pipeline(
 def run_clinic_visit_data_extraction_pipeline(
     pipeline: Pipeline,
     user_response: str,
-    user_context: dict[str, Any],
-    chat_history: list[str],
-) -> dict[str, Any]:
+    previous_service_message: str,
+    valid_responses: list[str],
+) -> str | None:
     """
     Run the ANC survey data extraction pipeline and return extracted data.
 
     Args:
         pipeline: The configured pipeline
         user_response: User's latest message
-        user_context: Previously collected user data
-        chat_history: List of chat history messages
+        previous_service_message: Previous message sent to the user, to which they are responding.
+        valid_responses: A list of valid responses associated with the previous_service_message.
 
     Returns:
-        Dictionary containing extracted data points
+        String containing extracted data point
     """
     try:
+        valid_responses_schema = {
+            "type": "object",
+            "properties": {
+                "validated_response": {
+                    "type": "string",
+                    "description": "The validated response from the user.",
+                    "enum": valid_responses + ["nonsense"],
+                }
+            },
+            "required": ["validated_response"],
+        }
         result = pipeline.run(
             {
                 "prompt_builder": {
                     "user_response": user_response,
-                    "user_context": user_context,
-                    "chat_history": chat_history,
-                }
+                    "previous_service_message": previous_service_message,
+                },
+                "json_validator": {"json_schema": valid_responses_schema},
             }
         )
 
-        llm_response = result.get("llm", {})
-        replies = llm_response.get("replies", [])
-        if replies:
-            first_reply = replies[0]
-            tool_calls = getattr(first_reply, "tool_calls", []) or []
+        if (
+            result
+            and "json_validator" in result
+            and result["json_validator"].get("validated")
+        ):
+            validated_message: ChatMessage = result["json_validator"]["validated"][0]
+            validated_json = json.loads(validated_message.text)
+            validated_response = validated_json.get("validated_response")
 
-            if tool_calls:
-                arguments = getattr(tool_calls[0], "arguments", {})
-                if isinstance(arguments, dict):
-                    logger.info(f"Extracted ANC data: {arguments}")
-                    return arguments
+            if validated_response != "nonsense":
+                return validated_response
             else:
-                logger.warning("No tool calls found in LLM response for ANC survey")
-                return {}
+                logger.warning(
+                    f"User response '{user_response}' was validated as 'nonsense'."
+                )
+                return None
         else:
-            logger.warning("No replies found in LLM response for ANC survey")
-            return {}
+            logger.warning(
+                f"Clinic visit data extraction failed. LLM output did not match schema for user response: '{user_response}'"
+            )
+            return None
 
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to decode JSON from LLM response: {e}")
+        return None
     except Exception as e:
-        logger.error(f"Error running ANC survey extraction pipeline: {e}")
-        return {}
-    return {}
+        logger.error(f"Error running clinic visit data extraction pipeline: {e}")
+        return None
 
 
 def run_intent_detection_pipeline(

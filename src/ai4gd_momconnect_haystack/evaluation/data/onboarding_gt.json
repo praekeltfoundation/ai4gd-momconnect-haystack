@@ -22,21 +22,21 @@
         {
           "question_name": "relationship_status",
           "question_number": 3,
-          "llm_utterance": "What’s your current relationship status? 👤",
+          "llm_utterance": "What's your current relationship status? 👤",
           "user_utterance": "I am single.",
           "user_response": "Single"
         },
         {
           "question_name": "education_level",
           "question_number": 4,
-          "llm_utterance": "What’s your highest level of education? 📚",
+          "llm_utterance": "What's your highest level of education? 📚",
           "user_utterance": "I only finished Grade 9 at school.",
           "user_response": "Some high school"
         },
         {
           "question_name": "hunger_days",
           "question_number": 5,
-          "llm_utterance": "In the last week, how many days did you miss a meal because there wasn’t money for food? 🍞",
+          "llm_utterance": "In the last week, how many days did you miss a meal because there wasn't money for food? 🍞",
           "user_utterance": "I sometimes go without food, maybe 3-4 days.",
           "user_response": "3-4 days"
         },
@@ -50,7 +50,7 @@
         {
           "question_name": "phone_ownership",
           "question_number": 7,
-          "llm_utterance": "Do you own the phone you’re using right now? 📱",
+          "llm_utterance": "Do you own the phone you're using right now? 📱",
           "user_utterance": "No, I don't own this phone.",
           "user_response": "No"
         }

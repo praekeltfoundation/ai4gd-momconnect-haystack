@@ -42,7 +42,7 @@
         },
         {
             "question_name": "Q_visit_bad",
-            "llm_utterance": "We know how busy clinics can get! This can lead to some challenges. \n\nIf you found things difficult, tell us what made you the most uncomfortable or caused you *the biggest problem*:\n\n• No problems - all fine👌\n\n• I didn’t have my maternity record 📝\n\n• I was shamed or embarrassed 😳\n\n• I was not given privacy to discuss my worries or challenges\n\n• I was not given enough information about tests, supplements or my pregnancy ℹ️\n\n• The staff were disrespectful 🤬\n\n• They asked me to pay 💰\n\n• I had to wait a long time ⌛",
+            "llm_utterance": "We know how busy clinics can get! This can lead to some challenges. \n\nIf you found things difficult, tell us what made you the most uncomfortable or caused you *the biggest problem*:\n\n• No problems - all fine👌\n\n• I didn't have my maternity record 📝\n\n• I was shamed or embarrassed 😳\n\n• I was not given privacy to discuss my worries or challenges\n\n• I was not given enough information about tests, supplements or my pregnancy ℹ️\n\n• The staff were disrespectful 🤬\n\n• They asked me to pay 💰\n\n• I had to wait a long time ⌛",
             "user_utterance": "had to wait long time",
             "user_response": "Waited a long time ⌛"
         },
