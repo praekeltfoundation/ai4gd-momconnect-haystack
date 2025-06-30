@@ -1,0 +1,222 @@
+
+
+==================================================
+          DETAILED TURN-BY-TURN REPORT
+==================================================
+
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: province ---
+  Initial Intent: [❌] FAILED
+       Details: Expected: 'QUESTION_ABOUT_STUDY', Got: 'CHITCHAT'
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 0.00 ] Response Appropriateness
+       Reason: The score is 0.00 because the output failed to specify a province, which was essential to address the input question. The statements about the farm's location in the northwest were too vague and did not contribute to identifying a specific province, leading to complete irrelevance in the context of the input.
+
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: area_type ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 0.00 ] Question Consistency
+       Reason: The score is 0.00 because the output did not provide any relevant information about the type of area the person lives in. Instead, it included questions and explanations that did not address the input query.
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: relationship_status ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: education_level ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [❌] FAILED
+       Details: Expected: 'some high school', Got: 'finished high school'
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: hunger_days ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: num_children ---
+  Initial Intent: [❌] FAILED
+       Details: Expected: 'REPORTING_AIRTIME_NOT_RECEIVED', Got: 'CHITCHAT'
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 0.67 ] Question Consistency
+       Reason: The score is 0.67 because the response partially addresses the question by focusing on counting children, but includes an irrelevant statement about tailoring support, which does not directly relate to the query.
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: phone_ownership ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+
+============================================================
+           INTENT CLASSIFICATION SUMMARY REPORT
+============================================================
+
+--- Classification Report ---
+                                precision    recall  f1-score   support
+
+         ASKING_TO_DELETE_DATA       1.00      1.00      1.00         1
+       ASKING_TO_STOP_MESSAGES       1.00      1.00      1.00         1
+                      CHITCHAT       0.33      1.00      0.50         1
+               HEALTH_QUESTION       1.00      1.00      1.00         2
+              JOURNEY_RESPONSE       1.00      1.00      1.00         7
+          QUESTION_ABOUT_STUDY       0.00      0.00      0.00         1
+REPORTING_AIRTIME_NOT_RECEIVED       0.00      0.00      0.00         1
+
+                      accuracy                           0.86        14
+                     macro avg       0.62      0.71      0.64        14
+                  weighted avg       0.81      0.86      0.82        14
+
+
+--- Confusion Matrix ---
+shape: (7, 8)
+┌─────────────────────────────────┬─────────────────────────────┬───────────────────────────────┬────────────────┬───────────────────────┬────────────────────────┬────────────────────────────┬─────────────────────────────────┐
+│ Actual                          ┆ Pred: ASKING_TO_DELETE_DATA ┆ Pred: ASKING_TO_STOP_MESSAGES ┆ Pred: CHITCHAT ┆ Pred: HEALTH_QUESTION ┆ Pred: JOURNEY_RESPONSE ┆ Pred: QUESTION_ABOUT_STUDY ┆ Pred: REPORTING_AIRTIME_NOT_RE… │
+│ ---                             ┆ ---                         ┆ ---                           ┆ ---            ┆ ---                   ┆ ---                    ┆ ---                        ┆ ---                             │
+│ str                             ┆ i64                         ┆ i64                           ┆ i64            ┆ i64                   ┆ i64                    ┆ i64                        ┆ i64                             │
+╞═════════════════════════════════╪═════════════════════════════╪═══════════════════════════════╪════════════════╪═══════════════════════╪════════════════════════╪════════════════════════════╪═════════════════════════════════╡
+│ Actual: ASKING_TO_DELETE_DATA   ┆ 1                           ┆ 0                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: ASKING_TO_STOP_MESSAGE… ┆ 0                           ┆ 1                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: CHITCHAT                ┆ 0                           ┆ 0                             ┆ 1              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: HEALTH_QUESTION         ┆ 0                           ┆ 0                             ┆ 0              ┆ 2                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: JOURNEY_RESPONSE        ┆ 0                           ┆ 0                             ┆ 0              ┆ 0                     ┆ 7                      ┆ 0                          ┆ 0                               │
+│ Actual: QUESTION_ABOUT_STUDY    ┆ 0                           ┆ 0                             ┆ 1              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: REPORTING_AIRTIME_NOT_… ┆ 0                           ┆ 0                             ┆ 1              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
+└─────────────────────────────────┴─────────────────────────────┴───────────────────────────────┴────────────────┴───────────────────────┴────────────────────────┴────────────────────────────┴─────────────────────────────────┘
+============================================================
+
+
+==================================================
+            PERFORMANCE SUMMARY REPORT
+==================================================
+
+📊 Onboarding Performance (7 turns):
+  - Intent Accuracy: 85.71%
+  - Extraction Accuracy: 85.71%
+  - Avg. Question Consistency: 0.81
+  - Avg. Response Appropriateness: 0.86
+
+==================================================
+
+
+==================================================
+          DETAILED TURN-BY-TURN REPORT
+==================================================
+
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: province ---
+  Initial Intent: [❌] FAILED
+       Details: Expected: 'QUESTION_ABOUT_STUDY', Got: 'CHITCHAT'
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 0.00 ] Response Appropriateness
+       Reason: The score is 0.00 because the output failed to specify a province, which was essential to address the input question. The statements about the farm's location in the northwest were too vague and did not contribute to identifying a specific province, leading to complete irrelevance in the context of the input.
+
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: area_type ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 0.00 ] Question Consistency
+       Reason: The score is 0.00 because the output did not provide any relevant information about the type of area the person lives in. Instead, it included questions and explanations that did not address the input query.
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: relationship_status ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: education_level ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [❌] FAILED
+       Details: Expected: 'some high school', Got: 'finished high school'
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: hunger_days ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: num_children ---
+  Initial Intent: [❌] FAILED
+       Details: Expected: 'REPORTING_AIRTIME_NOT_RECEIVED', Got: 'CHITCHAT'
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 0.67 ] Question Consistency
+       Reason: The score is 0.67 because the response partially addresses the question by focusing on counting children, but includes an irrelevant statement about tailoring support, which does not directly relate to the query.
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: phone_ownership ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+
+============================================================
+           INTENT CLASSIFICATION SUMMARY REPORT
+============================================================
+
+--- Classification Report ---
+                                precision    recall  f1-score   support
+
+         ASKING_TO_DELETE_DATA       1.00      1.00      1.00         1
+       ASKING_TO_STOP_MESSAGES       1.00      1.00      1.00         1
+                      CHITCHAT       0.33      1.00      0.50         1
+               HEALTH_QUESTION       1.00      1.00      1.00         2
+              JOURNEY_RESPONSE       1.00      1.00      1.00         7
+          QUESTION_ABOUT_STUDY       0.00      0.00      0.00         1
+REPORTING_AIRTIME_NOT_RECEIVED       0.00      0.00      0.00         1
+
+                      accuracy                           0.86        14
+                     macro avg       0.62      0.71      0.64        14
+                  weighted avg       0.81      0.86      0.82        14
+
+
+--- Confusion Matrix ---
+shape: (7, 8)
+┌─────────────────────────────────┬─────────────────────────────┬───────────────────────────────┬────────────────┬───────────────────────┬────────────────────────┬────────────────────────────┬─────────────────────────────────┐
+│ Actual                          ┆ Pred: ASKING_TO_DELETE_DATA ┆ Pred: ASKING_TO_STOP_MESSAGES ┆ Pred: CHITCHAT ┆ Pred: HEALTH_QUESTION ┆ Pred: JOURNEY_RESPONSE ┆ Pred: QUESTION_ABOUT_STUDY ┆ Pred: REPORTING_AIRTIME_NOT_RE… │
+│ ---                             ┆ ---                         ┆ ---                           ┆ ---            ┆ ---                   ┆ ---                    ┆ ---                        ┆ ---                             │
+│ str                             ┆ i64                         ┆ i64                           ┆ i64            ┆ i64                   ┆ i64                    ┆ i64                        ┆ i64                             │
+╞═════════════════════════════════╪═════════════════════════════╪═══════════════════════════════╪════════════════╪═══════════════════════╪════════════════════════╪════════════════════════════╪═════════════════════════════════╡
+│ Actual: ASKING_TO_DELETE_DATA   ┆ 1                           ┆ 0                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: ASKING_TO_STOP_MESSAGE… ┆ 0                           ┆ 1                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: CHITCHAT                ┆ 0                           ┆ 0                             ┆ 1              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: HEALTH_QUESTION         ┆ 0                           ┆ 0                             ┆ 0              ┆ 2                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: JOURNEY_RESPONSE        ┆ 0                           ┆ 0                             ┆ 0              ┆ 0                     ┆ 7                      ┆ 0                          ┆ 0                               │
+│ Actual: QUESTION_ABOUT_STUDY    ┆ 0                           ┆ 0                             ┆ 1              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: REPORTING_AIRTIME_NOT_… ┆ 0                           ┆ 0                             ┆ 1              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
+└─────────────────────────────────┴─────────────────────────────┴───────────────────────────────┴────────────────┴───────────────────────┴────────────────────────┴────────────────────────────┴─────────────────────────────────┘
+============================================================
+
+
+==================================================
+            PERFORMANCE SUMMARY REPORT
+==================================================
+
+📊 Onboarding Performance (7 turns):
+  - Intent Accuracy: 85.71%
+  - Extraction Accuracy: 85.71%
+  - Avg. Question Consistency: 0.81
+  - Avg. Response Appropriateness: 0.86
+
+==================================================

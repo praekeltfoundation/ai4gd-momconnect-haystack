@@ -1,0 +1,67 @@
+[
+  {
+    "scenario_id": "dma-assessment_user_123_250616-0635",
+    "flow_type": "dma-pre-assessment",
+    "overall_score": 20,
+    "score_percentage": 100.0,
+    "assessment_min_score": 0,
+    "assessment_max_score": 20,
+    "turns": [
+      {
+        "question_name": null,
+        "question_number": 1,
+        "llm_utterance": "How much do you agree or disagree with this statement: I feel like I can make decisions about my health.\n\nI strongly disagree\nI disagree\nI'm not sure\nI agree\nI strongly agree\nSkip",
+        "user_utterance": "Is my information kept private?",
+        "follow_up_utterance": "I strongly agree",
+        "user_response": "I strongly agree",
+        "llm_initial_predicted_intent": "CHITCHAT",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 4
+      },
+      {
+        "question_name": null,
+        "question_number": 2,
+        "llm_utterance": "Can you comfortably discuss your health issues with a health worker?\n\nI strongly disagree\nI disagree\nI'm not sure\nI agree\nI strongly agree\nSkip",
+        "user_utterance": "Can I take Panado while I'm pregnant?",
+        "follow_up_utterance": "I strongly agree",
+        "user_response": "I strongly agree",
+        "llm_initial_predicted_intent": "HEALTH_QUESTION",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 4
+      },
+      {
+        "question_name": null,
+        "question_number": 3,
+        "llm_utterance": "Do you feel that you can disagree with a health worker about your treatment plan?\n\nI strongly disagree\nI disagree\nI'm not sure\nI agree\nI strongly agree\nSkip",
+        "user_utterance": "Unsubscribe",
+        "follow_up_utterance": "I strongly agree",
+        "user_response": "I strongly agree",
+        "llm_initial_predicted_intent": "ASKING_TO_STOP_MESSAGES",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 4
+      },
+      {
+        "question_name": null,
+        "question_number": 4,
+        "llm_utterance": "Almost done! *I feel that I can do things to improve my health.*\n\nI strongly disagree\nI disagree\nI'm not sure\nI agree\nI strongly agree\nSkip",
+        "user_utterance": "The airtime thing didn't work for me.",
+        "follow_up_utterance": "I strongly agree",
+        "user_response": "I strongly agree",
+        "llm_initial_predicted_intent": "REPORTING_AIRTIME_NOT_RECEIVED",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 4
+      },
+      {
+        "question_name": null,
+        "question_number": 5,
+        "llm_utterance": "Do you feel that you can find information about your health from other places, not just a health worker?\n\nI strongly disagree\nI disagree\nI'm not sure\nI agree\nI strongly agree\nSkip",
+        "user_utterance": "Thank you so much",
+        "follow_up_utterance": "I strongly agree",
+        "user_response": "I strongly agree",
+        "llm_initial_predicted_intent": "CHITCHAT",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 4
+      }
+    ]
+  }
+]

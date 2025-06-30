@@ -1,0 +1,175 @@
+[
+  {
+    "scenario_id": "knowledge-pre-assessment_user_123_250616-0635",
+    "flow_type": "knowledge-pre-assessment",
+    "overall_score": 1,
+    "score_percentage": 16.67,
+    "assessment_min_score": 0,
+    "assessment_max_score": 6,
+    "turns": [
+      {
+        "question_name": null,
+        "question_number": 1,
+        "llm_utterance": "When should a pregnant woman get her first pregnancy check-up?\n\nBefore 14 weeks\nAt about 16 weeks\nAt about 20 weeks\nAt about 24 weeks\nAt birth\nI don't know\nSkip",
+        "user_utterance": "STOP",
+        "follow_up_utterance": "Before 14 weeks",
+        "user_response": "Before 14 weeks",
+        "llm_initial_predicted_intent": "ASKING_TO_STOP_MESSAGES",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 0
+      },
+      {
+        "question_name": null,
+        "question_number": 2,
+        "llm_utterance": "During a pregnancy, which of these symptoms means you need to go to the hospital immediately?\n\nContractions stop\nTight painful tummy\nLower back ache\nI don't know\nSkip",
+        "user_utterance": "Please don't send me any more messages.",
+        "follow_up_utterance": "I don't know",
+        "user_response": "I don't know",
+        "llm_initial_predicted_intent": "ASKING_TO_STOP_MESSAGES",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 0
+      },
+      {
+        "question_name": null,
+        "question_number": 3,
+        "llm_utterance": "How many pregnancy check-ups should you typically attend during your pregnancy?\n\n1 to 4 check-ups\n5 to 7 check-ups\n8 or more check-ups\n0 - None\nI don't know\nSkip",
+        "user_utterance": "Please opt me out.",
+        "follow_up_utterance": "I don't know",
+        "user_response": "I don't know",
+        "llm_initial_predicted_intent": "ASKING_TO_STOP_MESSAGES",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 0
+      },
+      {
+        "question_name": null,
+        "question_number": 4,
+        "llm_utterance": "Is it recommended to breastfeed a baby within the first hour of birth?\n\nYes\nNo\nI don't know\nSkip",
+        "user_utterance": "Please delete all my information.",
+        "follow_up_utterance": "yes",
+        "user_response": "Yes",
+        "llm_initial_predicted_intent": "ASKING_TO_DELETE_DATA",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 1
+      },
+      {
+        "question_name": null,
+        "question_number": 5,
+        "llm_utterance": "Who does the vaccine protect, you or your baby?\n\nYou\nYour baby only\nYou and baby\nI don't know\nSkip",
+        "user_utterance": "I want you to remove my data from your system.",
+        "follow_up_utterance": "I don't know",
+        "user_response": "I don't know",
+        "llm_initial_predicted_intent": "ASKING_TO_DELETE_DATA",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 0
+      },
+      {
+        "question_name": null,
+        "question_number": 6,
+        "llm_utterance": "Are iron and folic acid supplements recommended for pregnant women like you and your unborn baby? \ud83e\udd30\ud83c\udffd\n\nYes\nNo\nI don't know\nSkip",
+        "user_utterance": "I haven't received my airtime yet.",
+        "follow_up_utterance": "No",
+        "user_response": "No",
+        "llm_initial_predicted_intent": "REPORTING_AIRTIME_NOT_RECEIVED",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 0
+      }
+    ]
+  },
+  {
+    "scenario_id": "attitude-pre-assessment_user_123_250616-0635",
+    "flow_type": "attitude-pre-assessment",
+    "overall_score": 13,
+    "score_percentage": 86.67,
+    "assessment_min_score": 0,
+    "assessment_max_score": 15,
+    "turns": [
+      {
+        "question_name": null,
+        "question_number": 1,
+        "llm_utterance": "Do you agree with this statement?\nPregnancy check-ups are a good way to monitor your health and the health of your unborn baby.\n\nI strongly agree\nI agree\nI'm not sure\nI disagree\nI strongly disagree\nSkip",
+        "user_utterance": "Hello",
+        "follow_up_utterance": "I strongly agree",
+        "user_response": "I strongly agree",
+        "llm_initial_predicted_intent": "CHITCHAT",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 5
+      },
+      {
+        "question_name": null,
+        "question_number": 2,
+        "llm_utterance": "Is home birth safer than giving birth in a hospital?\n\nI strongly agree\nI agree\nI'm not sure\nI disagree\nI strongly disagree\nSkip",
+        "user_utterance": "asdfghjkl",
+        "follow_up_utterance": "I disagree",
+        "user_response": "I disagree",
+        "llm_initial_predicted_intent": "CHITCHAT",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 4
+      },
+      {
+        "question_name": null,
+        "question_number": 3,
+        "llm_utterance": "Is it important for a pregnant woman to get an HIV test during pregnancy?\n\nI strongly agree\nI agree\nI'm not sure\nI disagree\nI strongly disagree\nSkip",
+        "user_utterance": "This is very helpful, thanks!",
+        "follow_up_utterance": "I agree",
+        "user_response": "I agree",
+        "llm_initial_predicted_intent": "CHITCHAT",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 4
+      }
+    ]
+  },
+  {
+    "scenario_id": "behaviour-pre-assessment_user_123_250616-0635",
+    "flow_type": "behaviour-pre-assessment",
+    "overall_score": 6,
+    "score_percentage": 85.71,
+    "assessment_min_score": 0,
+    "assessment_max_score": 7,
+    "turns": [
+      {
+        "question_name": null,
+        "question_number": 1,
+        "llm_utterance": "How many times have you gone to the clinic for a pregnancy check-up during this pregnancy?\n\n0 - None\n1\n2\n3\n4\n5\n6\n7\nMore than 7\nSkip",
+        "user_utterance": "Who is behind this study?",
+        "follow_up_utterance": "3",
+        "user_response": "3",
+        "llm_initial_predicted_intent": "QUESTION_ABOUT_STUDY",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 3
+      },
+      {
+        "question_name": null,
+        "question_number": 2,
+        "llm_utterance": "In this pregnancy, have you made any changes to your diet based on information from a health worker?\n\nYes\nNo\nSkip",
+        "user_utterance": "What happens to my answers?",
+        "follow_up_utterance": "No",
+        "user_response": "No",
+        "llm_initial_predicted_intent": "CHITCHAT",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 2
+      },
+      {
+        "question_name": null,
+        "question_number": 3,
+        "llm_utterance": "How many doses of the tetanus vaccine (Tdap) have you received so far in this pregnancy?\n\n0\n1\nSkip",
+        "user_utterance": "Is it normal to have cramps at 20 weeks pregnant?",
+        "follow_up_utterance": "1",
+        "user_response": "1",
+        "llm_initial_predicted_intent": "HEALTH_QUESTION",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 1
+      },
+      {
+        "question_name": null,
+        "question_number": 4,
+        "llm_utterance": "During your pregnancy, did you consume any alcohol or smoke at all?\n\nYes\nNo\nSkip",
+        "user_utterance": "I'm feeling very sad and tired all the time after having my baby.",
+        "follow_up_utterance": "Yes",
+        "user_response": "Yes",
+        "llm_initial_predicted_intent": "HEALTH_QUESTION",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 0
+      }
+    ]
+  }
+]

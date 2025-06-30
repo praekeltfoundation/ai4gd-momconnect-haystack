@@ -1,0 +1,18 @@
+[
+  {
+    "scenario_id": "anc-survey_user_123_250616-0635",
+    "flow_type": "anc-survey",
+    "turns": [
+      {
+        "question_name": "Q_seen",
+        "question_number": null,
+        "llm_utterance": "Did the health worker get a chance to see you during your last check-up?\n\nYes\nNo",
+        "user_utterance": "What is this AI thing you are using?",
+        "follow_up_utterance": "Ya",
+        "user_response": "No, I'm not going",
+        "llm_initial_predicted_intent": "QUESTION_ABOUT_STUDY",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      }
+    ]
+  }
+]

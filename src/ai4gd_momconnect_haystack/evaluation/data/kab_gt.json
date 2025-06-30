@@ -8,37 +8,55 @@
         {
           "question_name": "intro_message",
           "llm_utterance": "Hi mom!\n\nHope you’re doing well! 🌸\n\nHaving accurate information about your pregnancy is so important for your and baby’s health.\n\nDo you have a minute for a quick check-in to see if you have all the facts?",
-          "user_utterance": "Get started",
+          "user_utterance": "Why are you asking me this?",
+          "intent": "QUESTION_ABOUT_STUDY",
+          "follow_up_utterance": "Get started",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "Get started"
         },
         {
           "question_number": 1,
           "llm_utterance": "Excellent 👍🏽\n\nIf you want to skip a question, just type and send `skip`.\n\n*So far in this pregnancy, how many times have you gone to the clinic for a pregnancy check-up?*\n🩷",
-          "user_utterance": "3",
+          "user_utterance": "Who is behind this study?",
+          "intent": "QUESTION_ABOUT_STUDY",
+          "follow_up_utterance": "3",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "3"
         },
         {
           "question_number": 2,
           "llm_utterance": "*In this pregnancy, have you made any changes to your diet based on information from the health worker?*",
-          "user_utterance": "No",
+          "user_utterance": "What happens to my answers?",
+          "intent": "QUESTION_ABOUT_STUDY",
+          "follow_up_utterance": "No",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "No"
         },
         {
           "question_number": 3,
           "llm_utterance": "*So far in this pregnancy, how many doses of the tetanus vaccine (Tdap) have you received?*",
-          "user_utterance": "1",
+          "user_utterance": "Is it normal to have cramps at 20 weeks pregnant?",
+          "intent": "HEALTH_QUESTION",
+          "follow_up_utterance": "1",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "1"
         },
         {
           "question_number": 4,
           "llm_utterance": "*Since becoming pregnant, have you drunk any alcohol or smoked at all?*",
-          "user_utterance": "Yes",
+          "user_utterance": "I'm feeling very sad and tired all the time after having my baby.",
+          "intent": "HEALTH_QUESTION",
+          "follow_up_utterance": "Yes",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "Yes"
         },
         {
           "question_name": "thank_you_message",
           "llm_utterance": "*Pregnancy Health Check*\n\n🩷⚪⚪\n\nThank you for sharing! You’re making healthy decisions for you and your unborn child 💪🏽\n\nRemember:\n\n• A healthy pregnancy needs healthy foods. Follow the health worker’s advice 🥬🥚🥛🍎\n\n• And stay away from alcohol and cigarettes while you are pregnant or breastfeeding. It can harm your baby 🚬🍷\n\nAre you ready to move on to a few more questions? 👇🏽 ",
-          "user_utterance": "Yes",
+          "user_utterance": "Can I breastfeed if I have a cold?",
+          "intent": "HEALTH_QUESTION",
+          "follow_up_utterance": "Yes",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "Yes"
         }
       ]
@@ -51,43 +69,64 @@
         {
           "question_number": 1,
           "llm_utterance": "Great!\n\nRemember, you can skip any question - just type and send `skip`.\n\n*When do you think a pregnant woman should get her first pregnancy check-up?* 🩵 ",
-          "user_utterance": "Before 14 weeks",
+          "user_utterance": "STOP",
+          "intent": "ASKING_TO_STOP_MESSAGES",
+          "follow_up_utterance": "Before 14 weeks",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "Before 14 weeks"
         },
         {
           "question_number": 2,
           "llm_utterance": "Thanks. What about this?\n\n*During a pregnancy, which of these means you need to go to the hospital immediately?* 🩵\n\n• You have contractions that stop when you move\n\n• Your tummy stays tight, hard and is very painful\n\n• Your lower back aches all day",
-          "user_utterance": "I don't know",
+          "user_utterance": "Please don't send me any more messages.",
+          "intent": "ASKING_TO_STOP_MESSAGES",
+          "follow_up_utterance": "I don't know",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "I don't know"
         },
         {
           "question_number": 3,
           "llm_utterance": "And what about this one …\n\n*How many pregnancy check-ups should you go to during your pregnancy?* 🩵",
-          "user_utterance": "I don't know",
+          "user_utterance": "Please opt me out.",
+          "intent": "ASKING_TO_STOP_MESSAGES",
+          "follow_up_utterance": "I don't know",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "I don't know"
         },
         {
           "question_number": 4,
           "llm_utterance": "The next question is …\n\n*Should a baby be breastfed within the first hour of birth?* 🩵 ",
-          "user_utterance": "yes",
+          "user_utterance": "Please delete all my information.",
+          "intent": "ASKING_TO_DELETE_DATA",
+          "follow_up_utterance": "yes",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "yes"
         },
         {
           "question_number": 5,
           "llm_utterance": "You should get the tetanus vaccine during your pregnancy.\n\n*Who does this vaccine protect?* 🩵",
-          "user_utterance": "I don't know",
+          "user_utterance": "I want you to remove my data from your system.",
+          "intent": "ASKING_TO_DELETE_DATA",
+          "follow_up_utterance": "I don't know",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "I don't know"
         },
         {
           "question_number": 6,
           "llm_utterance": "Next one\n\n*Are iron and folic acid supplements good for you and your unborn baby?* 🩵 ",
-          "user_utterance": "No",
+          "user_utterance": "I haven't received my airtime yet.",
+          "intent": "REPORTING_AIRTIME_NOT_RECEIVED",
+          "follow_up_utterance": "No",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "No"
         },
         {
           "question_name": "thank_you_message",
           "llm_utterance": "*Pregnancy Health Check*\n🩷🩵⚪\n\nThank you for taking the time to answer these! MomConnect can help you boost your knowledge about healthy pregnancy.\n\n• It’s best to go to the clinic as soon as you know you’re pregnant. This first pregnancy check-up should be before 14 weeks. You should have 8 or more check-ups in total 🏥\n\n• If your tummy stays tight, hard and is very painful you need to go to the clinic 🤰🏾\n\n• At your pregnancy check-ups, you should get the tetanus vaccine. This helps protect you and your baby after birth 💉 \n\n• Iron and folic acid supplements are important for you and your unborn baby 💪🏽\n\nYou ready for the last 3 pregnancy questions? 👇🏽 ",
-          "user_utterance": "Yes",
+          "user_utterance": "Where is the data you promised me?",
+          "intent": "REPORTING_AIRTIME_NOT_RECEIVED",
+          "follow_up_utterance": "Yes",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "Yes"
         }
       ]
@@ -100,19 +139,28 @@
         {
           "question_number": 1,
           "llm_utterance": "Fantastic!\n\nRemember, if you want to skip a question, just type and send `skip`.\n\nLet’s go! Do you agree with this statement?\n\n*Pregnancy check-ups are a good way to check that you and your unborn baby are healthy.*\n💜 \n\n• I strongly agree\n• I agree/Neutral\n• I disagree\n• I strongly disagree",
-          "user_utterance": "I strongly agree",
+          "user_utterance": "Hello",
+          "intent": "CHITCHAT",
+          "follow_up_utterance": "I strongly agree",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "I strongly agree"
         },
         {
           "question_number": 2,
           "llm_utterance": "What about this one …\n\n*Home birth is safer than giving birth in a hospital.*\n\n• I strongly agree\n• I agree/Neutral\n• I disagree\n• I strongly disagree",
-          "user_utterance": "I disagree",
+          "user_utterance": "asdfghjkl",
+          "intent": "CHITCHAT",
+          "follow_up_utterance": "I disagree",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "I disagree"
         },
         {
           "question_number": 3,
           "llm_utterance": "And …\n\n*It’s important for a pregnant woman to get an HIV test when she is pregnant.*\n\n• I strongly agree\n• I agree/Neutral\n• I disagree\n• I strongly disagree",
-          "user_utterance": "I agree",
+          "user_utterance": "This is very helpful, thanks!",
+          "intent": "CHITCHAT",
+          "follow_up_utterance": "I agree",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "I agree"
         }
       ]

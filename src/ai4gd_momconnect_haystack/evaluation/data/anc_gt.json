@@ -7,79 +7,118 @@
         {
             "question_name": "start",
             "llm_utterance": "Hi mom 👋🏽\n\nDid you go to your *{{1}} pregnancy check-up* this week? 🏥",
-            "user_utterance": "Yes",
+            "user_utterance": "How do I know I can trust you?",
+            "intent": "QUESTION_ABOUT_STUDY",
+            "follow_up_utterance": "Yes",
+            "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "Yes, I went"
         },
         {
             "question_name": "Q_seen",
             "llm_utterance": "Did a health worker see you?",
-            "user_utterance": "Ya",
+            "user_utterance": "What is this AI thing you are using?",
+            "intent": "QUESTION_ABOUT_STUDY",
+            "follow_up_utterance": "Ya",
+            "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "Yes"
         },
         {
             "question_name": "seen_yes",
             "llm_utterance": "That's good to hear 🌟\n\nWe'd love to know how it went.  \n\nDo you have 2 minutes to tell us about it?",
-            "user_utterance": "Ok",
+            "user_utterance": "Suppose my friend wanted to join, how would she do that?",
+            "intent": "QUESTION_ABOUT_STUDY",
+            "follow_up_utterance": "Ok",
+            "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "Yes"
         },
         {
             "question_name": "Q_bp",
             "llm_utterance": "Did someone take your blood pressure at this check-up?",
-            "user_utterance": "I don't know",
+            "user_utterance": "My baby is not drinking milk properly.",
+            "intent": "HEALTH_QUESTION",
+            "follow_up_utterance": "I don't know",
+            "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "I don't know"
         },
         {
             "question_name": "Q_experience",
             "llm_utterance": "How was your overall experience at the check-up?",
-            "user_utterance": "Cool",
+            "user_utterance": "Help my child is sick",
+            "intent": "HEALTH_QUESTION",
+            "follow_up_utterance": "Cool",
+            "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "Good"
         },
         {
             "question_name": "good",
             "llm_utterance": "Thank you for telling us.\n\nThere are just 2 more questions. Your answers to these will help us understand how we can make services better for pregnant women in South Africa. Can we continue?",
-            "user_utterance": "Yes",
+            "user_utterance": "I'm worried about my blood pressure",
+            "intent": "HEALTH_QUESTION",
+            "follow_up_utterance": "Yes",
+            "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "Continue"
         },
         {
             "question_name": "Q_visit_bad",
             "llm_utterance": "We know how busy clinics can get! This can lead to some challenges. \n\nIf you found things difficult, tell us what made you the most uncomfortable or caused you *the biggest problem*:\n\n• No problems - all fine👌\n\n• I didn’t have my maternity record 📝\n\n• I was shamed or embarrassed 😳\n\n• I was not given privacy to discuss my worries or challenges\n\n• I was not given enough information about tests, supplements or my pregnancy ℹ️\n\n• The staff were disrespectful 🤬\n\n• They asked me to pay 💰\n\n• I had to wait a long time ⌛",
-            "user_utterance": "had to wait long time",
+            "user_utterance": "I don't want to be part of this anymore.",
+            "intent": "ASKING_TO_STOP_MESSAGES",
+            "follow_up_utterance": "had to wait long time",
+            "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "Waited a long time ⌛"
         },
         {
             "question_name": "Q_visit_other",
             "llm_utterance": "Can you tell us a bit more about what made you the most uncomfortable or caused you *the biggest problem* at the check-up?\n\nPlease type your reply",
-            "user_utterance": "I was hungry",
+            "user_utterance": "According to POPIA you must delete my data.",
+            "intent": "ASKING_TO_DELETE_DATA",
+            "follow_up_utterance": "I was hungry",
+            "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "I was hungry"
         },
         {
             "question_name": "Q_challenges",
             "llm_utterance": "Getting to these check-ups can sometimes be difficult. If you find it hard, what is your *biggest challenge*?  \n\n• No challenges - all fine👌\n\n• Transport is expensive or it's far to travel 🚌\n\n• I don't have support from my partner or family 🤝\n\n• It's hard to get there during clinic opening hours 🏥\n\n• Something else 😞",
-            "user_utterance": "It's hard to get there during clinic opening hours 🏥",
+            "user_utterance": "Wipe my details now!",
+            "intent": "ASKING_TO_DELETE_DATA",
+            "follow_up_utterance": "It's hard to get there during clinic opening hours 🏥",
+            "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "Clinic opening hours 🏥"
         },
         {
             "question_name": "Q_challenges_other",
             "llm_utterance": "Can you tell us a bit more about this? Please type a reply with some more information.",
-            "user_utterance": "I leave far from clinic and must wake up early",
+            "user_utterance": "Still no airtime that you said I would get yesterday.",
+            "intent": "REPORTING_AIRTIME_NOT_RECEIVED",
+            "follow_up_utterance": "I leave far from clinic and must wake up early",
+            "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "I leave far from clinic and must wake up early"
         },
         {
             "question_name": "intent",
             "llm_utterance": "Thank you for taking the time to answer our questions! 🌟 \n\nRemember, going to all your pregnancy check-ups is the best way to make sure that you and baby stay healthy 💪🏽 \n\nDuring pregnancy, your body changes a lot. The earlier a possible problem with you or baby is identified, the quicker it can be treated. \n\nDo you think you will go for your <n+1'th> check-up?",
-            "user_utterance": "Ja",
+            "user_utterance": "This is a scam I never got my airtime",
+            "intent": "REPORTING_AIRTIME_NOT_RECEIVED",
+            "follow_up_utterance": "Ja",
+            "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "Yes, I will"
         },
         {
             "question_name": "thanks",
             "llm_utterance": "Before you go, one more thing.\n\n*How easy was it to answer these questions?*",
-            "user_utterance": "OK",
+            "user_utterance": "😂🙏❤️",
+            "intent": "CHITCHAT",
+            "follow_up_utterance": "OK",
+            "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "OK"
         },
         {
             "question_name": "end_1",
             "llm_utterance": "Thanks for your feedback. We'll be back with some more questions in the next few weeks! 💕\n\nClick on this link to go to MomConnect: https://wa.me/27796312456",
-            "user_utterance": "Go to the main menu",
+            "user_utterance": "God bless",
+            "intent": "CHITCHAT",
+            "follow_up_utterance": "Go to the main menu",
+            "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "Go to the main menu"
         }
         ]
