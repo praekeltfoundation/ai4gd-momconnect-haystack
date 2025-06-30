@@ -332,3 +332,27 @@ async def save_assessment_end_message(
                 )
                 session.add(new_historic_record)
             await session.commit()
+
+
+async def truncate_chat_history():
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            await session.execute(delete(ChatHistory))
+
+
+async def truncate_assessment_history():
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            await session.execute(delete(AssessmentHistory))
+
+
+async def truncate_assessment_result_history():
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            await session.execute(delete(AssessmentResultHistory))
+
+
+async def truncate_assessment_end_messaging_history():
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            await session.execute(delete(AssessmentEndMessagingHistory))
