@@ -21,21 +21,21 @@
       {
         "question_name": "relationship_status",
         "question_number": 3,
-        "llm_utterance": "What’s your current relationship status? 👤",
+        "llm_utterance": "What's your current relationship status? 👤",
         "user_utterance": "I am single.",
         "user_response": "Single"
       },
       {
         "question_name": "education_level",
         "question_number": 4,
-        "llm_utterance": "What’s your highest level of education? 📚",
+        "llm_utterance": "What's your highest level of education? 📚",
         "user_utterance": "I only finished Grade 9 at school.",
         "user_response": "Some high school"
       },
       {
         "question_name": "hunger_days",
         "question_number": 5,
-        "llm_utterance": "In the last week, how many days did you miss a meal because there wasn’t money for food? 🍞",
+        "llm_utterance": "In the last week, how many days did you miss a meal because there wasn't money for food? 🍞",
         "user_utterance": "I sometimes go without food, maybe 3-4 days.",
         "user_response": "3-4 days"
       },
@@ -49,7 +49,7 @@
       {
         "question_name": "phone_ownership",
         "question_number": 7,
-        "llm_utterance": "Do you own the phone you’re using right now? 📱",
+        "llm_utterance": "Do you own the phone you're using right now? 📱",
         "user_utterance": "No, I don't own this phone.",
         "user_response": "No"
       }
@@ -63,35 +63,35 @@
       {
         "question_name": "confidence_health_decisions",
         "question_number": 1,
-        "llm_utterance": "Great! Your answers to these 5 quick questions can help us support you better.\n\nHow much do you agree or disagree with this statement?\n\n**I feel like I can make decisions about my health.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I’m not sure\n• I agree\n• I strongly agree\n• Skip",
+        "llm_utterance": "Great! Your answers to these 5 quick questions can help us support you better.\n\nHow much do you agree or disagree with this statement?\n\n**I feel like I can make decisions about my health.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I'm not sure\n• I agree\n• I strongly agree\n• Skip",
         "user_utterance": "I strongly agree",
         "user_response": "I strongly agree"
       },
       {
         "question_name": "confidence_discussing_problems",
         "question_number": 2,
-        "llm_utterance": "Thanks. How about this one?\n\n**I feel like I can talk about my health issues with a health worker.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I’m not sure\n• I agree\n• I strongly agree\n• Skip",
+        "llm_utterance": "Thanks. How about this one?\n\n**I feel like I can talk about my health issues with a health worker.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I'm not sure\n• I agree\n• I strongly agree\n• Skip",
         "user_utterance": "I strongly agree",
         "user_response": "I strongly agree" 
       },
       {
         "question_name": "confidence_questioning_provider",
         "question_number": 3,
-        "llm_utterance": "Here’s the next one 👇🏽\n\nHow much do you agree or disagree with this statement:\n\n**I feel that I can disagree with a health worker about my treatment plan.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I’m not sure\n• I agree\n• I strongly agree\n• Skip",
+        "llm_utterance": "Here's the next one 👇🏽\n\nHow much do you agree or disagree with this statement:\n\n**I feel that I can disagree with a health worker about my treatment plan.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I'm not sure\n• I agree\n• I strongly agree\n• Skip",
         "user_utterance": "I strongly agree",
         "user_response": "I strongly agree"
       },
       {
         "question_name": "confidence_improving_health",
         "question_number": 4,
-        "llm_utterance": "Almost done! How much do you agree or disagree with this one:\n\n**I feel that I can do things to improve my health.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I’m not sure\n• I agree\n• I strongly agree\n• Skip",
+        "llm_utterance": "Almost done! How much do you agree or disagree with this one:\n\n**I feel that I can do things to improve my health.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I'm not sure\n• I agree\n• I strongly agree\n• Skip",
         "user_utterance": "I strongly agree",
         "user_response": "I strongly agree"
       },
       {
         "question_name": "confidence_finding_info",
         "question_number": 5,
-        "llm_utterance": "Great, thanks ⭐\n\nHere's the last one:\n\n**I feel that I can find information about my health from other places, not just a health worker.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I’m not sure\n• I agree\n• I strongly agree\n• Skip",
+        "llm_utterance": "Great, thanks ⭐\n\nHere's the last one:\n\n**I feel that I can find information about my health from other places, not just a health worker.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I'm not sure\n• I agree\n• I strongly agree\n• Skip",
         "user_utterance": "I strongly agree",
         "user_response": "I strongly agree"
       }
@@ -104,7 +104,7 @@
       "turns": [
         {
           "question_name": "intro_message",
-          "llm_utterance": "Hi mom!\n\nHope you’re doing well! 🌸\n\nHaving accurate information about your pregnancy is so important for your and baby’s health.\n\nDo you have a minute for a quick check-in to see if you have all the facts?",
+          "llm_utterance": "Hi mom!\n\nHope you're doing well! 🌸\n\nHaving accurate information about your pregnancy is so important for your and baby's health.\n\nDo you have a minute for a quick check-in to see if you have all the facts?",
           "user_utterance": "Get started",
           "user_response": "Get started"
         },
@@ -134,7 +134,7 @@
         },
         {
           "question_name": "thank_you_message",
-          "llm_utterance": "*Pregnancy Health Check*\n\n🩷⚪⚪\n\nThank you for sharing! You’re making healthy decisions for you and your unborn child 💪🏽\n\nRemember:\n\n• A healthy pregnancy needs healthy foods. Follow the health worker’s advice 🥬🥚🥛🍎\n\n• And stay away from alcohol and cigarettes while you are pregnant or breastfeeding. It can harm your baby 🚬🍷\n\nAre you ready to move on to a few more questions? 👇🏽 ",
+          "llm_utterance": "*Pregnancy Health Check*\n\n🩷⚪⚪\n\nThank you for sharing! You're making healthy decisions for you and your unborn child 💪🏽\n\nRemember:\n\n• A healthy pregnancy needs healthy foods. Follow the health worker's advice 🥬🥚🥛🍎\n\n• And stay away from alcohol and cigarettes while you are pregnant or breastfeeding. It can harm your baby 🚬🍷\n\nAre you ready to move on to a few more questions? 👇🏽 ",
           "user_utterance": "Yes",
           "user_response": "Yes"
         }
@@ -183,7 +183,7 @@
         },
         {
           "question_name": "thank_you_message",
-          "llm_utterance": "*Pregnancy Health Check*\n🩷🩵⚪\n\nThank you for taking the time to answer these! MomConnect can help you boost your knowledge about healthy pregnancy.\n\n• It’s best to go to the clinic as soon as you know you’re pregnant. This first pregnancy check-up should be before 14 weeks. You should have 8 or more check-ups in total 🏥\n\n• If your tummy stays tight, hard and is very painful you need to go to the clinic 🤰🏾\n\n• At your pregnancy check-ups, you should get the tetanus vaccine. This helps protect you and your baby after birth 💉 \n\n• Iron and folic acid supplements are important for you and your unborn baby 💪🏽\n\nYou ready for the last 3 pregnancy questions? 👇🏽 ",
+          "llm_utterance": "*Pregnancy Health Check*\n🩷🩵⚪\n\nThank you for taking the time to answer these! MomConnect can help you boost your knowledge about healthy pregnancy.\n\n• It's best to go to the clinic as soon as you know you're pregnant. This first pregnancy check-up should be before 14 weeks. You should have 8 or more check-ups in total 🏥\n\n• If your tummy stays tight, hard and is very painful you need to go to the clinic 🤰🏾\n\n• At your pregnancy check-ups, you should get the tetanus vaccine. This helps protect you and your baby after birth 💉 \n\n• Iron and folic acid supplements are important for you and your unborn baby 💪🏽\n\nYou ready for the last 3 pregnancy questions? 👇🏽 ",
           "user_utterance": "Yes",
           "user_response": "Yes"
         }
@@ -196,7 +196,7 @@
       "turns": [
         {
           "question_number": 1,
-          "llm_utterance": "Fantastic!\n\nRemember, if you want to skip a question, just type and send `skip`.\n\nLet’s go! Do you agree with this statement?\n\n*Pregnancy check-ups are a good way to check that you and your unborn baby are healthy.*\n💜 \n\n• I strongly agree\n• I agree/Neutral\n• I disagree\n• I strongly disagree",
+          "llm_utterance": "Fantastic!\n\nRemember, if you want to skip a question, just type and send `skip`.\n\nLet's go! Do you agree with this statement?\n\n*Pregnancy check-ups are a good way to check that you and your unborn baby are healthy.*\n💜 \n\n• I strongly agree\n• I agree/Neutral\n• I disagree\n• I strongly disagree",
           "user_utterance": "I strongly agree",
           "user_response": "I strongly agree"
         },
@@ -208,7 +208,7 @@
         },
         {
           "question_number": 3,
-          "llm_utterance": "And …\n\n*It’s important for a pregnant woman to get an HIV test when she is pregnant.*\n\n• I strongly agree\n• I agree/Neutral\n• I disagree\n• I strongly disagree",
+          "llm_utterance": "And …\n\n*It's important for a pregnant woman to get an HIV test when she is pregnant.*\n\n• I strongly agree\n• I agree/Neutral\n• I disagree\n• I strongly disagree",
           "user_utterance": "I agree",
           "user_response": "I agree"
         }
@@ -256,7 +256,7 @@
       },
       {
           "question_name": "Q_visit_bad",
-          "llm_utterance": "We know how busy clinics can get! This can lead to some challenges. \n\nIf you found things difficult, tell us what made you the most uncomfortable or caused you *the biggest problem*:\n\n• No problems - all fine👌\n\n• I didn’t have my maternity record 📝\n\n• I was shamed or embarrassed 😳\n\n• I was not given privacy to discuss my worries or challenges\n\n• I was not given enough information about tests, supplements or my pregnancy ℹ️\n\n• The staff were disrespectful 🤬\n\n• They asked me to pay 💰\n\n• I had to wait a long time ⌛",
+          "llm_utterance": "We know how busy clinics can get! This can lead to some challenges. \n\nIf you found things difficult, tell us what made you the most uncomfortable or caused you *the biggest problem*:\n\n• No problems - all fine👌\n\n• I didn't have my maternity record 📝\n\n• I was shamed or embarrassed 😳\n\n• I was not given privacy to discuss my worries or challenges\n\n• I was not given enough information about tests, supplements or my pregnancy ℹ️\n\n• The staff were disrespectful 🤬\n\n• They asked me to pay 💰\n\n• I had to wait a long time ⌛",
           "user_utterance": "had to wait long time",
           "user_response": "Waited a long time ⌛"
       },

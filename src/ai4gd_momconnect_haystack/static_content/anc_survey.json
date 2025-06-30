@@ -2,7 +2,7 @@
     "anc-survey": [
         {
             "title": "start",
-            "content": "Hi <name> 👋🏽\n\nDid you go to your *<n'th> pregnancy check-up* this week? 🏥",
+            "content": "Hi mom 👋🏽\n\nDid you go to your *pregnancy check-up* this week? 🏥",
             "content_type": "follow_up_question",
             "valid_responses": [
                 "Yes, I went",
@@ -73,7 +73,7 @@
         },
         {
             "title": "Q_visit_bad",
-            "content": "Respond with an option from this list to share what made you the most uncomfortable or caused you *the biggest problem* at your check-up:\n\n• I didn't have my maternity record\n📝\n\n• I was shamed or embarrassed 😳\n\n• I was not given privacy to discuss my worries or challenges 🤐\n\n• I was not given enough information about tests, supplements or my pregnancy ℹ️\n\n• The staff were disrespectful 🤬\n\n• They asked me to pay 💰\n\n• I had to wait a long time ⌛ \n\n• Something else 😞 ️ ",
+            "content": "Respond with an option from this list to share what made you the most uncomfortable or caused you *the biggest problem* at your check-up:",
             "content_type": "follow_up_question",
             "valid_responses": [
                 "No maternity record 📝",
@@ -88,7 +88,7 @@
         },
         {
             "title": "Q_visit_good",
-            "content": "We're glad your visit to the clinic went OK, but we know how busy clinics can get! This can lead to some challenges. \n\nIf there was anything you found  difficult, tell us what made you the most uncomfortable or caused you *the biggest problem*:\n\n• No problems - all fine👌\n\n• I didn't have my maternity record\n📝\n\n• I was shamed or embarrassed 😳\n\n• I was not given privacy to discuss my worries or challenges 🤐\n\n• I was not given enough information about tests, supplements or my pregnancy ℹ️\n\n• The staff were disrespectful 🤬\n\n• They asked me to pay 💰\n\n• I had to wait a long time ⌛ \n\n• Something else 😞",
+            "content": "We're glad your visit to the clinic went OK, but we know how busy clinics can get! This can lead to some challenges. \n\nIf there was anything you found difficult, tell us what made you the most uncomfortable or caused you *the biggest problem*:",
             "content_type": "follow_up_question",
             "valid_responses": [
                 "No problems 👌",
@@ -109,7 +109,7 @@
         },
         {
             "title": "Q_challenges",
-            "content": "Getting to these check-ups can sometimes be difficult. If you find it hard, what is your *biggest challenge*?  \n\n• No challenges - all fine👌\n\n• Transport is expensive or it's far to travel 🚌\n\n• I don't have support from my partner or family 🤝\n\n• It's hard to get there during clinic opening hours 🏥\n\n• Something else 😞",
+            "content": "Getting to these check-ups can sometimes be difficult. If you find it hard, what is your *biggest challenge*?",
             "content_type": "follow_up_question",
             "valid_responses": [
                 "No challenges 👌",
@@ -144,7 +144,7 @@
         },
         {
             "title": "Q_why_no_visit",
-            "content": "Can you tell us the main reason you didn't see a health worker when you went to the clinic? \n\n• The clinic was closed ⛔\n• I had to wait too long⌛\n• I didn't have my maternity record 📝\n• They asked me to pay💰\n• I was told to come back another day 📅\n• I left because the staff were disrespectful 🤬\n• Something else 😞",
+            "content": "Can you tell us the main reason you didn't see a health worker when you went to the clinic?",
             "content_type": "follow_up_question",
             "valid_responses": [
                 "Clinic was closed ⛔",
@@ -157,8 +157,13 @@
             ]
         },
         {
+            "title": "Q_why_no_visit_other",
+            "content": "Can you please tell us what the most important thing was that stopped you from getting to your pregnancy check-up? \n\nType and send your answer👇🏽",
+            "content_type": "follow_up_question"
+        },
+        {
             "title": "Q_why_not_go",
-            "content": "Many women struggle to get to these check-ups. What was the *number 1 reason* you didn't get to this one?\n\n• I didn't know I had a check-up 📅\n• I didn't know where to go📍\n• I don't want check-ups ⛔\n• I can't go in clinic opening hours 🏥\n• They asked me to pay💰\n• Waiting times are too long ⌛\n• I have no support from family or friends 🤝\n• Getting to the clinic is hard - no money for transport or it's too far to travel 🚌\n• I forgot about it 😧\n• Something else😞",
+            "content": "Many women struggle to get to these check-ups. What was the *number 1 reason* you didn't get to this one?",
             "content_type": "follow_up_question",
             "valid_responses": [
                 "Didn't know about it 📅",
@@ -174,13 +179,13 @@
             ]
         },
         {
-            "title": "Q_why_no_visit_other",
+            "title": "Q_why_not_go_other",
             "content": "Can you please tell us what the most important thing was that stopped you from getting to your pregnancy check-up? \n\nType and send your answer👇🏽",
             "content_type": "follow_up_question"
         },
         {
             "title": "intent",
-            "content": "Thank you for taking the time to answer our questions! 🌟 \n\nRemember, going to all your pregnancy check-ups is the best way to make sure that you and baby stay healthy 💪🏽 \n\nDuring pregnancy, your body changes a lot. The earlier a possible problem with you or baby is identified, the quicker it can be treated. \n\nDo you think you will go for your <n+1'th> check-up?",
+            "content": "Thank you for taking the time to answer our questions! 🌟 \n\nRemember, going to all your pregnancy check-ups is the best way to make sure that you and baby stay healthy 💪🏽 \n\nDuring pregnancy, your body changes a lot. The earlier a possible problem with you or baby is identified, the quicker it can be treated. \n\nDo you think you will go for your next check-up?",
             "content_type": "follow_up_question",
             "valid_responses": [
                 "Yes, I will",
@@ -193,16 +198,7 @@
             "content_type": "follow_up_message"
         },
         {
-            "title": "end_2",
-            "content": "Have a great day! We'll be back with some more questions in the next few weeks! 💕\n\nClick on this link to go to MomConnect: https://wa.me/27796312456",
-            "content_type": "end_message",
-            "valid_responses": [
-                "Go to the main menu",
-                "About the study"
-            ]
-        },
-        {
-            "title": "thanks",
+            "title": "feedback_if_first_survey",
             "content": "Before you go, one more thing.\n\n*How easy was it to answer these questions?*",
             "content_type": "follow_up_question",
             "valid_responses": [
@@ -214,22 +210,14 @@
             ]
         },
         {
-            "title": "end_1",
+            "title": "end_if_feedback",
             "content": "Thanks for your feedback. We'll be back with some more questions in the next few weeks! 💕\n\nClick on this link to go to MomConnect: https://wa.me/27796312456",
-            "content_type": "end_message",
-            "valid_responses": [
-                "Go to the main menu",
-                "About the study"
-            ]
+            "content_type": "end_message"
         },
         {
-            "title": "mom_ANC_reengagement_01",
-            "content": "Hello 👋🏽\n\nYou started telling us about your recent pregnancy check-up 🗓️\n\nHave a few minutes to complete this now?",
-            "content_type": "reengagement_question",
-            "valid_responses": [
-                "Yes! 🌟",
-                "Remind me tomorrow"
-            ]
+            "title": "end",
+            "content": "Have a great day! We'll be back with some more questions in the next few weeks! 💕\n\nClick on this link to go to MomConnect: https://wa.me/27796312456",
+            "content_type": "end_message"
         },
         {
             "title": "mom_ANC_remind_me_01",
@@ -240,6 +228,15 @@
             "title": "mom_ANC_remind_me_02",
             "content": "OK, we'll remind you tomorrow 🗓️",
             "content_type": "reminder_confirmation"
+        },
+        {
+            "title": "mom_ANC_reengagement_01",
+            "content": "Hello 👋🏽\n\nYou started telling us about your recent pregnancy check-up 🗓️\n\nHave a few minutes to complete this now?",
+            "content_type": "reengagement_question",
+            "valid_responses": [
+                "Yes! 🌟",
+                "Remind me tomorrow"
+            ]
         },
         {
             "title": "mom_ANC_reengagement_02",

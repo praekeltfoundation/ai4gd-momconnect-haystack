@@ -7,7 +7,7 @@
       "turns": [
         {
           "question_name": "intro_message",
-          "llm_utterance": "Hi mom!\n\nHope you’re doing well! 🌸\n\nHaving accurate information about your pregnancy is so important for your and baby’s health.\n\nDo you have a minute for a quick check-in to see if you have all the facts?",
+          "llm_utterance": "Hi mom!\n\nHope you're doing well! 🌸\n\nHaving accurate information about your pregnancy is so important for your and baby's health.\n\nDo you have a minute for a quick check-in to see if you have all the facts?",
           "user_utterance": "Get started",
           "user_response": "Get started"
         },
@@ -37,7 +37,7 @@
         },
         {
           "question_name": "thank_you_message",
-          "llm_utterance": "*Pregnancy Health Check*\n\n🩷⚪⚪\n\nThank you for sharing! You’re making healthy decisions for you and your unborn child 💪🏽\n\nRemember:\n\n• A healthy pregnancy needs healthy foods. Follow the health worker’s advice 🥬🥚🥛🍎\n\n• And stay away from alcohol and cigarettes while you are pregnant or breastfeeding. It can harm your baby 🚬🍷\n\nAre you ready to move on to a few more questions? 👇🏽 ",
+          "llm_utterance": "*Pregnancy Health Check*\n\n🩷⚪⚪\n\nThank you for sharing! You're making healthy decisions for you and your unborn child 💪🏽\n\nRemember:\n\n• A healthy pregnancy needs healthy foods. Follow the health worker's advice 🥬🥚🥛🍎\n\n• And stay away from alcohol and cigarettes while you are pregnant or breastfeeding. It can harm your baby 🚬🍷\n\nAre you ready to move on to a few more questions? 👇🏽 ",
           "user_utterance": "Yes",
           "user_response": "Yes"
         }
@@ -86,7 +86,7 @@
         },
         {
           "question_name": "thank_you_message",
-          "llm_utterance": "*Pregnancy Health Check*\n🩷🩵⚪\n\nThank you for taking the time to answer these! MomConnect can help you boost your knowledge about healthy pregnancy.\n\n• It’s best to go to the clinic as soon as you know you’re pregnant. This first pregnancy check-up should be before 14 weeks. You should have 8 or more check-ups in total 🏥\n\n• If your tummy stays tight, hard and is very painful you need to go to the clinic 🤰🏾\n\n• At your pregnancy check-ups, you should get the tetanus vaccine. This helps protect you and your baby after birth 💉 \n\n• Iron and folic acid supplements are important for you and your unborn baby 💪🏽\n\nYou ready for the last 3 pregnancy questions? 👇🏽 ",
+          "llm_utterance": "*Pregnancy Health Check*\n🩷🩵⚪\n\nThank you for taking the time to answer these! MomConnect can help you boost your knowledge about healthy pregnancy.\n\n• It's best to go to the clinic as soon as you know you're pregnant. This first pregnancy check-up should be before 14 weeks. You should have 8 or more check-ups in total 🏥\n\n• If your tummy stays tight, hard and is very painful you need to go to the clinic 🤰🏾\n\n• At your pregnancy check-ups, you should get the tetanus vaccine. This helps protect you and your baby after birth 💉 \n\n• Iron and folic acid supplements are important for you and your unborn baby 💪🏽\n\nYou ready for the last 3 pregnancy questions? 👇🏽 ",
           "user_utterance": "Yes",
           "user_response": "Yes"
         }
@@ -99,7 +99,7 @@
       "turns": [
         {
           "question_number": 1,
-          "llm_utterance": "Fantastic!\n\nRemember, if you want to skip a question, just type and send `skip`.\n\nLet’s go! Do you agree with this statement?\n\n*Pregnancy check-ups are a good way to check that you and your unborn baby are healthy.*\n💜 \n\n• I strongly agree\n• I agree/Neutral\n• I disagree\n• I strongly disagree",
+          "llm_utterance": "Fantastic!\n\nRemember, if you want to skip a question, just type and send `skip`.\n\nLet's go! Do you agree with this statement?\n\n*Pregnancy check-ups are a good way to check that you and your unborn baby are healthy.*\n💜 \n\n• I strongly agree\n• I agree/Neutral\n• I disagree\n• I strongly disagree",
           "user_utterance": "I strongly agree",
           "user_response": "I strongly agree"
         },
@@ -111,7 +111,7 @@
         },
         {
           "question_number": 3,
-          "llm_utterance": "And …\n\n*It’s important for a pregnant woman to get an HIV test when she is pregnant.*\n\n• I strongly agree\n• I agree/Neutral\n• I disagree\n• I strongly disagree",
+          "llm_utterance": "And …\n\n*It's important for a pregnant woman to get an HIV test when she is pregnant.*\n\n• I strongly agree\n• I agree/Neutral\n• I disagree\n• I strongly disagree",
           "user_utterance": "I agree",
           "user_response": "I agree"
         }
