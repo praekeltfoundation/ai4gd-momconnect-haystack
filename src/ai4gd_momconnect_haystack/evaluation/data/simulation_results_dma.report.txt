@@ -29,15 +29,14 @@
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.89 ] Question Consistency
+  [ score: 0.86 ] Question Consistency
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: dma-assessment_user_123_250616-0635 (dma-pre-assessment) | ID: 5 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.12 ] Question Consistency
-       Reason: The score is 0.12 because the output primarily consists of response options rather than directly addressing the input statement. While the options are related to the input, they do not provide a specific answer or engagement with the sentiment expressed, leading to a low relevancy score.
+  [ score: 1.00 ] Question Consistency
   [ score: 1.00 ] Response Appropriateness
 
 
@@ -84,7 +83,7 @@ shape: (6, 7)
 📊 Dma-pre-assessment Performance (5 turns):
   - Intent Accuracy: 88.89%
   - Extraction Accuracy: 100.00%
-  - Avg. Question Consistency: 0.80
+  - Avg. Question Consistency: 0.97
   - Avg. Response Appropriateness: 1.00
 
 ==================================================
@@ -119,15 +118,14 @@ shape: (6, 7)
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.89 ] Question Consistency
+  [ score: 0.86 ] Question Consistency
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: dma-assessment_user_123_250616-0635 (dma-pre-assessment) | ID: 5 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.12 ] Question Consistency
-       Reason: The score is 0.12 because the output primarily consists of response options rather than directly addressing the input statement. While the options are related to the input, they do not provide a specific answer or engagement with the sentiment expressed, leading to a low relevancy score.
+  [ score: 1.00 ] Question Consistency
   [ score: 1.00 ] Response Appropriateness
 
 
@@ -174,7 +172,7 @@ shape: (6, 7)
 📊 Dma-pre-assessment Performance (5 turns):
   - Intent Accuracy: 88.89%
   - Extraction Accuracy: 100.00%
-  - Avg. Question Consistency: 0.80
+  - Avg. Question Consistency: 0.97
   - Avg. Response Appropriateness: 1.00
 
 ==================================================

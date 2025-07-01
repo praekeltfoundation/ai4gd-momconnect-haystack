@@ -19,6 +19,8 @@ from ai4gd_momconnect_haystack.assessment_logic import (
 )
 from ai4gd_momconnect_haystack.crud import (
     calculate_and_store_assessment_result,
+    delete_assessment_history_for_user,
+    delete_chat_history_for_user,
     get_assessment_end_messaging_history,
     get_assessment_result,
     get_or_create_chat_history,
@@ -59,6 +61,10 @@ DATA_PATH = Path("src/ai4gd_momconnect_haystack/")
 
 SERVICE_PERSONA_PATH = DATA_PATH / "static_content" / "service_persona.json"
 SERVICE_PERSONA = load_json_and_validate(SERVICE_PERSONA_PATH, dict)
+SERVICE_PERSONA_TEXT = ""
+if SERVICE_PERSONA:
+    if "persona" in SERVICE_PERSONA.keys():
+        SERVICE_PERSONA_TEXT = SERVICE_PERSONA["persona"]
 
 
 def setup_sentry():
@@ -113,9 +119,10 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     else:
         # For the first message we initiate, we won't have a user input, so we should
         # force the intent in this situation
+        await delete_chat_history_for_user(request.user_id, HistoryType.onboarding)
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
         # Also initialize the chat history with the persona in a system message
-        chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA)]
+        chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
     if intent == "JOURNEY_RESPONSE" and user_input:
         user_context = extract_onboarding_data_from_response(
             user_response=user_input,
@@ -155,6 +162,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
             request.previous_question, request.user_input
         )
     else:
+        await delete_assessment_history_for_user(request.user_id, request.flow_id)
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
 
     if intent == "JOURNEY_RESPONSE" and request.user_input:
@@ -373,8 +381,9 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
     if request.user_input:
         intent, intent_related_response = handle_user_message(last_question, user_input)
     else:
+        await delete_chat_history_for_user(request.user_id, HistoryType.anc)
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
-        chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA)]
+        chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
     user_context = request.user_context
     if intent == "JOURNEY_RESPONSE" and request.user_input:
         # There's only one survey type, so we can assume anc until we add more

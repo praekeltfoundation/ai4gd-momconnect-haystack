@@ -6,37 +6,17 @@
       {
         "question_name": "num_children",
         "question_number": null,
-        "llm_utterance": "How many little ones are keeping you busy at home? Count all your children of any age. \ud83d\udc76\ud83c\udffd\n\nPlease reply with one of the following:\n- '0'\n- '1'\n- '2'\n- '3'\n- 'More than 3'\n- 'Skip'",
+        "llm_utterance": "How many children do you have, including children of any age? This will help me provide more tailored assistance and support.",
         "user_utterance": "when wil i get my R5 airtime?",
         "follow_up_utterance": "I have one little one already.",
         "user_response": "1",
-        "llm_initial_predicted_intent": "REPORTING_AIRTIME_NOT_RECEIVED",
-        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
-      },
-      {
-        "question_name": "education_level",
-        "question_number": null,
-        "llm_utterance": "What's the highest level of education you have completed? \ud83d\udcda\n\nPlease reply with one of the following:\n- 'No school'\n- 'Some primary'\n- 'Finished primary'\n- 'Some high school'\n- 'Finished high school'\n- 'More than high school'\n- 'Don't know'\n- 'Skip'",
-        "user_utterance": "Leave me alone",
-        "follow_up_utterance": "I only finished Grade 9 at school.",
-        "user_response": "Finished high school",
-        "llm_initial_predicted_intent": "ASKING_TO_STOP_MESSAGES",
-        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
-      },
-      {
-        "question_name": "relationship_status",
-        "question_number": null,
-        "llm_utterance": "What's your current relationship status? \ud83d\udc64\n\nPlease reply with one of the following:\n- 'Single'\n- 'Relationship'\n- 'Married'\n- 'Skip'",
-        "user_utterance": "my feet r swollen, is dat bad?",
-        "follow_up_utterance": "I am single.",
-        "user_response": "Single",
-        "llm_initial_predicted_intent": "HEALTH_QUESTION",
+        "llm_initial_predicted_intent": "CHITCHAT",
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       },
       {
         "question_name": "hunger_days",
         "question_number": null,
-        "llm_utterance": "How often in the last week did you miss a meal because there wasn't enough money for food? \ud83c\udf5e\n\nPlease reply with one of the following:\n- '0 days'\n- '1-2 days'\n- '3-4 days'\n- '5-7 days'\n- 'Skip'",
+        "llm_utterance": "How many days in the past week did you miss a meal because there wasn't enough money for food? \ud83c\udf5e",
         "user_utterance": "Can you please erase everything you have on me?",
         "follow_up_utterance": "I sometimes go without food, maybe 3-4 days.",
         "user_response": "3-4 days",
@@ -44,33 +24,53 @@
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       },
       {
+        "question_name": "education_level",
+        "question_number": null,
+        "llm_utterance": "What is your highest level of education? \ud83d\udcda\n\na. No school\nb. Some primary\nc. Finished primary\nd. Some high school\ne. Finished high school\nf. More than high school\ng. Don't know",
+        "user_utterance": "Leave me alone",
+        "follow_up_utterance": "I only finished Grade 9 at school.",
+        "user_response": "Some high school",
+        "llm_initial_predicted_intent": "ASKING_TO_STOP_MESSAGES",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      },
+      {
+        "question_name": "province",
+        "question_number": null,
+        "llm_utterance": "Which province do you live in? \ud83c\udfde\ufe0f\n\na. Eastern Cape\nb. Free State\nc. Gauteng\nd. KwaZulu-Natal\ne. Limpopo\nf. Mpumalanga\ng. Northern Cape\nh. North West\ni. Western Cape",
+        "user_utterance": "how long will this take?",
+        "follow_up_utterance": "I live on a farm out in the North West.",
+        "user_response": "North West",
+        "llm_initial_predicted_intent": "CHITCHAT",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      },
+      {
         "question_name": "area_type",
         "question_number": null,
-        "llm_utterance": "What kind of area do you currently live in? \ud83c\udfd8\ufe0f\n\nPlease reply with one of the following:\n- 'City'\n- 'Township or suburb'\n- 'Town'\n- 'Farm or smallholding'\n- 'Village'\n- 'Rural area'",
-        "user_utterance": "My baby has a rash, what should I do?",
-        "follow_up_utterance": "I live on a farm.",
+        "llm_utterance": "Which province do you live in? \ud83c\udfde\ufe0f\n\na. Eastern Cape\nb. Free State\nc. Gauteng\nd. KwaZulu-Natal\ne. Limpopo\nf. Mpumalanga\ng. Northern Cape\nh. North West\ni. Western Cape",
+        "user_utterance": "how long will this take?",
+        "follow_up_utterance": "I live on a farm out in the North West.",
         "user_response": "Farm or smallholding",
+        "llm_initial_predicted_intent": "CHITCHAT",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      },
+      {
+        "question_name": "relationship_status",
+        "question_number": null,
+        "llm_utterance": "What is your current relationship status? \ud83d\udc64\n\na. Single\nb. Relationship\nc. Married",
+        "user_utterance": "my feet r swollen, is dat bad?",
+        "follow_up_utterance": "I am single.",
+        "user_response": "Single",
         "llm_initial_predicted_intent": "HEALTH_QUESTION",
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       },
       {
         "question_name": "phone_ownership",
         "question_number": null,
-        "llm_utterance": "What kind of area do you currently live in? \ud83c\udfd8\ufe0f\n\nPlease reply with one of the following:\n- 'City'\n- 'Township or suburb'\n- 'Town'\n- 'Farm or smallholding'\n- 'Village'\n- 'Rural area'",
-        "user_utterance": "My baby has a rash, what should I do?",
-        "follow_up_utterance": "I live on a farm.",
-        "user_response": "No",
-        "llm_initial_predicted_intent": "HEALTH_QUESTION",
-        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
-      },
-      {
-        "question_name": "province",
-        "question_number": null,
-        "llm_utterance": "Which province do you live in? \ud83c\udfde\ufe0f\n\nPlease reply with one of the following:\n- 'Eastern Cape'\n- 'Free State'\n- 'Gauteng'\n- 'KwaZulu-Natal'\n- 'Limpopo'\n- 'Mpumalanga'\n- 'Northern Cape'\n- 'North West'\n- 'Western Cape'",
-        "user_utterance": "how long will this take?",
-        "follow_up_utterance": "I live on a farm out in the North West.",
-        "user_response": "North West",
-        "llm_initial_predicted_intent": "CHITCHAT",
+        "llm_utterance": "Do you currently own the phone you are using, or is it borrowed or shared? \ud83d\udcf1",
+        "user_utterance": "ok cool",
+        "follow_up_utterance": "No, I don't own this phone.",
+        "user_response": "Skip",
+        "llm_initial_predicted_intent": "JOURNEY_RESPONSE",
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       }
     ]
