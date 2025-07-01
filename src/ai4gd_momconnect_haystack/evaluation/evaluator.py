@@ -312,9 +312,9 @@ class Evaluator:
         self._add_line(class_report)
 
         cm = confusion_matrix(y_true, y_pred, labels=labels)
-        cm_df = pl.DataFrame(cm, schema=[f"Pred: {l}" for l in labels])
+        cm_df = pl.DataFrame(cm, schema=[f"Pred: {label}" for label in labels])
         cm_df = cm_df.insert_column(
-            0, pl.Series("Actual", [f"Actual: {l}" for l in labels])
+            0, pl.Series("Actual", [f"Actual: {label}" for label in labels])
         )
 
         self._add_line("\n--- Confusion Matrix ---")
