@@ -6,7 +6,7 @@
       {
         "question_name": "province",
         "question_number": null,
-        "llm_utterance": "Which province do you currently live in? This will help me provide you with more personalized support. \ud83c\udfe1",
+        "llm_utterance": "Could you kindly share which province you are currently residing in? This will allow me to provide more tailored support and information based on your location. \ud83c\udf0d",
         "user_utterance": "how long will this take?",
         "follow_up_utterance": "I live on a farm out in the North West.",
         "user_response": "North West",
@@ -16,7 +16,7 @@
       {
         "question_name": "area_type",
         "question_number": null,
-        "llm_utterance": "Could you share what kind of area you live in? This will help me provide you with more personalized support. \ud83c\udfd8\ufe0f",
+        "llm_utterance": "Could you please share what kind of area you live in, such as a city, township, farm, village, or rural area? \ud83c\udfd8\ufe0f",
         "user_utterance": "My baby has a rash, what should I do?",
         "follow_up_utterance": "I live on a farm.",
         "user_response": "Farm or smallholding",
@@ -24,9 +24,19 @@
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       },
       {
+        "question_name": "num_children",
+        "question_number": null,
+        "llm_utterance": "How many children, including all ages, do you have? This helps me offer relevant information and support. \ud83d\udc76\ud83c\udffd",
+        "user_utterance": "when wil i get my R5 airtime?",
+        "follow_up_utterance": "I have one little one already.",
+        "user_response": "1",
+        "llm_initial_predicted_intent": "CHITCHAT",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      },
+      {
         "question_name": "relationship_status",
         "question_number": null,
-        "llm_utterance": "Could you share your current relationship status with me? This will help me provide you with more personalized support. \ud83d\udc64",
+        "llm_utterance": "What is your current relationship status? Are you single, in a relationship, married, or would you prefer to skip this question? \ud83d\udc64",
         "user_utterance": "my feet r swollen, is dat bad?",
         "follow_up_utterance": "I am single.",
         "user_response": "Single",
@@ -39,8 +49,18 @@
         "llm_utterance": "What is the highest level of education you have completed? This will help me understand your background better. \ud83d\udcda",
         "user_utterance": "Leave me alone",
         "follow_up_utterance": "I only finished Grade 9 at school.",
-        "user_response": "Finished high school",
+        "user_response": "No school",
         "llm_initial_predicted_intent": "ASKING_TO_STOP_MESSAGES",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      },
+      {
+        "question_name": "phone_ownership",
+        "question_number": null,
+        "llm_utterance": "Do you currently own the phone you are using? This will help me understand your access to communication technology better. \ud83d\udcf1",
+        "user_utterance": "ok cool",
+        "follow_up_utterance": "No, I don't own this phone.",
+        "user_response": "No",
+        "llm_initial_predicted_intent": "JOURNEY_RESPONSE",
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       },
       {
@@ -51,26 +71,6 @@
         "follow_up_utterance": "I sometimes go without food, maybe 3-4 days.",
         "user_response": "3-4 days",
         "llm_initial_predicted_intent": "ASKING_TO_DELETE_DATA",
-        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
-      },
-      {
-        "question_name": "num_children",
-        "question_number": null,
-        "llm_utterance": "How many children do you have, including all your children of any age? This will help me tailor the support I provide. \ud83d\udc76\ud83c\udffd",
-        "user_utterance": "when wil i get my R5 airtime?",
-        "follow_up_utterance": "I have one little one already.",
-        "user_response": "1",
-        "llm_initial_predicted_intent": "CHITCHAT",
-        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
-      },
-      {
-        "question_name": "phone_ownership",
-        "question_number": null,
-        "llm_utterance": "Do you own the phone you're using right now, or are you borrowing it? \ud83d\udcf1",
-        "user_utterance": "ok cool",
-        "follow_up_utterance": "No, I don't own this phone.",
-        "user_response": "No",
-        "llm_initial_predicted_intent": "CHITCHAT",
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       }
     ]

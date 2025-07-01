@@ -1,0 +1,47 @@
+[
+  {
+    "scenario_id": "anc-survey_user_123_250616-0635",
+    "flow_type": "anc-survey",
+    "turns": [
+      {
+        "question_name": "Q_seen",
+        "question_number": null,
+        "llm_utterance": "Did a friendly health worker get to see you during your check-up? \ud83d\ude0a\n\nYes\nNo",
+        "user_utterance": "What is this AI thing you are using?",
+        "follow_up_utterance": "Yes",
+        "user_response": {
+          "visit_status": "Yes, I went",
+          "professional_seen": "Yes"
+        },
+        "llm_initial_predicted_intent": "QUESTION_ABOUT_STUDY",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      },
+      {
+        "question_name": "Q_bp",
+        "question_number": null,
+        "llm_utterance": "During your check-up, did the friendly health worker take your blood pressure? \ud83d\ude0a\n\nYes\nNo\nI don't know",
+        "user_utterance": "My baby is not drinking milk properly.",
+        "follow_up_utterance": "I don't know",
+        "user_response": {
+          "visit_status": "Yes",
+          "professional_seen": "No",
+          "reason_for_not_seeing_professional": "Clinic was closed \u26d4"
+        },
+        "llm_initial_predicted_intent": "HEALTH_QUESTION",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      },
+      {
+        "question_name": "intent",
+        "question_number": null,
+        "llm_utterance": "Thank you so much for sharing with me! \ud83e\udd17 Your dedication to your health and baby is truly commendable! \ud83c\udf1f As you know, attending all your pregnancy check-ups is vital for keeping both you and baby healthy and happy. Your body goes through a lot during pregnancy, so catching any issues early is key. Are you planning on going for your next check-up?\n\nYes, I will\nNo, I won't",
+        "user_utterance": "This is a scam I never got my airtime",
+        "follow_up_utterance": "Ja",
+        "user_response": {
+          "visit_status": "I'm going soon"
+        },
+        "llm_initial_predicted_intent": "REPORTING_AIRTIME_NOT_RECEIVED",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      }
+    ]
+  }
+]

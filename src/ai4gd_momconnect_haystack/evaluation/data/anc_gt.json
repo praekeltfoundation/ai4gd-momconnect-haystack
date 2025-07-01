@@ -9,7 +9,7 @@
             "llm_utterance": "Hi mom 👋🏽\n\nDid you go to your *{{1}} pregnancy check-up* this week? 🏥",
             "user_utterance": "How do I know I can trust you?",
             "intent": "QUESTION_ABOUT_STUDY",
-            "follow_up_utterance": "Yes",
+            "follow_up_utterance": "Yes, I went",
             "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "Yes, I went"
         },
@@ -18,7 +18,7 @@
             "llm_utterance": "Did a health worker see you?",
             "user_utterance": "What is this AI thing you are using?",
             "intent": "QUESTION_ABOUT_STUDY",
-            "follow_up_utterance": "Ya",
+            "follow_up_utterance": "Yes",
             "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "Yes"
         },
@@ -45,7 +45,7 @@
             "llm_utterance": "How was your overall experience at the check-up?",
             "user_utterance": "Help my child is sick",
             "intent": "HEALTH_QUESTION",
-            "follow_up_utterance": "Cool",
+            "follow_up_utterance": "Good",
             "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "Good"
         },
@@ -57,6 +57,15 @@
             "follow_up_utterance": "Yes",
             "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "Continue"
+        },
+        {
+            "question_name": "Q_visit_good",
+            "llm_utterance": "We're glad your visit to the clinic went OK, but we know how busy clinics can get! This can lead to some challenges. \n\nIf there was anything you found  difficult, tell us what made you the most uncomfortable or caused you *the biggest problem*:\n\n• No problems - all fine👌\n\n• I didn't have my maternity record\n📝\n\n• I was shamed or embarrassed 😳\n\n• I was not given privacy to discuss my worries or challenges 🤐\n\n• I was not given enough information about tests, supplements or my pregnancy ℹ️\n\n• The staff were disrespectful 🤬\n\n• They asked me to pay 💰\n\n• I had to wait a long time ⌛ \n\n• Something else 😞",
+            "user_utterance": "I don't want to be part of this anymore.",
+            "intent": "ASKING_TO_STOP_MESSAGES",
+            "follow_up_utterance": "Staff disespectful 🤬",
+            "follow_up_intent": "JOURNEY_RESPONSE",
+            "user_response": "Staff disespectful 🤬"
         },
         {
             "question_name": "Q_visit_bad",
@@ -81,7 +90,7 @@
             "llm_utterance": "Getting to these check-ups can sometimes be difficult. If you find it hard, what is your *biggest challenge*?  \n\n• No challenges - all fine👌\n\n• Transport is expensive or it's far to travel 🚌\n\n• I don't have support from my partner or family 🤝\n\n• It's hard to get there during clinic opening hours 🏥\n\n• Something else 😞",
             "user_utterance": "Wipe my details now!",
             "intent": "ASKING_TO_DELETE_DATA",
-            "follow_up_utterance": "It's hard to get there during clinic opening hours 🏥",
+            "follow_up_utterance": "Clinic opening hours 🏥",
             "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "Clinic opening hours 🏥"
         },

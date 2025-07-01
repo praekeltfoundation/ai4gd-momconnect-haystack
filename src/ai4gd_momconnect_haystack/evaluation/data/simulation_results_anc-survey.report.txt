@@ -1,0 +1,148 @@
+
+
+==================================================
+          DETAILED TURN-BY-TURN REPORT
+==================================================
+
+--- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: Q_seen ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [❌] FAILED
+       Details: Expected: 'yes', Got: '{'visit_status': 'yes, i went', 'professional_seen': 'yes'}'
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: Q_bp ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [❌] FAILED
+       Details: Expected: 'i don't know', Got: '{'visit_status': 'yes', 'professional_seen': 'no', 'reason_for_not_seeing_professional': 'clinic was closed '}'
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: intent ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [❌] FAILED
+       Details: Expected: 'yes, i will', Got: '{'visit_status': "i'm going soon"}'
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+
+============================================================
+           INTENT CLASSIFICATION SUMMARY REPORT
+============================================================
+
+--- Classification Report ---
+                                precision    recall  f1-score   support
+
+               HEALTH_QUESTION       1.00      1.00      1.00         1
+              JOURNEY_RESPONSE       1.00      1.00      1.00         3
+          QUESTION_ABOUT_STUDY       1.00      1.00      1.00         1
+REPORTING_AIRTIME_NOT_RECEIVED       1.00      1.00      1.00         1
+
+                      accuracy                           1.00         6
+                     macro avg       1.00      1.00      1.00         6
+                  weighted avg       1.00      1.00      1.00         6
+
+
+--- Confusion Matrix ---
+shape: (4, 5)
+┌─────────────────────────────────┬───────────────────────┬────────────────────────┬────────────────────────────┬─────────────────────────────────┐
+│ Actual                          ┆ Pred: HEALTH_QUESTION ┆ Pred: JOURNEY_RESPONSE ┆ Pred: QUESTION_ABOUT_STUDY ┆ Pred: REPORTING_AIRTIME_NOT_RE… │
+│ ---                             ┆ ---                   ┆ ---                    ┆ ---                        ┆ ---                             │
+│ str                             ┆ i64                   ┆ i64                    ┆ i64                        ┆ i64                             │
+╞═════════════════════════════════╪═══════════════════════╪════════════════════════╪════════════════════════════╪═════════════════════════════════╡
+│ Actual: HEALTH_QUESTION         ┆ 1                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: JOURNEY_RESPONSE        ┆ 0                     ┆ 3                      ┆ 0                          ┆ 0                               │
+│ Actual: QUESTION_ABOUT_STUDY    ┆ 0                     ┆ 0                      ┆ 1                          ┆ 0                               │
+│ Actual: REPORTING_AIRTIME_NOT_… ┆ 0                     ┆ 0                      ┆ 0                          ┆ 1                               │
+└─────────────────────────────────┴───────────────────────┴────────────────────────┴────────────────────────────┴─────────────────────────────────┘
+============================================================
+
+
+==================================================
+            PERFORMANCE SUMMARY REPORT
+==================================================
+
+📊 Anc-survey Performance (3 turns):
+  - Intent Accuracy: 100.00%
+  - Extraction Accuracy: 0.00%
+  - Avg. Question Consistency: 1.00
+  - Avg. Response Appropriateness: 1.00
+
+==================================================
+
+
+==================================================
+          DETAILED TURN-BY-TURN REPORT
+==================================================
+
+--- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: Q_seen ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [❌] FAILED
+       Details: Expected: 'yes', Got: '{'visit_status': 'yes, i went', 'professional_seen': 'yes'}'
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: Q_bp ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [❌] FAILED
+       Details: Expected: 'i don't know', Got: '{'visit_status': 'yes', 'professional_seen': 'no', 'reason_for_not_seeing_professional': 'clinic was closed '}'
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: intent ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [❌] FAILED
+       Details: Expected: 'yes, i will', Got: '{'visit_status': "i'm going soon"}'
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+
+============================================================
+           INTENT CLASSIFICATION SUMMARY REPORT
+============================================================
+
+--- Classification Report ---
+                                precision    recall  f1-score   support
+
+               HEALTH_QUESTION       1.00      1.00      1.00         1
+              JOURNEY_RESPONSE       1.00      1.00      1.00         3
+          QUESTION_ABOUT_STUDY       1.00      1.00      1.00         1
+REPORTING_AIRTIME_NOT_RECEIVED       1.00      1.00      1.00         1
+
+                      accuracy                           1.00         6
+                     macro avg       1.00      1.00      1.00         6
+                  weighted avg       1.00      1.00      1.00         6
+
+
+--- Confusion Matrix ---
+shape: (4, 5)
+┌─────────────────────────────────┬───────────────────────┬────────────────────────┬────────────────────────────┬─────────────────────────────────┐
+│ Actual                          ┆ Pred: HEALTH_QUESTION ┆ Pred: JOURNEY_RESPONSE ┆ Pred: QUESTION_ABOUT_STUDY ┆ Pred: REPORTING_AIRTIME_NOT_RE… │
+│ ---                             ┆ ---                   ┆ ---                    ┆ ---                        ┆ ---                             │
+│ str                             ┆ i64                   ┆ i64                    ┆ i64                        ┆ i64                             │
+╞═════════════════════════════════╪═══════════════════════╪════════════════════════╪════════════════════════════╪═════════════════════════════════╡
+│ Actual: HEALTH_QUESTION         ┆ 1                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: JOURNEY_RESPONSE        ┆ 0                     ┆ 3                      ┆ 0                          ┆ 0                               │
+│ Actual: QUESTION_ABOUT_STUDY    ┆ 0                     ┆ 0                      ┆ 1                          ┆ 0                               │
+│ Actual: REPORTING_AIRTIME_NOT_… ┆ 0                     ┆ 0                      ┆ 0                          ┆ 1                               │
+└─────────────────────────────────┴───────────────────────┴────────────────────────┴────────────────────────────┴─────────────────────────────────┘
+============================================================
+
+
+==================================================
+            PERFORMANCE SUMMARY REPORT
+==================================================
+
+📊 Anc-survey Performance (3 turns):
+  - Intent Accuracy: 100.00%
+  - Extraction Accuracy: 0.00%
+  - Avg. Question Consistency: 1.00
+  - Avg. Response Appropriateness: 1.00
+
+==================================================

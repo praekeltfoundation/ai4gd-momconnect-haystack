@@ -8,7 +8,8 @@
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.91 ] Question Consistency
+  [ score: 0.09 ] Question Consistency
+       Reason: The score is 0.09 because the output primarily consists of options rather than direct responses to the input question. While the options might be useful in other contexts, they do not address the specific inquiry about pregnancy check-ups, leading to a low relevancy score.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: behaviour-pre-assessment_user_123_250616-0635 (behaviour-pre-assessment) | ID: 2 ---
@@ -23,7 +24,7 @@
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.75 ] Question Consistency
+  [ score: 1.00 ] Question Consistency
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: behaviour-pre-assessment_user_123_250616-0635 (behaviour-pre-assessment) | ID: 4 ---
@@ -45,15 +46,14 @@
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
   [ score: 0.60 ] Question Consistency
-       Reason: The score is 0.60 because while the output addresses some aspects of the input, it includes irrelevant statements like 'Contractions stop.' and 'Skip.' which do not directly answer the question about when to go to the hospital during pregnancy. These statements detract from the overall relevance, preventing a higher score.
+       Reason: The score is 0.60 because the output partially addresses the input by mentioning contractions, which is relevant to the context of pregnancy and hospital visits. However, the inclusion of irrelevant statements like 'Contractions stop.' and 'Skip.' detracts from the overall relevance, preventing a higher score.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 3 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.57 ] Question Consistency
-       Reason: The score is 0.57 because while the output partially addresses the question about pregnancy check-ups, it includes irrelevant statements such as advising against zero check-ups and using phrases like 'I don't know' and 'Skip,' which do not directly answer the query.
+  [ score: 0.71 ] Question Consistency
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 4 ---
@@ -67,7 +67,8 @@
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.86 ] Question Consistency
+  [ score: 0.50 ] Question Consistency
+       Reason: The score is 0.50 because while the output attempts to address the question, it includes vague and incorrect statements that detract from clarity. However, it still partially acknowledges the protective role of the vaccine, which is why it isn't lower.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 6 ---
@@ -76,13 +77,13 @@
   Extraction Accuracy: [✅] PASSED
   [ score: 0.83 ] Question Consistency
   [ score: 0.00 ] Response Appropriateness
-       Reason: The score is 0.00 because the response 'no' does not address the question about the recommendation of iron and folic acid supplements for pregnant women, making it entirely irrelevant to the input.
+       Reason: The score is 0.00 because the response 'no' does not address the question about the recommendation of iron and folic acid supplements for pregnant women. It lacks context and information relevant to the inquiry.
 
 --- Turn: attitude-pre-assessment_user_123_250616-0635 (attitude-pre-assessment) | ID: 1 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.89 ] Question Consistency
+  [ score: 0.88 ] Question Consistency
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: attitude-pre-assessment_user_123_250616-0635 (attitude-pre-assessment) | ID: 2 ---
@@ -145,19 +146,19 @@ shape: (7, 8)
 📊 Behaviour-pre-assessment Performance (4 turns):
   - Intent Accuracy: 87.50%
   - Extraction Accuracy: 100.00%
-  - Avg. Question Consistency: 0.81
+  - Avg. Question Consistency: 0.67
   - Avg. Response Appropriateness: 1.00
 
 📊 Knowledge-pre-assessment Performance (6 turns):
   - Intent Accuracy: 100.00%
   - Extraction Accuracy: 100.00%
-  - Avg. Question Consistency: 0.73
+  - Avg. Question Consistency: 0.69
   - Avg. Response Appropriateness: 0.83
 
 📊 Attitude-pre-assessment Performance (3 turns):
   - Intent Accuracy: 100.00%
   - Extraction Accuracy: 100.00%
-  - Avg. Question Consistency: 0.87
+  - Avg. Question Consistency: 0.86
   - Avg. Response Appropriateness: 1.00
 
 ==================================================
@@ -171,7 +172,8 @@ shape: (7, 8)
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.91 ] Question Consistency
+  [ score: 0.09 ] Question Consistency
+       Reason: The score is 0.09 because the output primarily consists of options rather than direct responses to the input question. While the options might be useful in other contexts, they do not address the specific inquiry about pregnancy check-ups, leading to a low relevancy score.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: behaviour-pre-assessment_user_123_250616-0635 (behaviour-pre-assessment) | ID: 2 ---
@@ -186,7 +188,7 @@ shape: (7, 8)
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.75 ] Question Consistency
+  [ score: 1.00 ] Question Consistency
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: behaviour-pre-assessment_user_123_250616-0635 (behaviour-pre-assessment) | ID: 4 ---
@@ -208,15 +210,14 @@ shape: (7, 8)
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
   [ score: 0.60 ] Question Consistency
-       Reason: The score is 0.60 because while the output addresses some aspects of the input, it includes irrelevant statements like 'Contractions stop.' and 'Skip.' which do not directly answer the question about when to go to the hospital during pregnancy. These statements detract from the overall relevance, preventing a higher score.
+       Reason: The score is 0.60 because the output partially addresses the input by mentioning contractions, which is relevant to the context of pregnancy and hospital visits. However, the inclusion of irrelevant statements like 'Contractions stop.' and 'Skip.' detracts from the overall relevance, preventing a higher score.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 3 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.57 ] Question Consistency
-       Reason: The score is 0.57 because while the output partially addresses the question about pregnancy check-ups, it includes irrelevant statements such as advising against zero check-ups and using phrases like 'I don't know' and 'Skip,' which do not directly answer the query.
+  [ score: 0.71 ] Question Consistency
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 4 ---
@@ -230,7 +231,8 @@ shape: (7, 8)
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.86 ] Question Consistency
+  [ score: 0.50 ] Question Consistency
+       Reason: The score is 0.50 because while the output attempts to address the question, it includes vague and incorrect statements that detract from clarity. However, it still partially acknowledges the protective role of the vaccine, which is why it isn't lower.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 6 ---
@@ -239,13 +241,13 @@ shape: (7, 8)
   Extraction Accuracy: [✅] PASSED
   [ score: 0.83 ] Question Consistency
   [ score: 0.00 ] Response Appropriateness
-       Reason: The score is 0.00 because the response 'no' does not address the question about the recommendation of iron and folic acid supplements for pregnant women, making it entirely irrelevant to the input.
+       Reason: The score is 0.00 because the response 'no' does not address the question about the recommendation of iron and folic acid supplements for pregnant women. It lacks context and information relevant to the inquiry.
 
 --- Turn: attitude-pre-assessment_user_123_250616-0635 (attitude-pre-assessment) | ID: 1 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.89 ] Question Consistency
+  [ score: 0.88 ] Question Consistency
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: attitude-pre-assessment_user_123_250616-0635 (attitude-pre-assessment) | ID: 2 ---
@@ -308,19 +310,19 @@ shape: (7, 8)
 📊 Behaviour-pre-assessment Performance (4 turns):
   - Intent Accuracy: 87.50%
   - Extraction Accuracy: 100.00%
-  - Avg. Question Consistency: 0.81
+  - Avg. Question Consistency: 0.67
   - Avg. Response Appropriateness: 1.00
 
 📊 Knowledge-pre-assessment Performance (6 turns):
   - Intent Accuracy: 100.00%
   - Extraction Accuracy: 100.00%
-  - Avg. Question Consistency: 0.73
+  - Avg. Question Consistency: 0.69
   - Avg. Response Appropriateness: 0.83
 
 📊 Attitude-pre-assessment Performance (3 turns):
   - Intent Accuracy: 100.00%
   - Extraction Accuracy: 100.00%
-  - Avg. Question Consistency: 0.87
+  - Avg. Question Consistency: 0.86
   - Avg. Response Appropriateness: 1.00
 
 ==================================================

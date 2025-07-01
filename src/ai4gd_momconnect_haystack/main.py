@@ -1,6 +1,7 @@
 import asyncio
-import logging
 from datetime import datetime
+import logging
+import json
 from os import environ
 from pathlib import Path
 from typing import Any
@@ -10,19 +11,30 @@ from haystack.dataclasses import ChatMessage
 from pydantic import ValidationError
 from sqlalchemy import delete
 
-from ai4gd_momconnect_haystack.sqlalchemy_models import PreAssessmentQuestionHistory
+from ai4gd_momconnect_haystack.sqlalchemy_models import (
+    AssessmentEndMessagingHistory,
+    AssessmentHistory,
+    AssessmentResultHistory,
+)
 
 from . import tasks
 from .database import AsyncSessionLocal, init_db
-from .pydantic_models import AssessmentRun
+from .enums import AssessmentType
+from .pydantic_models import (
+    AssessmentEndScoreBasedMessage,
+    AssessmentEndSimpleMessage,
+    AssessmentRun,
+    Turn,
+)
 from .utilities import (
-    AssessmentType,
+    calculate_and_store_assessment_result,
     generate_scenario_id,
-    get_pre_assessment_history,
+    get_assessment_end_messaging_history,
+    get_assessment_result,
     load_json_and_validate,
+    save_assessment_end_message,
     save_json_file,
-    read_json,
-    save_pre_assessment_question,
+    save_assessment_question,
 )
 
 load_dotenv()
@@ -34,8 +46,6 @@ logging.basicConfig(
     level=numeric_level, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-# TODO: Add confirmation outputs telling the user what we understood their response to be, before sending them a next message.
 
 # Define fixed file paths for the Docker environment
 DATA_PATH = Path("src/ai4gd_momconnect_haystack/")
@@ -56,11 +66,14 @@ SCORABLE_ASSESSMENTS = {
     "behaviour-pre-assessment",
 }
 
-# TODO: Align simulation prompts with doc_store for valid responses.
-# The prompts used to generate the simulation run (e.g., in contextualization tasks)
-# provide response options like "Not at all confident", "A little confident", etc.
-# However, the doc_store (e.g., dma.json) expects "I strongly disagree", "I agree", etc.
-# for scoring. These must be aligned to ensure correct data extraction and scoring.
+
+def read_json(filepath: Path) -> dict:
+    """Reads JSON data from a file."""
+    try:
+        return json.loads(filepath.read_text(encoding="utf-8"))
+    except Exception as e:
+        logger.error("Error loading JSON from %s: %s", filepath, e)
+        raise
 
 
 async def _get_user_response(
@@ -353,6 +366,15 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
         max_assessment_steps = 10  # Safety break
         question_number = 1
 
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                await session.execute(
+                    delete(AssessmentHistory).where(
+                        AssessmentHistory.user_id == user_id,
+                        AssessmentHistory.assessment_id == flow_id.value,
+                    )
+                )
+
         # Simulate Assessment
         gt_scenario = gt_lookup_by_flow.get(flow_id)
         scenario_id_to_use = (
@@ -381,13 +403,14 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 logger.info("Assessment flow complete.")
                 break
             contextualized_question = result["contextualized_question"]
-            if "-pre" in flow_id.value:
-                await save_pre_assessment_question(
-                    user_id=user_id,
-                    assessment_type=flow_id,
-                    question_number=question_number,
-                    question=contextualized_question,
-                )
+            await save_assessment_question(
+                user_id=user_id,
+                assessment_type=flow_id,
+                question_number=question_number,
+                user_response=None,
+                question=contextualized_question,
+                score=None,
+            )
 
             print(f"Question #: {question_number}")
             print(f"Question: {contextualized_question}")
@@ -481,36 +504,295 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 }
             )
             question_number = result["next_question_number"]
-
-        # Inspect the pre-assessment questions that were stored as history,
-        # before deleting them:
-        if "-pre" in flow_id.value:
-            history = await get_pre_assessment_history(user_id, flow_id)
-            if history:
-                logger.info(
-                    "Stored the following pre-assessment questions during simulation:"
+            assessment_questions = tasks.load_and_validate_assessment_questions(
+                tasks.assessment_map_to_their_pre[flow_id.value]
+            )
+            if assessment_questions:
+                question_lookup = {q.question_number: q for q in assessment_questions}
+                score_result = tasks._score_single_turn(
+                    Turn.model_validate(dma_turns[-1]),
+                    question_lookup,
                 )
-                for q in history:
-                    logger.info(f"Question {q.question_number}: {q.question}")
+                await save_assessment_question(
+                    user_id=user_id,
+                    assessment_type=flow_id,
+                    question=None,
+                    question_number=dma_turns[-1]["question_number"],
+                    user_response=processed_user_response,
+                    score=score_result["score"],
+                )
+
+        await calculate_and_store_assessment_result(user_id, flow_id)
+
+        # Start of assessment-end messaging
+        next_message = "placeholder"
+        user_response = ""
+        previous_message: str = ""
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                await session.execute(
+                    delete(AssessmentEndMessagingHistory).where(
+                        AssessmentEndMessagingHistory.user_id == user_id,
+                        AssessmentEndMessagingHistory.assessment_id == flow_id.value,
+                    )
+                )
+        while next_message:
+            assessment_result = await get_assessment_result(user_id, flow_id)
+            if not assessment_result:
+                logger.error(
+                    f"Overall assessment result for {flow_id.value} not found!"
+                )
+                break
+            score_category = assessment_result.category
+            if assessment_result.crossed_skip_threshold:
+                score_category = "skipped-many"
+            messaging_history = await get_assessment_end_messaging_history(
+                user_id=user_id, assessment_type=flow_id
+            )
+            flow_content = tasks.assessment_end_flow_map[flow_id.value]
+            task = ""
+            if not messaging_history:
+                previous_message_nr = 0
+                # previous_message_data: AssessmentEndItem = None
+                previous_message_valid_responses: list[str] | None = []
+            else:
+                previous_message_nr = messaging_history[-1].message_number
+                previous_message_data = [
+                    item
+                    for item in flow_content
+                    if item.message_nr == previous_message_nr
+                ][-1]
+            # If previous message number was 1, then content is based on score category
+            if previous_message_nr == 0:
+                pass
+            elif previous_message_nr == 1:
+                if isinstance(previous_message_data, AssessmentEndScoreBasedMessage):
+                    if score_category == "high":
+                        previous_message = (
+                            previous_message_data.high_score_content.content
+                        )
+                        previous_message_valid_responses = (
+                            previous_message_data.high_score_content.valid_responses
+                        )
+                    elif score_category == "medium":
+                        previous_message = (
+                            previous_message_data.medium_score_content.content
+                        )
+                        previous_message_valid_responses = (
+                            previous_message_data.medium_score_content.valid_responses
+                        )
+                    elif score_category == "low":
+                        previous_message = (
+                            previous_message_data.low_score_content.content
+                        )
+                        previous_message_valid_responses = (
+                            previous_message_data.low_score_content.valid_responses
+                        )
+                    else:
+                        previous_message = (
+                            previous_message_data.skipped_many_content.content
+                        )
+                        previous_message_valid_responses = (
+                            previous_message_data.skipped_many_content.valid_responses
+                        )
+                else:
+                    logger.error("Wrong content type.")
+                    break
+            # For previous message numbers 2/3, content is the same across score categories.
+            else:
+                if isinstance(previous_message_data, AssessmentEndSimpleMessage):
+                    previous_message = previous_message_data.content
+                    previous_message_valid_responses = (
+                        previous_message_data.valid_responses
+                    )
+                else:
+                    logger.error("Wrong content type.")
+                    break
+            if not previous_message_valid_responses and previous_message_nr != 0:
+                logger.error("Valid responses not found.")
+                break
+            if previous_message_nr > 0:
+                intent, intent_related_response = tasks.handle_user_message(
+                    previous_message, user_response
+                )
+            else:
+                intent, intent_related_response = "JOURNEY_RESPONSE", ""
+            next_message_nr = previous_message_nr + 1
+
+            # If the user responded to the previous question, we process their response and determine what needs to happen next
+            if intent == "JOURNEY_RESPONSE" and user_response:
+                # If the user responded to a question that demands a response
+                if (
+                    (
+                        flow_id.value == "dma-pre-assessment"
+                        and next_message_nr in [2, 3]
+                    )
+                    or (
+                        flow_id.value == "behaviour-pre-assessment"
+                        and next_message_nr == 2
+                    )
+                    or (
+                        flow_id.value == "knowledge-pre-assessment"
+                        and next_message_nr == 2
+                    )
+                    or (
+                        flow_id.value == "attitude-pre-assessment"
+                        and next_message_nr == 2
+                    )
+                ):
+                    if not previous_message_valid_responses:
+                        logger.error("Valid responses not found.")
+                        break
+                    result = tasks.validate_assessment_end_response(
+                        previous_message=previous_message,
+                        previous_message_nr=next_message_nr - 1,
+                        previous_message_valid_responses=previous_message_valid_responses,
+                        user_response=user_response,
+                    )
+                    if result["next_message_number"] == next_message_nr - 1:
+                        # validation failed, send previous message again
+                        next_message_data = previous_message_data
+                    else:
+                        processed_user_response = result["processed_user_response"]
+                        # If the user response was valid, save it to the existing AssessmentEndMessagingHistory record
+                        await save_assessment_end_message(
+                            user_response,
+                            flow_id,
+                            next_message_nr - 1,
+                            processed_user_response,
+                        )
+                        # validation succeeded, so determine next message to send
+                        if next_message_nr > len(flow_content):
+                            # end of journey reached
+                            break
+                        next_message_data = [
+                            item
+                            for item in flow_content
+                            if item.message_nr == next_message_nr
+                        ][-1]
+
+                        # Now determine the task that's associated with the response
+                        if flow_id.value == "dma-pre-assessment":
+                            if (
+                                previous_message_nr == 1
+                                and score_category == "skipped-many"
+                            ):
+                                if processed_user_response == "Yes":
+                                    task = "REMIND_ME_LATER"
+                            elif previous_message_nr == 2:
+                                task = "STORE_FEEDBACK"
+                        elif flow_id.value == "behaviour-pre-assessment":
+                            if (
+                                previous_message_nr == 1
+                                and processed_user_response == "Remind me tomorrow"
+                            ):
+                                task = "REMIND_ME_LATER"
+                        elif flow_id.value == "knowledge-pre-assessment":
+                            if (
+                                previous_message_nr == 1
+                                and processed_user_response == "Remind me tomorrow"
+                            ):
+                                task = "REMIND_ME_LATER"
+                        elif flow_id.value == "attitude-pre-assessment":
+                            if previous_message_nr == 1:
+                                if score_category == "skipped-many":
+                                    if processed_user_response == "Yes":
+                                        task = "REMIND_ME_LATER"
+                                else:
+                                    task = "STORE_FEEDBACK"
+                    if isinstance(next_message_data, AssessmentEndSimpleMessage):
+                        next_message = next_message_data.content
+                    else:
+                        logger.error("Wrong content type.")
+                        break
+                # Else the user responded to the last question, which doesn't require a response
+                else:
+                    # Here we return an empty message because the user responded by the journey ended
+                    next_message = ""
+
+            elif intent == "JOURNEY_RESPONSE":
+                # This triggers if the journey is initiating (i.e. the next message to be sent is the first)
+                next_message_data = [
+                    item for item in flow_content if item.message_nr == next_message_nr
+                ][-1]
+                if isinstance(next_message_data, AssessmentEndScoreBasedMessage):
+                    if score_category == "high":
+                        next_message = next_message_data.high_score_content.content
+                    elif score_category == "medium":
+                        next_message = next_message_data.medium_score_content.content
+                    elif score_category == "low":
+                        next_message = next_message_data.low_score_content.content
+                    else:
+                        next_message = next_message_data.skipped_many_content.content
+                else:
+                    logger.error("Wrong content type.")
+                    break
+            else:
+                # It doesn't seem like the user is responding to the journey, and neither is it their first question, so we ask them the previous question again.
+                next_message_data = [
+                    item
+                    for item in flow_content
+                    if isinstance(item, AssessmentEndSimpleMessage)
+                    and item.message_nr == previous_message_nr
+                ][-1]
+                next_message = next_message_data.content
+
+            # If a new question is being sent, save it in a new AssessmentEndMessagingHistory record
+            if next_message and next_message_nr == previous_message_nr + 1:
+                await save_assessment_end_message(user_id, flow_id, next_message_nr, "")
+            print(f"Task: {task}")
+            print(f"Question #: {next_message_nr}")
+            print(f"Question: {next_message}")
+            user_response, gt_turn = await _get_user_response(
+                gt_lookup={},
+                flow_id=flow_id.value,
+                contextualized_question=next_message,
+                turn_identifier_key="message_nr",
+                turn_identifier_value=next_message_nr,
+            )
+            if user_response is None:
+                break
+            print(f"User_response: {user_response}")
+        # End of assessment-end messaging
+
+        # Inspect the assessment questions and results that were stored as history before deleting them:
+        history = await tasks.get_assessment_history(user_id, flow_id)
+        if history:
+            logger.info(
+                "Stored the following pre-assessment questions during simulation:"
+            )
+            for q in history:
+                logger.info(f"Question {q.question_number}: {q.question}")
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                await session.execute(
+                    delete(AssessmentHistory).where(
+                        AssessmentHistory.user_id == user_id,
+                        AssessmentHistory.assessment_id == flow_id.value,
+                    )
+                )
+        # And also the overall assessment result, if there is one:
+        assessment_result = await get_assessment_result(user_id, flow_id)
+        if assessment_result:
+            print("Assessment Result:")
+            print(assessment_result)
             async with AsyncSessionLocal() as session:
                 async with session.begin():
                     await session.execute(
-                        delete(PreAssessmentQuestionHistory).where(
-                            PreAssessmentQuestionHistory.user_id == user_id,
-                            PreAssessmentQuestionHistory.assessment_id == flow_id.value,
+                        delete(AssessmentResultHistory).where(
+                            AssessmentResultHistory.user_id == user_id,
+                            AssessmentResultHistory.assessment_id == flow_id.value,
                         )
                     )
-                    await session.commit()
 
         run_results["turns"] = dma_turns
         simulation_results.append(run_results)
 
     # ** KAB Scenario **
-    ### Check GT data to decide if KAB should be simulated ###
     kab_flow_ids = [
+        AssessmentType.behaviour_pre_assessment,
         AssessmentType.knowledge_pre_assessment,
         AssessmentType.attitude_pre_assessment,
-        AssessmentType.behaviour_pre_assessment,
     ]
     kab_flows_in_gt = [flow for flow in kab_flow_ids if flow.value in gt_lookup_by_flow]
     sim_kab = bool(kab_flows_in_gt)
@@ -528,6 +810,16 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
     if sim_kab:
         flows_to_run = kab_flows_in_gt if gt_scenarios else kab_flow_ids
+
+        for flow_id in flows_to_run:
+            async with AsyncSessionLocal() as session:
+                async with session.begin():
+                    await session.execute(
+                        delete(AssessmentHistory).where(
+                            AssessmentHistory.user_id == user_id,
+                            AssessmentHistory.assessment_id == flow_id.value,
+                        )
+                    )
 
         for flow_id in flows_to_run:
             logger.info("\n--- Simulating KAB ---")
@@ -564,13 +856,14 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     logger.info("Assessment flow complete.")
                     break
                 contextualized_question = result["contextualized_question"]
-                if "-pre" in flow_id.value:
-                    await save_pre_assessment_question(
-                        user_id=user_id,
-                        assessment_type=flow_id,
-                        question_number=question_number,
-                        question=contextualized_question,
-                    )
+                await save_assessment_question(
+                    user_id=user_id,
+                    assessment_type=flow_id,
+                    question_number=question_number,
+                    user_response=None,
+                    question=contextualized_question,
+                    score=None,
+                )
 
                 print("-" * 20)
                 print(f"Question #: {question_number}")
@@ -593,7 +886,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     )
                     if user_response is None:
                         break
-                    print(f"Use_response: {user_response}")
+                    print(f"User_response: {user_response}")
                     intent, intent_related_response = tasks.handle_user_message(
                         contextualized_question, user_response
                     )
@@ -659,25 +952,296 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     }
                 )
                 question_number = result["next_question_number"]
-
-            if "-pre" in flow_id.value:
-                history = await get_pre_assessment_history(user_id, flow_id)
-                if history:
-                    logger.info(
-                        "Stored the following pre-assessment questions during simulation:"
+                assessment_questions = tasks.load_and_validate_assessment_questions(
+                    tasks.assessment_map_to_their_pre[flow_id.value]
+                )
+                if assessment_questions:
+                    question_lookup = {
+                        q.question_number: q for q in assessment_questions
+                    }
+                    score_result = tasks._score_single_turn(
+                        Turn.model_validate(kab_turns[-1]),
+                        question_lookup,
                     )
-                    for q in history:
-                        logger.info(f"Question {q.question_number}: {q.question}")
+                    await save_assessment_question(
+                        user_id=user_id,
+                        assessment_type=flow_id,
+                        question=None,
+                        question_number=kab_turns[-1]["question_number"],
+                        user_response=processed_user_response,
+                        score=score_result["score"],
+                    )
+
+            await calculate_and_store_assessment_result(user_id, flow_id)
+
+            # Start of assessment-end messaging
+            next_message = "placeholder"
+            user_response = ""
+            async with AsyncSessionLocal() as session:
+                async with session.begin():
+                    await session.execute(
+                        delete(AssessmentEndMessagingHistory).where(
+                            AssessmentEndMessagingHistory.user_id == user_id,
+                            AssessmentEndMessagingHistory.assessment_id
+                            == flow_id.value,
+                        )
+                    )
+            while next_message:
+                assessment_result = await get_assessment_result(user_id, flow_id)
+                if not assessment_result:
+                    logger.error(
+                        f"Overall assessment result for {flow_id.value} not found!"
+                    )
+                    break
+                score_category = assessment_result.category
+                if assessment_result.crossed_skip_threshold:
+                    score_category = "skipped-many"
+                messaging_history = await get_assessment_end_messaging_history(
+                    user_id=user_id, assessment_type=flow_id
+                )
+                flow_content = tasks.assessment_end_flow_map[flow_id.value]
+                task = ""
+                if not messaging_history:
+                    previous_message_nr = 0
+                    # previous_message_data = []
+                    previous_message_valid_responses = []
+                else:
+                    previous_message_nr = messaging_history[-1].message_number
+                    previous_message_data = [
+                        item
+                        for item in flow_content
+                        if item.message_nr == previous_message_nr
+                    ][-1]
+                # If previous message number was 1, then content is based on score category
+                if previous_message_nr == 0:
+                    pass
+                elif previous_message_nr == 1:
+                    if isinstance(
+                        previous_message_data, AssessmentEndScoreBasedMessage
+                    ):
+                        if score_category == "high":
+                            previous_message = (
+                                previous_message_data.high_score_content.content
+                            )
+                            previous_message_valid_responses = (
+                                previous_message_data.high_score_content.valid_responses
+                            )
+                        elif score_category == "medium":
+                            previous_message = (
+                                previous_message_data.medium_score_content.content
+                            )
+                            previous_message_valid_responses = previous_message_data.medium_score_content.valid_responses
+                        elif score_category == "low":
+                            previous_message = (
+                                previous_message_data.low_score_content.content
+                            )
+                            previous_message_valid_responses = (
+                                previous_message_data.low_score_content.valid_responses
+                            )
+                        else:
+                            previous_message = (
+                                previous_message_data.skipped_many_content.content
+                            )
+                            previous_message_valid_responses = previous_message_data.skipped_many_content.valid_responses
+                    else:
+                        logger.error("Wrong content type.")
+                        break
+                # For previous message numbers 2/3, content is the same across score categories.
+                else:
+                    if isinstance(previous_message_data, AssessmentEndSimpleMessage):
+                        previous_message = previous_message_data.content
+                        previous_message_valid_responses = (
+                            previous_message_data.valid_responses
+                        )
+                    else:
+                        logger.error("Wrong content type.")
+                        break
+
+                if not previous_message_valid_responses and previous_message_nr != 0:
+                    logger.error("Valid responses not found.")
+                    break
+                if previous_message_nr > 0:
+                    intent, intent_related_response = tasks.handle_user_message(
+                        previous_message, user_response
+                    )
+                else:
+                    intent, intent_related_response = "JOURNEY_RESPONSE", ""
+                next_message_nr = previous_message_nr + 1
+
+                # If the user responded to the previous question, we process their response and determine what needs to happen next
+                if intent == "JOURNEY_RESPONSE" and user_response:
+                    # If the user responded to a question that demands a response
+                    if (
+                        (
+                            flow_id.value == "dma-pre-assessment"
+                            and next_message_nr in [2, 3]
+                        )
+                        or (
+                            flow_id.value == "behaviour-pre-assessment"
+                            and next_message_nr == 2
+                        )
+                        or (
+                            flow_id.value == "knowledge-pre-assessment"
+                            and next_message_nr == 2
+                        )
+                        or (
+                            flow_id.value == "attitude-pre-assessment"
+                            and next_message_nr == 2
+                        )
+                    ):
+                        assert previous_message_valid_responses is not None, (
+                            "Valid responses not found!"
+                        )
+                        result = tasks.validate_assessment_end_response(
+                            previous_message=previous_message,
+                            previous_message_nr=next_message_nr - 1,
+                            previous_message_valid_responses=previous_message_valid_responses,
+                            user_response=user_response,
+                        )
+                        if result["next_message_number"] == next_message_nr - 1:
+                            # validation failed, send previous message again
+                            next_message_data = previous_message_data
+                        else:
+                            processed_user_response = result["processed_user_response"]
+                            # If the user response was valid, save it to the existing AssessmentEndMessagingHistory record
+                            await save_assessment_end_message(
+                                user_response,
+                                flow_id,
+                                next_message_nr - 1,
+                                processed_user_response,
+                            )
+                            # validation succeeded, so determine next message to send
+                            if next_message_nr > len(flow_content):
+                                # end of journey reached
+                                break
+                            next_message_data = [
+                                item
+                                for item in flow_content
+                                if item.message_nr == next_message_nr
+                            ][-1]
+
+                            # Now determine the task that's associated with the response
+                            if flow_id.value == "dma-pre-assessment":
+                                if (
+                                    previous_message_nr == 1
+                                    and score_category == "skipped-many"
+                                ):
+                                    if processed_user_response == "Yes":
+                                        task = "REMIND_ME_LATER"
+                                elif previous_message_nr == 2:
+                                    task = "STORE_FEEDBACK"
+                            elif flow_id.value == "behaviour-pre-assessment":
+                                if (
+                                    previous_message_nr == 1
+                                    and processed_user_response == "Remind me tomorrow"
+                                ):
+                                    task = "REMIND_ME_LATER"
+                            elif flow_id.value == "knowledge-pre-assessment":
+                                if (
+                                    previous_message_nr == 1
+                                    and processed_user_response == "Remind me tomorrow"
+                                ):
+                                    task = "REMIND_ME_LATER"
+                            elif flow_id.value == "attitude-pre-assessment":
+                                if previous_message_nr == 1:
+                                    if score_category == "skipped-many":
+                                        if processed_user_response == "Yes":
+                                            task = "REMIND_ME_LATER"
+                                    else:
+                                        task = "STORE_FEEDBACK"
+                        if isinstance(next_message_data, AssessmentEndSimpleMessage):
+                            next_message = next_message_data.content
+                        else:
+                            logger.error("Wrong content type.")
+                            break
+                    # Else the user responded to the last question, which doesn't require a response
+                    else:
+                        # Here we return an empty message because the user responded by the journey ended
+                        next_message = ""
+
+                elif intent == "JOURNEY_RESPONSE":
+                    # This triggers if the journey is initiating (i.e. the next message to be sent is the first)
+                    next_message_data = [
+                        item
+                        for item in flow_content
+                        if item.message_nr == next_message_nr
+                    ][-1]
+                    if isinstance(next_message_data, AssessmentEndScoreBasedMessage):
+                        if score_category == "high":
+                            next_message = next_message_data.high_score_content.content
+                        elif score_category == "medium":
+                            next_message = (
+                                next_message_data.medium_score_content.content
+                            )
+                        elif score_category == "low":
+                            next_message = next_message_data.low_score_content.content
+                        else:
+                            next_message = (
+                                next_message_data.skipped_many_content.content
+                            )
+                    else:
+                        logger.error("Wrong content type")
+                        break
+                else:
+                    # It doesn't seem like the user is responding to the journey, and neither is it their first question, so we ask them the previous question again.
+                    next_message_data = [
+                        item
+                        for item in flow_content
+                        if isinstance(item, AssessmentEndSimpleMessage)
+                        and item.message_nr == previous_message_nr
+                    ][-1]
+                    next_message = next_message_data.content
+
+                # If a new question is being sent, save it in a new AssessmentEndMessagingHistory record
+                if next_message and next_message_nr == previous_message_nr + 1:
+                    await save_assessment_end_message(
+                        user_id, flow_id, next_message_nr, ""
+                    )
+                print(f"Task: {task}")
+                print(f"Question #: {next_message_nr}")
+                print(f"Question: {next_message}")
+                user_response, gt_turn = await _get_user_response(
+                    gt_lookup={},
+                    flow_id=flow_id.value,
+                    contextualized_question=next_message,
+                    turn_identifier_key="message_nr",
+                    turn_identifier_value=next_message_nr,
+                )
+                if user_response is None:
+                    break
+                print(f"User_response: {user_response}")
+            # End of assessment-end messaging
+
+            # Inspect the pre-assessment questions that were stored as history,
+            # before deleting them:
+            history = await tasks.get_assessment_history(user_id, flow_id)
+            if history:
+                logger.info(
+                    "Stored the following assessment questions during simulation:"
+                )
+                for q in history:
+                    logger.info(f"Question {q.question_number}: {q.question}")
+            async with AsyncSessionLocal() as session:
+                async with session.begin():
+                    await session.execute(
+                        delete(AssessmentHistory).where(
+                            AssessmentHistory.user_id == user_id,
+                            AssessmentHistory.assessment_id == flow_id.value,
+                        )
+                    )
+            # And also the overall assessment result, if there is one:
+            assessment_result = await get_assessment_result(user_id, flow_id)
+            if assessment_result:
+                print("Assessment Result:")
+                print(assessment_result)
                 async with AsyncSessionLocal() as session:
                     async with session.begin():
                         await session.execute(
-                            delete(PreAssessmentQuestionHistory).where(
-                                PreAssessmentQuestionHistory.user_id == user_id,
-                                PreAssessmentQuestionHistory.assessment_id
-                                == flow_id.value,
+                            delete(AssessmentResultHistory).where(
+                                AssessmentResultHistory.user_id == user_id,
+                                AssessmentResultHistory.assessment_id == flow_id.value,
                             )
                         )
-                        await session.commit()
 
             run_results["turns"] = kab_turns
             simulation_results.append(run_results)
@@ -782,6 +1346,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     final_user_response = user_response
                     if not has_deflected:
                         final_predicted_intent = initial_predicted_intent
+                        user_context[question_identifier] = final_user_response
                     break
                 else:
                     if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
@@ -812,29 +1377,31 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             anc_user_context = tasks.extract_anc_data_from_response(
                 final_user_response, anc_user_context, chat_history
             )
-            # Identify what changed in user_context
-            diff_keys = [
-                k
+
+            # Find all new and changed keys by comparing the context before and after extraction
+            extracted_data = {
+                k: anc_user_context[k]
                 for k in anc_user_context
-                if anc_user_context[k] != previous_context.get(k)
-            ]
-            for updated_field in diff_keys:
-                logger.info(f"Creating turn for extracted field: {updated_field}")
-                anc_survey_turns.append(
-                    {
-                        "question_name": question_identifier,
-                        "llm_utterance": contextualized_question,
-                        "user_utterance": gt_turn.get("user_utterance")
-                        if gt_turn
-                        else final_user_response,
-                        "follow_up_utterance": gt_turn.get("follow_up_utterance")
-                        if gt_turn
-                        else None,
-                        "llm_initial_predicted_intent": initial_predicted_intent,
-                        "llm_final_predicted_intent": final_predicted_intent,
-                        "llm_extracted_user_response": anc_user_context[updated_field],
-                    }
-                )
+                if k not in previous_context
+                or anc_user_context[k] != previous_context.get(k)
+            }
+            print("UserContext after response extraction:")
+            print(extracted_data)
+
+            # Log the full dictionary of extracted data as part of a single turn record
+            anc_survey_turns.append(
+                {
+                    "question_name": question_identifier,
+                    "llm_utterance": contextualized_question,
+                    "user_utterance": gt_turn.get("user_utterance")
+                    if gt_turn
+                    else final_user_response,
+                    "follow_up_utterance": final_user_response,
+                    "llm_initial_predicted_intent": initial_predicted_intent,
+                    "llm_final_predicted_intent": final_predicted_intent,
+                    "llm_extracted_user_response": extracted_data,
+                }
+            )
         run_results["turns"] = anc_survey_turns
         simulation_results.append(run_results)
 
@@ -889,11 +1456,11 @@ def _process_run(run: AssessmentRun) -> dict:
 
 
 async def async_main(
-    RESULT_PATH=OUTPUT_PATH,
     GT_FILE_PATH=GT_FILE_PATH,
     is_automated=False,
     save_simulation=False,
-) -> None:
+    RESULT_FILE_PATH=None,
+) -> Path | None:
     """
     Runs the interactive simulation, orchestrates scoring on the in-memory
     results, and saves the final augmented report.
@@ -918,7 +1485,7 @@ async def async_main(
             logging.critical(
                 f"Failed to load ground truth file from {GT_FILE_PATH}. Exiting."
             )
-            return
+            return None
         raw_simulation_output = await run_simulation(gt_scenarios=gt_scenarios)
     else:
         logging.info("Starting simulation in INTERACTIVE mode...")
@@ -935,7 +1502,7 @@ async def async_main(
         logging.info("Simulation output validated successfully.")
     except ValidationError as e:
         logging.critical(f"Simulation produced invalid output data:\n{e}")
-        return
+        return None
 
     # 3. Load the doc stores which contain the assessment questions and rules.
     doc_store_dma = load_json_and_validate(DOC_STORE_DMA_PATH, dict)
@@ -945,7 +1512,7 @@ async def async_main(
         logging.critical(
             "Could not load one or more required doc store files. Exiting."
         )
-        return
+        return None
 
     # 4. Process each validated simulation run using the helper function.
     final_augmented_output = [_process_run(run) for run in simulation_output]
@@ -956,7 +1523,9 @@ async def async_main(
         # For now, it saves the output to a local JSON file for inspection.
         file_extention = datetime.now().strftime("%y%m%d-%H%M")
         SIMULATION_FILE_PATH = (
-            RESULT_PATH / f"simulation_run_results_{file_extention}.json"
+            OUTPUT_PATH / f"simulation_run_results_{file_extention}.json"
+            if RESULT_FILE_PATH is None
+            else RESULT_FILE_PATH
         )
 
         save_json_file(
@@ -967,6 +1536,7 @@ async def async_main(
             f"Processing complete. Final output generated and save to {SIMULATION_FILE_PATH}"
         )
         return SIMULATION_FILE_PATH
+    return None
 
 
 def main() -> None:

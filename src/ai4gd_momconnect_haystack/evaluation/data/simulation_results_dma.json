@@ -10,7 +10,7 @@
       {
         "question_name": null,
         "question_number": 1,
-        "llm_utterance": "How much do you agree or disagree with this statement: I feel like I can make decisions about my health.\n\nI strongly disagree\nI disagree\nI'm not sure\nI agree\nI strongly agree\nSkip",
+        "llm_utterance": "To what extent do you feel like you can make decisions about your health?\n\nI strongly disagree\nI disagree\nI'm not sure\nI agree\nI strongly agree\nSkip",
         "user_utterance": "Is my information kept private?",
         "follow_up_utterance": "I strongly agree",
         "user_response": "I strongly agree",
@@ -21,7 +21,7 @@
       {
         "question_name": null,
         "question_number": 2,
-        "llm_utterance": "Can you comfortably discuss your health issues with a health worker?\n\nI strongly disagree\nI disagree\nI'm not sure\nI agree\nI strongly agree\nSkip",
+        "llm_utterance": "Do you feel comfortable talking about your health issues with a health worker?\n\nI strongly disagree\nI disagree\nI'm not sure\nI agree\nI strongly agree\nSkip",
         "user_utterance": "Can I take Panado while I'm pregnant?",
         "follow_up_utterance": "I strongly agree",
         "user_response": "I strongly agree",
@@ -43,7 +43,7 @@
       {
         "question_name": null,
         "question_number": 4,
-        "llm_utterance": "Almost done! *I feel that I can do things to improve my health.*\n\nI strongly disagree\nI disagree\nI'm not sure\nI agree\nI strongly agree\nSkip",
+        "llm_utterance": "I feel that I can do things to improve my health.\n\nI strongly disagree\nI disagree\nI'm not sure\nI agree\nI strongly agree\nSkip",
         "user_utterance": "The airtime thing didn't work for me.",
         "follow_up_utterance": "I strongly agree",
         "user_response": "I strongly agree",
@@ -54,7 +54,7 @@
       {
         "question_name": null,
         "question_number": 5,
-        "llm_utterance": "Do you feel that you can find information about your health from other places, not just a health worker?\n\nI strongly disagree\nI disagree\nI'm not sure\nI agree\nI strongly agree\nSkip",
+        "llm_utterance": "Do you feel that you can find information about your health from sources other than a health worker?\n\nI strongly disagree\nI disagree\nI'm not sure\nI agree\nI strongly agree\nSkip",
         "user_utterance": "Thank you so much",
         "follow_up_utterance": "I strongly agree",
         "user_response": "I strongly agree",

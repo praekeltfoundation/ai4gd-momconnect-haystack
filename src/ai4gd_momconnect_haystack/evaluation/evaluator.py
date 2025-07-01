@@ -424,10 +424,28 @@ def main():
     results_path = args.results_file
     if args.run_simulation:
         print("--- Running Automated Simulation ---")
+        gt_filename_str = str(args.gt_file)
+        result_file_name = None
+        if "onboarding" in gt_filename_str:
+            result_file_name = "onboarding"
+        elif "anc" in gt_filename_str:
+            result_file_name = "anc-survey"
+        elif "kab" in gt_filename_str:
+            result_file_name = "kab"
+        elif "dma" in gt_filename_str:
+            result_file_name = "dma"
+
+        if result_file_name:
+            RESULT_FILE_PATH = (
+                script_dir / "data" / f"simulation_results_{result_file_name}.json"
+            )
+        else:
+            RESULT_FILE_PATH = None
+
         output_path = asyncio.run(
             run_main_simulation(
                 GT_FILE_PATH=args.gt_file,
-                RESULT_PATH=script_dir / "data",
+                RESULT_FILE_PATH=RESULT_FILE_PATH,
                 is_automated=True,
                 save_simulation=True,
             )
