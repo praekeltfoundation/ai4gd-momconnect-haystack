@@ -25,6 +25,7 @@ from ai4gd_momconnect_haystack.utilities import (
     kab_b_post_flow_id,
     kab_k_post_flow_id,
     kab_k_pre_flow_id,
+    prepare_valid_responses_to_use_in_assessment_system_prompt,
 )
 
 
@@ -158,10 +159,23 @@ def validate_assessment_answer(
             "next_question_number": question_number,
         }
     valid_responses = [item.response for item in valid_responses_and_scores]
+    if "dma" in current_flow_id:
+        flow_id_to_use = "dma-assessment"
+    elif "knowledge" in current_flow_id:
+        flow_id_to_use = "knowledge-assessment"
+    elif "attitude" in current_flow_id:
+        flow_id_to_use = "attitude-assessment"
+    else:
+        flow_id_to_use = "behaviour-pre-assessment"
+    valid_responses_for_prompt = (
+        prepare_valid_responses_to_use_in_assessment_system_prompt(
+            flow_id_to_use, question_number, current_question
+        )
+    )
 
     validator_pipe = pipelines.create_assessment_response_validator_pipeline()
     processed_user_response = pipelines.run_assessment_response_validator_pipeline(
-        validator_pipe, user_response, valid_responses
+        validator_pipe, user_response, valid_responses, valid_responses_for_prompt
     )
 
     # Move to the next step, or try again if the response was invalid

@@ -1,0 +1,66 @@
+
+==================================================
+              DETAILED TURN-BY-TURN REPORT
+==================================================
+
+--- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: start ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 0.67 ] Question Consistency
+       Reason: The score is 0.67 because while the response partially addresses the question about the pregnancy check-up, it includes irrelevant elements like a general greeting and an instruction, which do not directly contribute to answering the query.
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: Q_seen ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: seen_yes ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 0.40 ] Question Consistency
+       Reason: The score is 0.40 because the output includes multiple response options and format prompts that do not directly address the input's request for feedback. However, the presence of these options indicates an attempt to engage with the input, which is why the score is not lower.
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: Q_bp ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: Q_experience ---
+  [❌] Extraction Accuracy: FAILED
+       Details: Expected: 'good', Got: 'ok'
+  [ score: 0.00 ] Question Consistency
+       Reason: The score is 0.00 because the output consists entirely of options for feedback rather than a direct description of the check-up experience, making it irrelevant to the input question.
+  [ score: 0.00 ] Response Appropriateness
+       Reason: The score is 0.00 because the response 'cool' does not align with the requested rating options ('very good', 'good', 'ok', 'bad', 'very bad'). It fails to provide a relevant answer to the input question.
+
+--- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: good ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: Q_visit_bad ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: Q_challenges ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: intent ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+
+==================================================
+              PERFORMANCE SUMMARY REPORT
+==================================================
+
+📊 Anc-survey Performance (9 turns evaluated):
+  - Extraction Accuracy: 88.89%
+  - Question Consistency Score (Avg): 0.79
+  - Response Appropriateness Score (Avg): 0.89
+
+==================================================

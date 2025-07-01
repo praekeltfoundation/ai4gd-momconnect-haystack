@@ -188,7 +188,6 @@ async def calculate_and_store_assessment_result(
                 .order_by(AssessmentHistory.question_number.asc())
             )
             historic_records = result.scalars().all()
-            print(f"Number of historic records with scores: {len(historic_records)}")
 
             # If the number of scored records matches the expected length, proceed
             if not matches_assessment_question_length(
@@ -201,7 +200,7 @@ async def calculate_and_store_assessment_result(
                 Turn.model_validate(
                     {
                         "question_number": rec.question_number,
-                        "user_response": rec.user_response,
+                        "llm_extracted_user_response": rec.user_response,
                     }
                 )
                 for rec in historic_records
@@ -332,6 +331,50 @@ async def save_assessment_end_message(
                 )
                 session.add(new_historic_record)
             await session.commit()
+
+
+async def delete_chat_history_for_user(user_id: str, history_type: HistoryType):
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            result = await session.execute(
+                select(ChatHistory).filter(ChatHistory.user_id == user_id)
+            )
+            db_history = result.scalar_one_or_none()
+
+            if db_history:
+                if history_type == HistoryType.onboarding:
+                    db_history.onboarding_history = []
+                elif history_type == HistoryType.anc:
+                    db_history.anc_survey_history = []
+                else:
+                    logger.error(f"Unknown chat history type to delete: {history_type}")
+                    return
+
+
+async def delete_assessment_history_for_user(
+    user_id: str, assessment_type: AssessmentType
+):
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            await session.execute(
+                delete(AssessmentHistory).where(
+                    AssessmentHistory.user_id == user_id,
+                    AssessmentHistory.assessment_id == assessment_type.value,
+                )
+            )
+            await session.execute(
+                delete(AssessmentResultHistory).where(
+                    AssessmentResultHistory.user_id == user_id,
+                    AssessmentResultHistory.assessment_id == assessment_type.value,
+                )
+            )
+            await session.execute(
+                delete(AssessmentEndMessagingHistory).where(
+                    AssessmentEndMessagingHistory.user_id == user_id,
+                    AssessmentEndMessagingHistory.assessment_id
+                    == assessment_type.value,
+                )
+            )
 
 
 async def truncate_chat_history():

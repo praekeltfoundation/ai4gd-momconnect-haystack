@@ -294,6 +294,7 @@ def create_onboarding_tool() -> Tool:
                         "Farm or smallholding",
                         "Village",
                         "Rural area",
+                        "Skip",
                     ],
                 },
                 "relationship_status": {
@@ -318,12 +319,20 @@ def create_onboarding_tool() -> Tool:
                 "hunger_days": {
                     "type": "string",
                     "description": "Number of days in the past 7 days the user didn't have enough to eat.",
-                    "enum": ["0 days", "1-2 days", "3-4 days", "5-7 days"],
+                    "enum": ["0 days", "1-2 days", "3-4 days", "5-7 days", "Skip"],
                 },
                 "num_children": {
                     "type": "string",
                     "description": "The number of children the user has.",
-                    "enum": ["0", "1", "2", "3", "More than 3", "Why do you ask?"],
+                    "enum": [
+                        "0",
+                        "1",
+                        "2",
+                        "3",
+                        "More than 3",
+                        "Why do you ask?",
+                        "Skip",
+                    ],
                 },
                 "phone_ownership": {
                     "type": "string",
@@ -357,23 +366,21 @@ def create_next_onboarding_question_pipeline() -> Pipeline | None:
     pipeline = Pipeline()
 
     prompt_template = """
+**START OF CHAT HISTORY**
 {% for message in chat_history %}
 {% if message.is_from('user') %}
 user:
 {{ message.text }}
-
 {% elif message.is_from('assistant') %}
 assistant:
 {{ message.text }}
-
 {% else %}
 system:
 {{ message.text }}
-
 {% endif %}
 {% endfor %}
+**END OF CHAT HISTORY**
 
-system:
 User Context:
 {% for key, value in user_context.items() %}
 - "{{ key }}": "{{ value }}"
@@ -385,9 +392,9 @@ Question {{ q.question_number }}: "{{ q.content }}" (with valid possible respons
 {% endfor %}
 
 Your task is to select the single remaining question that would be the most natural and effective to ask next and contextualize it if you think it's needed.
-- You can reference the existing chat history and user context above to modify the tonality and/or phrasing for the user, but DO NOT change the core meaning of the question or introduce ambiguity.
-- DO NOT list the valid responses in the contextualized question.
-- Ensure that the dialogue flows smoothly (e.g. the first message in a chat must not start as if there were preceding messages), and to still ask the question in such a way that its valid responses will remain grammatically valid responses to the new version of the question.
+- You can reference the existing chat history and user context above to modify the tonality and/or phrasing for the user, but DO NOT change the core meaning of the question or introduce ambiguity. If no changes are needed, return the original question text.
+- DO NOT list the valid responses in your contextualized version of the chosen question.
+- Ensure that a dialogue using your contextualized version of the question flows smoothly (e.g. the first message in a chat must not start as if there were preceding messages), and that the contextualized question still allows for its corresponding valid responses to be grammatically valid and natural responses.
 
 You MUST respond with a valid JSON object containing exactly these fields:
 - "chosen_question_number" (integer): The question_number of the chosen question from the list above.
@@ -434,23 +441,23 @@ def create_onboarding_data_extraction_pipeline() -> Pipeline | None:
     pipeline = Pipeline()
 
     prompt_template = """
+**START OF CHAT HISTORY**
 {% for message in chat_history %}
 {% if message.is_from('user') %}
 user:
 {{ message.text }}
-
 {% elif message.is_from('assistant') %}
 assistant:
 {{ message.text }}
-
 {% else %}
 system:
 {{ message.text }}
-
 {% endif %}
 {% endfor %}
+**END OF CHAT HISTORY**
 
-system:
+You are an AI assistant collecting data during onboarding on a maternal health chatbot. Consider the chat history above, and the user context and latest user response below.
+
 User Context:
 {% for key, value in user_context.items() %}
 - {{ key }}: {{ value }}
@@ -459,17 +466,17 @@ User Context:
 User's latest message:
 "{{ user_response }}"
 
-Please use the 'extract_onboarding_data' tool to analyze the user's latest message and extract their intended response:
-- For the properties 'province', 'area_type', 'relationship_status', 'education_level', 'hunger_days', 'num_children' and 'phone_ownership', extracted data **MUST** adhere strictly to their 'enum' lists. If the user's response for one of these properties does **NOT** contain a word or phrase that *directly and unambiguously* maps to one of the EXACT 'enum' values, **DO NOT include that property in your tool call**. Only store the 'Skip' enum value for these properties if the user explicitly states they want to skip.
-- **DO NOT GUESS or INFER** an enum value based on sentiment, vague descriptions, or ambiguous terms. Only include a field if you are highly confident that the user's input matches an allowed 'enum' value.
+Your task is to use the 'extract_onboarding_data' tool to analyze the user's latest message in light of the chat history and extract data from their intended response:
+- The extracted data **MUST** adhere strictly to the corresponding property's enums. If the user's response for one of the properties does **NOT** contain a word, phrase or index that clearly and unambiguously maps to one of the enums, DO NOT include that property in your tool call. Only store the 'Skip' enum value for these properties if the user explicitly states they want to skip.
+- Only include a field if you are highly confident that the user's input maps to an allowed 'enum' value.
 - Do not extract a data point if it clearly has already been collected in the user context, unless the user's latest message explicitly provides new information that updates it.
 - For properties with numeric ranges like 'hunger_days', you MUST map the user's input to the correct enum category whose range contains or corresponds to the user's input, unless they did not provide valid information. Do not just look for an exact string match. As examples:
     - If the user says "3", you should extract: {"hunger_days": "3-4 days"}
     - If the user says "one day", you should extract: {"hunger_days": "1-2 days"}
     - If the user says "6", you should extract: {"hunger_days": "5-7 days"}
     - If the user says "I haven't been hungry", you should extract: {"hunger_days": "0 days"}
-    - If the user does not provide a mappable, do not include 'hunger_days' in the tool call.
-- For 'num_children', apply similar numeric mapping logic.
+- For 'num_children', apply similar numeric mapping logic. If the user indicates they have any number of children greater than 3 (e.g. 4, 5, 6...), you should extract: {"num_children": "More than 3"}
+- Regarding the 'education_level', note that grades 1-7 correspond to primary school, while grades 8-12 correspond to high school.
 - For the open-ended additionalProperties, extract any extra information mentioned that is not already in one of the expected properties, and AS LONG AS it pertains specifically to maternal health or the use of a maternal health chatbot.
     """
 
@@ -517,16 +524,13 @@ Valid responses:
 - "{{ valid_response }}"
 {% endfor %}
 
-Review the Original Assessment Question. If you think it's needed, make minor
-adjustments to ensure that the question is clear and directly applicable to the
-user's context. **Crucially, do not change the core meaning, difficulty, or the
-scale/format of the question.** If no changes are needed, return the original question text.
+Review the Original Assessment Question. If you think it's needed, make minor adjustments to ensure that the question is clear and directly applicable to the user's context. **Crucially, do not change the core meaning, difficulty, the scale/format, or the applicability to the valid responses, of the question.**
 
-You MUST respond with a valid JSON object containing exactly one key:
-"contextualized_question". The value should be the question text ONLY. DO NOT
-include the list of possible answers in your response, but make sure that the
-contextualized question is asked in such a way that the user can still
-respond with one of the valid responses listed above.
+Before finalizing, silently check if a user's response of "{{ documents[0].meta.valid_responses[0] }}" would be a grammatically correct and natural answer to your generated question. The question must be a complete, well-formed sentence.
+
+If no changes are needed, return the original question text.
+
+You MUST respond with a valid JSON object containing exactly one key: "contextualized_question".
 
 JSON Response:
     """
@@ -571,23 +575,21 @@ You are an AI assistant validating a user's response to an assessment question i
 Your task is to analyze the user's response and determine if it maps to one of the allowed responses provided below.
 
 Allowed Responses:
-{% for response in valid_responses %}
-- "{{ response }}"
-{% endfor %}
+{{ valid_responses_for_prompt }}
 
 User Response:
 "{{ user_response }}"
 
 You MUST respond with a valid JSON object. The JSON should contain a single key, "validated_response".
 
-- If the user's response clearly and unambiguously corresponds to one of the "Allowed Responses", the value of "validated_response" should be the exact text of that allowed response.
-- If the user's response is ambiguous, does not match any of the allowed responses, or is nonsense/gibberish, you MUST set the value of "validated_response" to "nonsense".
+- If the user's response clearly and unambiguously corresponds to one of the "Allowed Responses" (or a numerical/alphabetical index of an "Allowed Response", if there are indices present in the list above), the value of "validated_response" should be the exact text of that corresponding allowed response.
+- If the user's response is ambiguous, does not map to any of the allowed responses, or is nonsense/gibberish, you MUST set the value of "validated_response" to "nonsense".
 
 JSON Response:
     """
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_system(prompt_template)],
-        required_variables=["user_response", "valid_responses"],
+        required_variables=["user_response", "valid_responses_for_prompt"],
     )
 
     json_validator = JsonSchemaValidator()
@@ -623,11 +625,6 @@ def create_assessment_end_response_validator_pipeline() -> Pipeline | None:
 You are an AI assistant validating a user's response to the previous message sent by a chatbot for new mothers in South Africa.
 Your task is to analyze the user's response and determine if it maps to one of the allowed responses provided below.
 
-Allowed Responses:
-{% for response in valid_responses %}
-- "{{ response }}"
-{% endfor %}
-
 Previous Message:
 "{{ previous_message }}"
 
@@ -636,14 +633,14 @@ User Response:
 
 You MUST respond with a valid JSON object. The JSON should contain a single key, "validated_response".
 
-- If the user's response clearly and unambiguously corresponds to one of the "Allowed Responses", the value of "validated_response" should be the exact text of that allowed response.
-- If the user's response is ambiguous, does not match any of the allowed responses, or is nonsense/gibberish, you MUST set the value of "validated_response" to "nonsense".
+- If the user's response clearly and unambiguously corresponds to one of the expected responses of the previous message, the value of "validated_response" should be the exact text of that expected response.
+- If the user's response is ambiguous, does not match any of the expected responses, or is nonsense/gibberish, you MUST set the value of "validated_response" to "nonsense".
 
 JSON Response:
     """
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_system(prompt_template)],
-        required_variables=["user_response", "valid_responses", "previous_message"],
+        required_variables=["user_response", "previous_message"],
     )
 
     json_validator = JsonSchemaValidator()
@@ -677,23 +674,21 @@ def create_anc_survey_contextualization_pipeline() -> Pipeline | None:
     pipeline = Pipeline()
 
     prompt_template = """
+**START OF CHAT HISTORY**
 {% for message in chat_history %}
 {% if message.is_from('user') %}
 user:
 {{ message.text }}
-
 {% elif message.is_from('assistant') %}
 assistant:
 {{ message.text }}
-
 {% else %}
 system:
 {{ message.text }}
-
 {% endif %}
 {% endfor %}
+**END OF CHAT HISTORY**
 
-system:
 Your task is to take the next survey question and contextualize it for the user, WITHOUT changing the core meaning of the question or introducing ambiguity.
 
 User Context:
@@ -762,20 +757,98 @@ def create_clinic_visit_data_extraction_pipeline() -> Pipeline | None:
     prompt_template = """
 You are an AI assistant helping to extract information from a user's (a new South African mother) response to a pregnancy clinic visit survey question/message into a structured format.
 
+Your task is to analyze the user's response in light of the previous survey question/message and its expected responses. You must determine which of the expected responses the user's response maps to in meaning and intent.
+
+Follow these rules:
+1.  Map responses based on meaning and intent, not just exact string matching. This includes slang, colloquialisms, synonyms, and shortened versions.
+2.  If the user's response clearly maps to one of the expected responses, the value for "validated_response" MUST be the exact text of that matched expected response.
+3.  If the user's response is nonsense, gibberish, or completely unrelated to the question, you MUST set the value of "validated_response" to "nonsense".
+4.  You MUST respond with a valid JSON object with a single key, "validated_response".
+
+Here are some examples of how to perform this task:
+
+---
+**Example 1:**
+
+Previous survey question/message:
+"That's great news! 🌟 We'd love to hear about your check-up. Do you have a couple of minutes to share with us?
+
+Please reply with one of the following:
+- 'Yes'
+- 'Remind me tomorrow'"
+
+User's latest response:
+- "Ok"
+
+JSON Response:
+{
+    "validated_response": "Yes"
+}
+---
+**Example 2:**
+
+Previous survey question/message:
+"Did you manage to get to the clinic for your check-up? Please reply 'Yes, I went' or 'No, not yet'"
+
+User's latest response:
+- "i went"
+
+JSON Response:
+{
+    "validated_response": "Yes, I went"
+}
+---
+**Example 3:**
+
+Previous survey question/message:
+"Will you go to your next check-up? Please reply 'Yes, I will' or 'No, I won't'"
+
+User's latest response:
+- "yes"
+
+JSON Response:
+{
+    "validated_response": "Yes, I will"
+}
+---
+**Example 4:**
+
+Previous survey question/message:
+"How are you feeling today? You can reply with 'Good 😊', 'Okay 😐', or 'Something else 😞'"
+
+User's latest response:
+- "other"
+
+JSON Response:
+{
+    "validated_response": "Something else 😞"
+}
+---
+**Example 5:**
+
+Previous survey question/message:
+"That's great news! 🌟 We'd love to hear about your check-up. Do you have a couple of minutes to share with us?
+
+Please reply with one of the following:
+- 'Yes'
+- 'Remind me tomorrow'"
+
+User's latest response:
+- "asdfghjkl"
+
+JSON Response:
+{
+    "validated_response": "nonsense"
+}
+---
+
+**Now, perform the same task for the following new input:**
+
 Previous survey question/message:
 "{{ previous_service_message }}"
 
 User's latest response:
 - "{{ user_response }}"
-
-You MUST respond with a valid JSON object. The JSON should contain a single key, "validated_response".
-
-Your task is to analyze the user's response *in light of the previous survey question/message and its expected responses* and determine which of the expected responses it maps to in meaning and intent.
-- If the user response to the previous survey question/message maps to one of the expected responses stated in the previous survey question/message, the value you return in "validated_response" must be the exact text of that matched expected response. The user's response need not be an exact string match of an expected response since they might be using slang, colloquiolisms, synonyms or shortened versions of the response, as long as it maps in meaning and intent, e.g.:
-  - Users might respond with "OK" or "Okay" when they mean "Yes" or "Continue"
-  - Users might respond with shortened versions of the expected responses, e.g. "Yes" instead of "Yes, I will"
-  - Users might respond with "something else" or "other" when they mean "Something else 😞"
-- If the user response does not map to an expected response in intent or meaning, or it is nonsense/gibberish, you must set the value of "validated_response" to "nonsense".
 
 JSON Response:
     """
@@ -825,10 +898,10 @@ Please classify the user's message, in light of the last question sent to the us
 - 'JOURNEY_RESPONSE': The user is directly answering, attempting to answer, or skipping the question asked.
 - 'QUESTION_ABOUT_STUDY': The user is asking a question about the research study itself (e.g., "who are you?", "why are you asking this?").
 - 'HEALTH_QUESTION': The user is asking a new question related to health, pregnancy, or their wellbeing, instead of answering the question.
-- 'ASKING_TO_STOP_MESSAGES': The user expresses a desire to stop receiving messages.
-- 'ASKING_TO_DELETE_DATA': The user wants to leave the study and have their data deleted.
+- 'ASKING_TO_STOP_MESSAGES': The user explicitly expresses a desire to stop receiving messages.
+- 'ASKING_TO_DELETE_DATA': The user explicitly expresses a desire to leave the study and have their data deleted.
 - 'REPORTING_AIRTIME_NOT_RECEIVED': The user is reporting that they have not received their airtime incentive.
-- 'CHITCHAT': The user is making a conversational comment that is not a direct answer, a question, or a request.
+- 'CHITCHAT': The user is making a conversational comment that is not a direct answer, question or request.
 
 You MUST respond with a valid JSON object containing exactly one key: "intent".
 
@@ -1075,18 +1148,11 @@ def run_assessment_contextualization_pipeline(
             )
             return None
 
-        valid_responses = retrieved_docs[0].meta.get("valid_responses", [])
-
         validated_json_list = result.get("json_validator", {}).get("validated", [])
         if validated_json_list:
             question_data = json.loads(validated_json_list[0].text)
             contextualized_question_text = question_data.get("contextualized_question")
-
-            final_question = f"{contextualized_question_text}\n\n" + "\n".join(
-                ["Please reply with one of the following:"]
-                + [f"- '{vr}'" for vr in valid_responses]
-            )
-            return final_question.strip()
+            return contextualized_question_text.strip()
 
         else:
             logger.error("LLM failed to produce valid JSON.")
@@ -1098,7 +1164,10 @@ def run_assessment_contextualization_pipeline(
 
 
 def run_assessment_response_validator_pipeline(
-    pipeline: Pipeline, user_response: str, valid_responses: list[str]
+    pipeline: Pipeline,
+    user_response: str,
+    valid_responses: list[str],
+    valid_responses_for_prompt: str,
 ) -> str | None:
     """
     Run the assessment response validator pipeline to validate a user's response.
@@ -1128,7 +1197,7 @@ def run_assessment_response_validator_pipeline(
             {
                 "prompt_builder": {
                     "user_response": user_response,
-                    "valid_responses": valid_responses,
+                    "valid_responses_for_prompt": valid_responses_for_prompt,
                 },
                 "json_validator": {"json_schema": valid_responses_schema},
             }
@@ -1198,7 +1267,6 @@ def run_assessment_end_response_validator_pipeline(
             {
                 "prompt_builder": {
                     "user_response": user_response,
-                    "valid_responses": valid_responses,
                     "previous_message": previous_message,
                 },
                 "json_validator": {"json_schema": valid_responses_schema},
@@ -1208,15 +1276,28 @@ def run_assessment_end_response_validator_pipeline(
         if (
             result
             and "json_validator" in result
-            and result["json_validator"]["validated"]
+            and result["json_validator"].get("validated")
         ):
-            validated_json = result["json_validator"]["validated"][0].meta["parsed"]
-            if validated_json["validated_response"] != "nonsense":
-                return validated_json["validated_response"]
-        else:
-            logger.warning("Assessment end response validation failed.")
-        return None
+            validated_message: ChatMessage = result["json_validator"]["validated"][0]
+            validated_json = json.loads(validated_message.text)
+            validated_response = validated_json.get("validated_response")
 
+            if validated_response != "nonsense":
+                return validated_response
+            else:
+                logger.warning(
+                    f"User response '{user_response}' was validated as 'nonsense'."
+                )
+                return None
+        else:
+            logger.warning(
+                f"Assessment end response validation failed. LLM output did not match schema for user response: '{user_response}'"
+            )
+            return None
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to decode JSON from LLM response: {e}")
+        return None
     except Exception as e:
         logger.error(f"Error running assessment end response validation pipeline: {e}")
         return None

@@ -57,7 +57,7 @@
         },
         {
             "title": "bad",
-            "content": "We're sorry to hear you had a bad experience.\n\nBy telling us a bit more,  you can help us understand how to improve services for pregnant women in South Africa.",
+            "content": "We're sorry to hear you had a bad experience.\n\nBy telling us a bit more, you can help us understand how to improve services for pregnant women in South Africa.",
             "content_type": "follow_up_question",
             "valid_responses": [
                 "OK"

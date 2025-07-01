@@ -77,6 +77,10 @@ GT_FILE_PATH = DATA_PATH / "evaluation" / "data" / "ground_truth.json"
 SERVICE_PERSONA_PATH = DATA_PATH / "static_content" / "service_persona.json"
 
 SERVICE_PERSONA = load_json_and_validate(SERVICE_PERSONA_PATH, dict)
+SERVICE_PERSONA_TEXT = ""
+if SERVICE_PERSONA:
+    if "persona" in SERVICE_PERSONA.keys():
+        SERVICE_PERSONA_TEXT = SERVICE_PERSONA["persona"]
 
 # Define which assessments from the doc stores are scorable
 SCORABLE_ASSESSMENTS = {
@@ -190,7 +194,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 print("Please enter 'Y' or 'N'.")
 
     if sim_onboarding:
-        chat_history.append(ChatMessage.from_system(text=SERVICE_PERSONA))
+        chat_history.append(ChatMessage.from_system(text=SERVICE_PERSONA_TEXT))
         # Simulate Onboarding
         flow_id = "onboarding"
         gt_scenario = gt_lookup_by_flow.get(flow_id)
@@ -1187,7 +1191,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         ChatHistory.user_id == user_id,
                     )
                 )
-        chat_history.append(ChatMessage.from_system(text=SERVICE_PERSONA))
+        chat_history.append(ChatMessage.from_system(text=SERVICE_PERSONA_TEXT))
         anc_user_context = {
             "age": user_context.get("age"),
             "gender": user_context.get("gender"),
