@@ -1,0 +1,92 @@
+
+==================================================
+              DETAILED TURN-BY-TURN REPORT
+==================================================
+
+--- Turn: behaviour-pre-assessment_user_123_250616-0635 (behaviour-pre-assessment) | ID: 1 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: behaviour-pre-assessment_user_123_250616-0635 (behaviour-pre-assessment) | ID: 2 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: behaviour-pre-assessment_user_123_250616-0635 (behaviour-pre-assessment) | ID: 3 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: behaviour-pre-assessment_user_123_250616-0635 (behaviour-pre-assessment) | ID: 4 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 1 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 0.83 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 2 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 3 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 0.83 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 4 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 5 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 0.75 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 6 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 0.00 ] Response Appropriateness
+       Reason: The score is 0.00 because the response 'no' does not address the question about the benefits of iron and folic acid supplements during pregnancy, making it entirely irrelevant to the input.
+
+--- Turn: attitude-pre-assessment_user_123_250616-0635 (attitude-pre-assessment) | ID: 1 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: attitude-pre-assessment_user_123_250616-0635 (attitude-pre-assessment) | ID: 2 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: attitude-pre-assessment_user_123_250616-0635 (attitude-pre-assessment) | ID: 3 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+
+==================================================
+              PERFORMANCE SUMMARY REPORT
+==================================================
+
+📊 Behaviour-pre-assessment Performance (4 turns evaluated):
+  - Extraction Accuracy: 100.00%
+  - Question Consistency Score (Avg): 1.00
+  - Response Appropriateness Score (Avg): 1.00
+
+📊 Knowledge-pre-assessment Performance (6 turns evaluated):
+  - Extraction Accuracy: 100.00%
+  - Question Consistency Score (Avg): 0.90
+  - Response Appropriateness Score (Avg): 0.83
+
+📊 Attitude-pre-assessment Performance (3 turns evaluated):
+  - Extraction Accuracy: 100.00%
+  - Question Consistency Score (Avg): 1.00
+  - Response Appropriateness Score (Avg): 1.00
+
+==================================================

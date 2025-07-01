@@ -24,6 +24,10 @@ from .utilities import (
     assessment_map_to_their_pre,
     kab_b_post_flow_id,
     kab_b_pre_flow_id,
+    prepare_valid_responses_to_display_to_anc_survey_user,
+    prepare_valid_responses_to_display_to_assessment_user,
+    prepare_valid_responses_to_display_to_onboarding_user,
+    prepare_valid_responses_to_use_in_anc_survey_system_prompt,
 )
 
 
@@ -84,14 +88,12 @@ def get_next_onboarding_question(
     else:
         logger.info(f"Original question was: '{current_step_data.content}'")
 
-    # Append valid responses to the final question, if they exist
+    # Append valid responses to the final question, when applicable
     valid_responses = current_step_data.valid_responses
-    if valid_responses:
-        options = "\n".join(
-            ["Please reply with one of the following:"]
-            + [f"- '{vr}'" for vr in valid_responses]
+    if valid_responses and current_step_data.collects:
+        final_question_text = prepare_valid_responses_to_display_to_onboarding_user(
+            contextualized_question, current_step_data.collects, valid_responses
         )
-        final_question_text = f"{contextualized_question}\n\n{options}"
     else:
         final_question_text = contextualized_question
 
@@ -237,6 +239,13 @@ async def get_assessment_question(
         logger.error(f"Question contextualization failed in flow: '{flow_id.value}'.")
         return {}
 
+    question_data = [q for q in question_list if q.question_number == question_number][
+        -1
+    ]
+    contextualized_question = prepare_valid_responses_to_display_to_assessment_user(
+        flow_id_to_use, question_number, contextualized_question, question_data
+    )
+
     return {
         "contextualized_question": contextualized_question,
     }
@@ -266,6 +275,8 @@ async def get_anc_survey_question(user_id: str, user_context: dict) -> dict | No
 
     text_to_prepend = ""
     if next_step == "not_going_next_one":
+        # For this single step, we don't contextualize the content - we just prepend
+        # it to the next question.
         question_data = ANC_SURVEY_MAP.get(next_step)
         if not question_data:
             logger.error(f"Could not find question content for step_id: '{next_step}'")
@@ -320,13 +331,9 @@ async def get_anc_survey_question(user_id: str, user_context: dict) -> dict | No
             valid_responses,
         )
 
-    final_question_text = text_to_prepend + contextualized_question
-    if valid_responses:
-        options = "\n".join(
-            ["Please reply with one of the following:"]
-            + [f"- '{vr}'" for vr in valid_responses]
-        )
-        final_question_text += f"\n\n{options}"
+    final_question_text = prepare_valid_responses_to_display_to_anc_survey_user(
+        text_to_prepend, contextualized_question, valid_responses, next_step
+    )
 
     return {
         "contextualized_question": final_question_text.strip(),
@@ -354,10 +361,13 @@ def extract_anc_data_from_response(
         anc_data_extraction_pipe = (
             pipelines.create_clinic_visit_data_extraction_pipeline()
         )
+        previous_question = prepare_valid_responses_to_use_in_anc_survey_system_prompt(
+            question_data.content, valid_responses, step_title
+        )
         extracted_data = pipelines.run_clinic_visit_data_extraction_pipeline(
             anc_data_extraction_pipe,
             user_response,
-            previous_service_message,
+            previous_question,
             valid_responses,
         )
     else:

@@ -1,0 +1,71 @@
+[
+  {
+    "scenario_id": "anc-survey_user_123_250616-0635",
+    "flow_type": "anc-survey",
+    "turns": [
+      {
+        "question_name": "start",
+        "question_number": null,
+        "llm_utterance": "Hey there! Did you have your *prenatal check-up* scheduled for this week? \ud83c\udfe5\n\nPlease reply with one of the following:\n- 'Yes, I went'\n- 'No, I'm not going'\n- 'I'm going soon'",
+        "user_utterance": "Yes",
+        "user_response": "Yes, I went"
+      },
+      {
+        "question_name": "Q_seen",
+        "question_number": null,
+        "llm_utterance": "Did a health worker attend to you during your prenatal check-up?",
+        "user_utterance": "Ya",
+        "user_response": "Yes"
+      },
+      {
+        "question_name": "seen_yes",
+        "question_number": null,
+        "llm_utterance": "That's great to hear \ud83c\udf1f Would you be able to spare 2 minutes to share with us how your prenatal check-up went?\n\nPlease reply with one of the following:\n- 'Yes'\n- 'Remind me tomorrow'",
+        "user_utterance": "Ok",
+        "user_response": "Yes"
+      },
+      {
+        "question_name": "Q_bp",
+        "question_number": null,
+        "llm_utterance": "During your last check-up, did a health worker measure your blood pressure?",
+        "user_utterance": "I don't know",
+        "user_response": "I don't know"
+      },
+      {
+        "question_name": "Q_experience",
+        "question_number": null,
+        "llm_utterance": "How would you rate your overall experience at the check-up?\n\na. Very good\nb. Good\nc. OK\nd. Bad\ne. Very bad",
+        "user_utterance": "Cool",
+        "user_response": "OK"
+      },
+      {
+        "question_name": "good",
+        "question_number": null,
+        "llm_utterance": "Thank you for sharing. There are just 2 more questions to go. Your responses will help us improve services for pregnant women in South Africa. Would you like to continue?\n\nPlease reply with Continue to continue.",
+        "user_utterance": "Yes",
+        "user_response": "Continue"
+      },
+      {
+        "question_name": "Q_visit_bad",
+        "question_number": null,
+        "llm_utterance": "Please choose from the following options to share what made you feel the most uncomfortable or caused you the biggest problem during your check-up:\n\na. No maternity record \ud83d\udcdd\nb. Shamed/embarrassed \ud83d\ude33\nc. No privacy \ud83e\udd10\nd. Not enough info \u2139\ufe0f\ne. Staff disrespectful \ud83e\udd2c\nf. Asked to pay \ud83d\udcb0\ng. Waited a long time \u231b\nh. Something else \ud83d\ude1e",
+        "user_utterance": "had to wait long time",
+        "user_response": "Waited a long time \u231b"
+      },
+      {
+        "question_name": "Q_challenges",
+        "question_number": null,
+        "llm_utterance": "Sometimes it can be tough to get to these check-ups. If you face challenges, what is your *main difficulty*?\n\na. No challenges \ud83d\udc4c\nb. Transport \ud83d\ude8c\nc. No support \ud83e\udd1d\nd. Clinic opening hours \ud83c\udfe5\ne. Something else \ud83d\ude1e",
+        "user_utterance": "It's hard to get there during clinic opening hours \ud83c\udfe5",
+        "user_response": "Clinic opening hours \ud83c\udfe5"
+      },
+      {
+        "question_name": "intent",
+        "question_number": null,
+        "llm_utterance": "Looking ahead, do you plan to attend your next prenatal check-up to ensure the best health for you and your baby?",
+        "user_utterance": "Ja",
+        "user_response": "Yes, I will"
+      }
+    ]
+  }
+]

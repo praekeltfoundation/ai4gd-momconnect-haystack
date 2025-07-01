@@ -7,12 +7,15 @@ from haystack.dataclasses import ChatMessage
 from sentry_sdk import get_client as get_sentry_client
 
 from ai4gd_momconnect_haystack.api import app, setup_sentry
-from ai4gd_momconnect_haystack.enums import HistoryType
+from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentEndScoreBasedMessage,
     AssessmentResult,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import AssessmentEndMessagingHistory
+
+
+SERVICE_PERSONA_TEXT = "Test Persona"
 
 
 def test_health():
@@ -121,7 +124,7 @@ async def test_onboarding_chitchat():
 
 @pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
-@mock.patch("ai4gd_momconnect_haystack.api.SERVICE_PERSONA", "Test Persona")
+@mock.patch("ai4gd_momconnect_haystack.api.SERVICE_PERSONA_TEXT", "Test Persona")
 async def test_onboarding_first_question():
     """
     For the first interaction (no user input), we should get the first question
@@ -133,6 +136,10 @@ async def test_onboarding_first_question():
             "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
             new_callable=mock.AsyncMock,
         ) as get_or_create_chat_history,
+        mock.patch(
+            "ai4gd_momconnect_haystack.api.delete_chat_history_for_user",
+            new_callable=mock.AsyncMock,
+        ) as delete_chat_history_for_user,
         mock.patch(
             "ai4gd_momconnect_haystack.api.save_chat_history",
             new_callable=mock.AsyncMock,
@@ -168,6 +175,11 @@ async def test_onboarding_first_question():
         # Assert that history creation was attempted
         get_or_create_chat_history.assert_awaited_once_with(
             user_id="TestUser", history_type=HistoryType.onboarding
+        )
+
+        # Assert that the history deletion was then called
+        delete_chat_history_for_user.assert_awaited_once_with(
+            "TestUser", HistoryType.onboarding
         )
 
         # Assert that the new history is saved correctly
@@ -318,6 +330,10 @@ async def test_assessment_chitchat(
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_assessment_question", new_callable=mock.AsyncMock
 )
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.delete_assessment_history_for_user",
+    new_callable=mock.AsyncMock,
+)
 @mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_answer")
 @mock.patch(
     "ai4gd_momconnect_haystack.api.save_assessment_question",
@@ -326,6 +342,7 @@ async def test_assessment_chitchat(
 async def test_assessment_initial_message(
     save_assessment_question,
     validate_assessment_answer,
+    delete_assessment_history_for_user,
     get_assessment_question,
     handle_user_message,
 ):
@@ -362,6 +379,9 @@ async def test_assessment_initial_message(
 
     handle_user_message.assert_not_called()
     validate_assessment_answer.assert_not_called()
+    delete_assessment_history_for_user.assert_awaited_once_with(
+        "TestUser", AssessmentType.dma_pre_assessment
+    )
     get_assessment_question.assert_awaited_once()
     save_assessment_question.assert_awaited_once()
 
@@ -836,7 +856,7 @@ async def test_anc_survey():
 
 @pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
-@mock.patch("ai4gd_momconnect_haystack.api.SERVICE_PERSONA", "Test Persona")
+@mock.patch("ai4gd_momconnect_haystack.api.SERVICE_PERSONA_TEXT", "Test Persona")
 async def test_anc_survey_first_question():
     """
     For the first question, we shouldn't try to extract answers, and we shouldn't classify
@@ -848,6 +868,10 @@ async def test_anc_survey_first_question():
             new_callable=mock.AsyncMock,
             return_value=[],
         ) as get_or_create_chat_history,
+        mock.patch(
+            "ai4gd_momconnect_haystack.api.delete_chat_history_for_user",
+            new_callable=mock.AsyncMock,
+        ) as delete_chat_history_for_user,
         mock.patch(
             "ai4gd_momconnect_haystack.api.save_chat_history",
             new_callable=mock.AsyncMock,
@@ -886,6 +910,11 @@ async def test_anc_survey_first_question():
             "intent": "JOURNEY_RESPONSE",
             "intent_related_response": "",
         }
+
+        # Assert that the history deletion was then called
+        delete_chat_history_for_user.assert_awaited_once_with(
+            "TestUser", HistoryType.anc
+        )
 
         get_or_create_chat_history.assert_awaited_once_with(
             user_id="TestUser", history_type="anc"

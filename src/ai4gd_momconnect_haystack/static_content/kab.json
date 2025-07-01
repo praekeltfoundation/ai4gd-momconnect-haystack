@@ -84,7 +84,7 @@
         {
             "question_number": 2,
             "question_name": "emergency_symptom_recognition",
-            "content": "*During a pregnancy, which of these means you need to go to the hospital immediately?* 🤰🏽\n\n• You have contractions that stop when you move\n• Your tummy stays tight, hard and is very painful\n• Your lower back aches all day",
+            "content": "*During a pregnancy, which of these means you need to go to the hospital immediately?* 🤰🏽",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
                 { "response": "Contractions stop", "score": 0 },

@@ -212,7 +212,7 @@ async def test_get_assessment_question():
             user_context={},
         )
         assert result == {
-            "contextualized_question": "mock_question",
+            "contextualized_question": "mock_question\n\n1. I strongly agree\n2. I agree\n3. I'm not sure\n4. I disagree\n5. I strongly disagree",
         }
 
         mock_create_pipeline.assert_called_once()
@@ -245,7 +245,7 @@ async def test_get_last_assessment_question():
             user_context={},
         )
         assert result == {
-            "contextualized_question": "mock_question",
+            "contextualized_question": "mock_question\n\n1. I strongly agree\n2. I agree\n3. I'm not sure\n4. I disagree\n5. I strongly disagree",
         }
 
         # This call should fail before the pipeline is even created or run,

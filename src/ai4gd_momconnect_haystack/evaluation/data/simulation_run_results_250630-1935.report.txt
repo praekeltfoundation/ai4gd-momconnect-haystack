@@ -1,0 +1,71 @@
+
+==================================================
+              DETAILED TURN-BY-TURN REPORT
+==================================================
+
+--- Turn: behaviour-pre-assessment_user_123_250616-0635 (behaviour-pre-assessment) | ID: 1 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: behaviour-pre-assessment_user_123_250616-0635 (behaviour-pre-assessment) | ID: 2 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: behaviour-pre-assessment_user_123_250616-0635 (behaviour-pre-assessment) | ID: 3 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: behaviour-pre-assessment_user_123_250616-0635 (behaviour-pre-assessment) | ID: 4 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 1 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 0.83 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 2 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: attitude-pre-assessment_user_123_250616-0635 (attitude-pre-assessment) | ID: 1 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: attitude-pre-assessment_user_123_250616-0635 (attitude-pre-assessment) | ID: 2 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: attitude-pre-assessment_user_123_250616-0635 (attitude-pre-assessment) | ID: 3 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+
+==================================================
+              PERFORMANCE SUMMARY REPORT
+==================================================
+
+📊 Behaviour-pre-assessment Performance (4 turns evaluated):
+  - Extraction Accuracy: 100.00%
+  - Question Consistency Score (Avg): 1.00
+  - Response Appropriateness Score (Avg): 1.00
+
+📊 Knowledge-pre-assessment Performance (2 turns evaluated):
+  - Extraction Accuracy: 100.00%
+  - Question Consistency Score (Avg): 0.92
+  - Response Appropriateness Score (Avg): 1.00
+
+📊 Attitude-pre-assessment Performance (3 turns evaluated):
+  - Extraction Accuracy: 100.00%
+  - Question Consistency Score (Avg): 1.00
+  - Response Appropriateness Score (Avg): 1.00
+
+==================================================

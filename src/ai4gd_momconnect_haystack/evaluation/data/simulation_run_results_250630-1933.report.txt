@@ -1,0 +1,41 @@
+
+==================================================
+              DETAILED TURN-BY-TURN REPORT
+==================================================
+
+--- Turn: dma-assessment_user_123_250616-0635 (dma-pre-assessment) | ID: 1 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: dma-assessment_user_123_250616-0635 (dma-pre-assessment) | ID: 2 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: dma-assessment_user_123_250616-0635 (dma-pre-assessment) | ID: 3 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: dma-assessment_user_123_250616-0635 (dma-pre-assessment) | ID: 4 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 0.86 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: dma-assessment_user_123_250616-0635 (dma-pre-assessment) | ID: 5 ---
+  [✅] Extraction Accuracy: PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+
+==================================================
+              PERFORMANCE SUMMARY REPORT
+==================================================
+
+📊 Dma-pre-assessment Performance (5 turns evaluated):
+  - Extraction Accuracy: 100.00%
+  - Question Consistency Score (Avg): 0.97
+  - Response Appropriateness Score (Avg): 1.00
+
+==================================================
