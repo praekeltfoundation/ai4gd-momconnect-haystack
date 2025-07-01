@@ -10,7 +10,7 @@
       {
         "question_name": null,
         "question_number": 1,
-        "llm_utterance": "During your pregnancy, how many times have you visited the clinic for a check-up so far?\n\n0 - None\n1\n2\n3\n4\n5\n6\n7\nMore than 7\nSkip",
+        "llm_utterance": "So far in this pregnancy, how many times have you gone to the clinic for a pregnancy check-up?\n\nPlease reply with one of the following:\n- '0 - None'\n- '1'\n- '2'\n- '3'\n- '4'\n- '5'\n- '6'\n- '7'\n- 'More than 7'\n- 'Skip'",
         "user_utterance": "Who is behind this study?",
         "follow_up_utterance": "3",
         "user_response": "3",
@@ -21,7 +21,7 @@
       {
         "question_name": null,
         "question_number": 2,
-        "llm_utterance": "Have you made any changes to your diet in this pregnancy based on information from a healthcare provider?\n\nYes\nNo\nSkip",
+        "llm_utterance": "In this pregnancy, have you made any changes to your diet based on information from a health worker or healthcare provider?\n\nPlease reply with one of the following:\n- 'Yes'\n- 'No'\n- 'Skip'",
         "user_utterance": "What happens to my answers?",
         "follow_up_utterance": "No",
         "user_response": "No",
@@ -32,7 +32,7 @@
       {
         "question_name": null,
         "question_number": 3,
-        "llm_utterance": "So far in this pregnancy, how many doses of the tetanus vaccine (Tdap) have you received?\n\n0\n1\nSkip",
+        "llm_utterance": "How many doses of the tetanus vaccine (Tdap) have you received so far in this pregnancy?\n\nPlease reply with one of the following:\n- '0'\n- '1'\n- 'Skip'",
         "user_utterance": "Is it normal to have cramps at 20 weeks pregnant?",
         "follow_up_utterance": "1",
         "user_response": "1",
@@ -43,7 +43,7 @@
       {
         "question_name": null,
         "question_number": 4,
-        "llm_utterance": "Since becoming pregnant, have you consumed any alcohol or smoked at all?\n\nYes\nNo\nSkip",
+        "llm_utterance": "Since becoming pregnant, have you consumed any alcohol or smoked?\n\nPlease reply with one of the following:\n- 'Yes'\n- 'No'\n- 'Skip'",
         "user_utterance": "I'm feeling very sad and tired all the time after having my baby.",
         "follow_up_utterance": "Yes",
         "user_response": "Yes",
@@ -64,7 +64,7 @@
       {
         "question_name": null,
         "question_number": 1,
-        "llm_utterance": "When do you think a pregnant woman should get her first pregnancy check-up? \ud83e\udd30\ud83c\udffd\n\nBefore 14 weeks\nAt about 16 weeks\nAt about 20 weeks\nAt about 24 weeks\nAt birth\nI don't know\nSkip",
+        "llm_utterance": "When should you schedule your first pregnancy check-up during pregnancy?\n\nPlease reply with one of the following:\n- 'Before 14 weeks'\n- 'At about 16 weeks'\n- 'At about 20 weeks'\n- 'At about 24 weeks'\n- 'At birth'\n- 'I don't know'\n- 'Skip'",
         "user_utterance": "STOP",
         "follow_up_utterance": "Before 14 weeks",
         "user_response": "Before 14 weeks",
@@ -75,7 +75,7 @@
       {
         "question_name": null,
         "question_number": 2,
-        "llm_utterance": "During a pregnancy, which of these signs mean you need to go to the hospital immediately?\n\nContractions stop\nTight painful tummy\nLower back ache\nI don't know\nSkip",
+        "llm_utterance": "During a pregnancy, which of these signs means you need to go to the hospital immediately?\n\nPlease reply with one of the following:\n- 'Contractions stop'\n- 'Tight painful tummy'\n- 'Lower back ache'\n- 'I don't know'\n- 'Skip'",
         "user_utterance": "Please don't send me any more messages.",
         "follow_up_utterance": "I don't know",
         "user_response": "I don't know",
@@ -86,7 +86,7 @@
       {
         "question_name": null,
         "question_number": 3,
-        "llm_utterance": "How many pregnancy check-ups should you go to during your pregnancy?\n\n1 to 4 check-ups\n5 to 7 check-ups\n8 or more check-ups\n0 - None\nI don't know\nSkip",
+        "llm_utterance": "How many pregnancy check-ups should you attend during your pregnancy? \ud83e\udd30\ud83c\udffd\n\nPlease reply with one of the following:\n- '1 to 4 check-ups'\n- '5 to 7 check-ups'\n- '8 or more check-ups'\n- '0 - None'\n- 'I don't know'\n- 'Skip'",
         "user_utterance": "Please opt me out.",
         "follow_up_utterance": "I don't know",
         "user_response": "I don't know",
@@ -97,7 +97,7 @@
       {
         "question_name": null,
         "question_number": 4,
-        "llm_utterance": "Should a baby be breastfed within the first hour of birth according to best practices for maternal health?\n\nYes\nNo\nI don't know\nSkip",
+        "llm_utterance": "Should a baby be breastfed within the first hour of birth?\n\nPlease reply with one of the following:\n- 'Yes'\n- 'No'\n- 'I don't know'\n- 'Skip'",
         "user_utterance": "Please delete all my information.",
         "follow_up_utterance": "yes",
         "user_response": "Yes",
@@ -108,7 +108,7 @@
       {
         "question_name": null,
         "question_number": 5,
-        "llm_utterance": "Who does this vaccine protect - you, your baby only, or both you and your baby?\n\nYou\nYour baby only\nYou and baby\nI don't know\nSkip",
+        "llm_utterance": "Who does this vaccine protect during pregnancy?\n\nPlease reply with one of the following:\n- 'You'\n- 'Your baby only'\n- 'You and baby'\n- 'I don't know'\n- 'Skip'",
         "user_utterance": "I want you to remove my data from your system.",
         "follow_up_utterance": "I don't know",
         "user_response": "I don't know",
@@ -119,7 +119,7 @@
       {
         "question_name": null,
         "question_number": 6,
-        "llm_utterance": "Are iron and folic acid supplements recommended for pregnant women like you and your baby?\n\nYes\nNo\nI don't know\nSkip",
+        "llm_utterance": "Are iron and folic acid supplements recommended for pregnant women like you and your baby's health?\n\nPlease reply with one of the following:\n- 'Yes'\n- 'No'\n- 'I don't know'\n- 'Skip'",
         "user_utterance": "I haven't received my airtime yet.",
         "follow_up_utterance": "No",
         "user_response": "No",
@@ -140,7 +140,7 @@
       {
         "question_name": null,
         "question_number": 1,
-        "llm_utterance": "Do you agree with this statement?\nPregnancy check-ups are a good way to check that you and your unborn baby are healthy.\n\nI strongly agree\nI agree\nI'm not sure\nI disagree\nI strongly disagree\nSkip",
+        "llm_utterance": "Do you agree with this statement? Pregnancy check-ups are important for ensuring the health of both you and your unborn baby.\n\nPlease reply with one of the following:\n- 'I strongly agree'\n- 'I agree'\n- 'I'm not sure'\n- 'I disagree'\n- 'I strongly disagree'\n- 'Skip'",
         "user_utterance": "Hello",
         "follow_up_utterance": "I strongly agree",
         "user_response": "I strongly agree",
@@ -151,7 +151,7 @@
       {
         "question_name": null,
         "question_number": 2,
-        "llm_utterance": "Is home birth safer than giving birth in a hospital?\n\nI strongly agree\nI agree\nI'm not sure\nI disagree\nI strongly disagree\nSkip",
+        "llm_utterance": "Do you think home birth is safer than giving birth in a hospital?\n\nPlease reply with one of the following:\n- 'I strongly agree'\n- 'I agree'\n- 'I'm not sure'\n- 'I disagree'\n- 'I strongly disagree'\n- 'Skip'",
         "user_utterance": "asdfghjkl",
         "follow_up_utterance": "I disagree",
         "user_response": "I disagree",
@@ -162,7 +162,7 @@
       {
         "question_name": null,
         "question_number": 3,
-        "llm_utterance": "Is it important for you to get an HIV test when you are pregnant?\n\nI strongly agree\nI agree\nI'm not sure\nI disagree\nI strongly disagree\nSkip",
+        "llm_utterance": "Is it important for you, as a 33-year-old pregnant woman, to get an HIV test when you are pregnant?\n\nPlease reply with one of the following:\n- 'I strongly agree'\n- 'I agree'\n- 'I'm not sure'\n- 'I disagree'\n- 'I strongly disagree'\n- 'Skip'",
         "user_utterance": "This is very helpful, thanks!",
         "follow_up_utterance": "I agree",
         "user_response": "I agree",

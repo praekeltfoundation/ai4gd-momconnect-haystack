@@ -25,9 +25,9 @@
         {
             "question_name": "seen_yes",
             "llm_utterance": "That's good to hear 🌟\n\nWe'd love to know how it went.  \n\nDo you have 2 minutes to tell us about it?",
-            "user_utterance": "Suppose my friend wanted to join, how would she do that?",
+            "user_utterance": "Suppose my friend wanted to join this study, how would she do that?",
             "intent": "QUESTION_ABOUT_STUDY",
-            "follow_up_utterance": "Ok",
+            "follow_up_utterance": "Yes",
             "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "Yes"
         },

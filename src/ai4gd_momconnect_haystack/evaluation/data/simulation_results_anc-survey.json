@@ -4,41 +4,92 @@
     "flow_type": "anc-survey",
     "turns": [
       {
+        "question_name": "start",
+        "question_number": null,
+        "llm_utterance": "Hello there! Did you attend your *antenatal appointment* this week? \ud83c\udfe5\n\nPlease reply with one of the following:\n- 'Yes, I went'\n- 'No, I'm not going'\n- 'I'm going soon'",
+        "user_utterance": "How do I know I can trust you?",
+        "follow_up_utterance": "Yes, I went",
+        "user_response": "Yes, I went",
+        "llm_initial_predicted_intent": "QUESTION_ABOUT_STUDY",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      },
+      {
         "question_name": "Q_seen",
         "question_number": null,
-        "llm_utterance": "Did a friendly health worker get to see you during your check-up? \ud83d\ude0a\n\nYes\nNo",
+        "llm_utterance": "Did a health worker see you?\n\nPlease reply with one of the following:\n- 'Yes'\n- 'No'",
         "user_utterance": "What is this AI thing you are using?",
         "follow_up_utterance": "Yes",
-        "user_response": {
-          "visit_status": "Yes, I went",
-          "professional_seen": "Yes"
-        },
+        "user_response": "Yes",
+        "llm_initial_predicted_intent": "CHITCHAT",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      },
+      {
+        "question_name": "seen_yes",
+        "question_number": null,
+        "llm_utterance": "That's wonderful news! \ud83c\udf1f How did your antenatal appointment go? Can you spare 2 minutes to share with us?\n\nPlease reply with one of the following:\n- 'Yes'\n- 'Remind me tomorrow'",
+        "user_utterance": "Suppose my friend wanted to join this study, how would she do that?",
+        "follow_up_utterance": "Yes",
+        "user_response": "Yes",
         "llm_initial_predicted_intent": "QUESTION_ABOUT_STUDY",
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       },
       {
         "question_name": "Q_bp",
         "question_number": null,
-        "llm_utterance": "During your check-up, did the friendly health worker take your blood pressure? \ud83d\ude0a\n\nYes\nNo\nI don't know",
+        "llm_utterance": "Were you asked to have your blood pressure measured during your last check-up?\n\nPlease reply with one of the following:\n- 'Yes'\n- 'No'\n- 'I don't know'",
         "user_utterance": "My baby is not drinking milk properly.",
         "follow_up_utterance": "I don't know",
-        "user_response": {
-          "visit_status": "Yes",
-          "professional_seen": "No",
-          "reason_for_not_seeing_professional": "Clinic was closed \u26d4"
-        },
+        "user_response": "I don't know",
         "llm_initial_predicted_intent": "HEALTH_QUESTION",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      },
+      {
+        "question_name": "Q_experience",
+        "question_number": null,
+        "llm_utterance": "How would you rate your overall experience at the check-up?\n\nPlease reply with one of the following:\n- 'Very good'\n- 'Good'\n- 'OK'\n- 'Bad'\n- 'Very bad'",
+        "user_utterance": "Help my child is sick",
+        "follow_up_utterance": "Good",
+        "user_response": "Good",
+        "llm_initial_predicted_intent": "HEALTH_QUESTION",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      },
+      {
+        "question_name": "good",
+        "question_number": null,
+        "llm_utterance": "Thank you for sharing your feedback. There are just 2 more questions to go. Your input is invaluable in improving services for pregnant women in South Africa. Would you like to continue?\n\nPlease reply with one of the following:\n- 'Continue'",
+        "user_utterance": "I'm worried about my blood pressure",
+        "follow_up_utterance": "Yes",
+        "user_response": "Continue",
+        "llm_initial_predicted_intent": "HEALTH_QUESTION",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      },
+      {
+        "question_name": "Q_visit_bad",
+        "question_number": null,
+        "llm_utterance": "Can you share what made you the most uncomfortable or caused you *the biggest problem* at your check-up? Please respond with one of the following options:\n\nPlease reply with one of the following:\n- 'No maternity record \ud83d\udcdd'\n- 'Shamed/embarrassed \ud83d\ude33'\n- 'No privacy \ud83e\udd10'\n- 'Not enough info \u2139\ufe0f'\n- 'Staff disrespectful \ud83e\udd2c'\n- 'Asked to pay \ud83d\udcb0'\n- 'Waited a long time \u231b'\n- 'Something else \ud83d\ude1e'",
+        "user_utterance": "I don't want to be part of this anymore.",
+        "follow_up_utterance": "had to wait long time",
+        "user_response": "Waited a long time \u231b",
+        "llm_initial_predicted_intent": "ASKING_TO_STOP_MESSAGES",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      },
+      {
+        "question_name": "Q_challenges",
+        "question_number": null,
+        "llm_utterance": "When it comes to attending these check-ups, some women face challenges. If you struggle with anything, what is your *biggest challenge*?\n\nPlease reply with one of the following:\n- 'No challenges \ud83d\udc4c'\n- 'Transport \ud83d\ude8c'\n- 'No support \ud83e\udd1d'\n- 'Clinic opening hours \ud83c\udfe5'\n- 'Something else \ud83d\ude1e'",
+        "user_utterance": "Wipe my details now!",
+        "follow_up_utterance": "Clinic opening hours \ud83c\udfe5",
+        "user_response": "Clinic opening hours \ud83c\udfe5",
+        "llm_initial_predicted_intent": "ASKING_TO_DELETE_DATA",
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       },
       {
         "question_name": "intent",
         "question_number": null,
-        "llm_utterance": "Thank you so much for sharing with me! \ud83e\udd17 Your dedication to your health and baby is truly commendable! \ud83c\udf1f As you know, attending all your pregnancy check-ups is vital for keeping both you and baby healthy and happy. Your body goes through a lot during pregnancy, so catching any issues early is key. Are you planning on going for your next check-up?\n\nYes, I will\nNo, I won't",
+        "llm_utterance": "Thank you for taking the time to answer our questions! \ud83c\udf1f \n\nRemember, going to all your pregnancy check-ups is the best way to make sure that you and baby stay healthy \ud83d\udcaa\ud83c\udffd \n\nDuring pregnancy, your body changes a lot. The earlier a possible problem with you or baby is identified, the quicker it can be treated. \n\nDo you think you will go for your next check-up?\n\nPlease reply with one of the following:\n- 'Yes, I will'\n- 'No, I won't'",
         "user_utterance": "This is a scam I never got my airtime",
         "follow_up_utterance": "Ja",
-        "user_response": {
-          "visit_status": "I'm going soon"
-        },
+        "user_response": "Yes, I will",
         "llm_initial_predicted_intent": "REPORTING_AIRTIME_NOT_RECEIVED",
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       }

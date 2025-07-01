@@ -587,7 +587,7 @@ JSON Response:
     """
     prompt_builder = ChatPromptBuilder(
         template=[ChatMessage.from_system(prompt_template)],
-        required_variables=["user_response", "valid_responses", "previous_message"],
+        required_variables=["user_response", "valid_responses"],
     )
 
     json_validator = JsonSchemaValidator()

@@ -95,6 +95,7 @@ def read_json(filepath: Path) -> dict:
         logger.error("Error loading JSON from %s: %s", filepath, e)
         raise
 
+
 async def _get_user_response(
     gt_lookup: dict[str, dict],
     flow_id: str,
@@ -301,7 +302,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
             previous_context = user_context.copy()
             user_context = extract_onboarding_data_from_response(
-                user_response, user_context, chat_history
+                final_user_response, user_context, chat_history
             )
 
             # Identify what changed in user_context
@@ -759,7 +760,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             print(f"Task: {task}")
             print(f"Question #: {next_message_nr}")
             print(f"Question: {next_message}")
-            user_response = await _get_user_response(
+            user_response, gt_turn = await _get_user_response(
                 gt_lookup={},
                 flow_id=flow_id.value,
                 contextualized_question=next_message,
@@ -936,7 +937,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     continue
 
                 result = validate_assessment_answer(
-                    user_response, question_number, flow_id.value
+                    final_user_response, question_number, flow_id.value
                 )
                 if not result:
                     logger.warning(
@@ -1208,7 +1209,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 print(f"Task: {task}")
                 print(f"Question #: {next_message_nr}")
                 print(f"Question: {next_message}")
-                user_response = await _get_user_response(
+                user_response, gt_turn = await _get_user_response(
                     gt_lookup={},
                     flow_id=flow_id.value,
                     contextualized_question=next_message,
@@ -1374,45 +1375,54 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             if final_user_response is None:
                 continue
 
-                previous_context = anc_user_context.copy()
-                anc_user_context = extract_anc_data_from_response(
-                    user_response,
-                    anc_user_context,
-                    question_identifier,
-                    contextualized_question,
+            # intent must be JOURNEY_RESPONSE. Perform data extraction to add it and the preceding question to the chat history.
+            previous_chat_message = ChatMessage.from_assistant(
+                text=contextualized_question,
+                meta={"step_title": question_identifier},
+            )
+
+            previous_context = anc_user_context.copy()
+            anc_user_context = extract_anc_data_from_response(
+                final_user_response,
+                anc_user_context,
+                question_identifier,
+                contextualized_question,
+            )
+            # Identify what changed in user_context
+            diff_keys = [
+                k
+                for k in anc_user_context
+                if anc_user_context[k] != previous_context.get(k)
+            ]
+            if diff_keys:
+                chat_history.append(previous_chat_message)
+                for updated_field in diff_keys:
+                    logger.info(f"Creating turn for extracted field: {updated_field}")
+                    anc_survey_turns.append(
+                        {
+                            "question_name": question_identifier,
+                            "llm_utterance": contextualized_question,
+                            "user_utterance": gt_turn.get("user_utterance")
+                            if gt_turn
+                            else final_user_response,
+                            "follow_up_utterance": final_user_response,
+                            "llm_initial_predicted_intent": initial_predicted_intent,
+                            "llm_final_predicted_intent": final_predicted_intent,
+                            "llm_extracted_user_response": anc_user_context[
+                                updated_field
+                            ],
+                        }
+                    )
+                # There is only expected to be one updated field:
+                chat_history.append(
+                    ChatMessage.from_user(text=anc_user_context[updated_field])
                 )
-                # Identify what changed in user_context
-                diff_keys = [
-                    k
-                    for k in anc_user_context
-                    if anc_user_context[k] != previous_context.get(k)
-                ]
-                if diff_keys:
-                    chat_history.append(previous_chat_message)
-                    for updated_field in diff_keys:
-                        logger.info(
-                            f"Creating turn for extracted field: {updated_field}"
-                        )
-                        anc_survey_turns.append(
-                            {
-                                "question_name": question_identifier,
-                                "llm_utterance": contextualized_question,
-                                "user_utterance": user_response,
-                                "llm_extracted_user_response": anc_user_context[
-                                    updated_field
-                                ],
-                            }
-                        )
-                    # There is only expected to be one updated field:
-                    chat_history.append(
-                        ChatMessage.from_user(text=anc_user_context[updated_field])
-                    )
-                    # Save the updated chat_history to the db
-                    await save_chat_history(user_id, chat_history, HistoryType.anc)
-                else:
-                    logger.info(
-                        "No valid data extracted... Trying again in the next simulation loop."
-                    )
+                # Save the updated chat_history to the db
+                await save_chat_history(user_id, chat_history, HistoryType.anc)
+            else:
+                logger.info(
+                    "No valid data extracted... Trying again in the next simulation loop."
+                )
         run_results["turns"] = anc_survey_turns
         simulation_results.append(run_results)
 
@@ -1497,8 +1507,7 @@ async def async_main(
         logging.info("Starting simulation in INTERACTIVE mode...")
         raw_simulation_output = await run_simulation(gt_scenarios=None)
 
-    print("_________ RUN OUPUT__________")
-    print(raw_simulation_output)
+    print("_________ COMPLETED SIMULATION__________")
 
     # 2. Validate the IN-MEMORY raw output directly using Pydantic.
     try:

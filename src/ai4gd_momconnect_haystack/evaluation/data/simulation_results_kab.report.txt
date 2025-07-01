@@ -8,8 +8,8 @@
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.09 ] Question Consistency
-       Reason: The score is 0.09 because the output primarily consists of options rather than direct responses to the input question. While the options might be useful in other contexts, they do not address the specific inquiry about pregnancy check-ups, leading to a low relevancy score.
+  [ score: 0.18 ] Question Consistency
+       Reason: The score is 0.18 because the output contains multiple statements that do not directly address the input question, leading to a low relevancy score. However, the presence of some relevant content prevents the score from being zero.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: behaviour-pre-assessment_user_123_250616-0635 (behaviour-pre-assessment) | ID: 2 ---
@@ -17,87 +17,96 @@
        Details: Expected: 'QUESTION_ABOUT_STUDY', Got: 'CHITCHAT'
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.80 ] Question Consistency
+  [ score: 0.20 ] Question Consistency
+       Reason: The score is 0.20 because the output primarily consists of response format prompts and options, which do not directly address the input question about dietary changes during pregnancy. The presence of these irrelevant statements significantly lowers the relevancy score.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: behaviour-pre-assessment_user_123_250616-0635 (behaviour-pre-assessment) | ID: 3 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 1.00 ] Question Consistency
+  [ score: 0.50 ] Question Consistency
+       Reason: The score is 0.50 because while the response partially addresses the question about the number of tetanus vaccine doses received, it includes an irrelevant statement about reply options, which detracts from the overall relevancy.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: behaviour-pre-assessment_user_123_250616-0635 (behaviour-pre-assessment) | ID: 4 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.80 ] Question Consistency
+  [ score: 0.20 ] Question Consistency
+       Reason: The score is 0.20 because the output primarily consists of suggested response formats rather than directly addressing the input question about alcohol or smoking during pregnancy. The presence of multiple irrelevant statements dilutes the focus on the actual query, preventing a higher score.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 1 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.71 ] Question Consistency
+  [ score: 0.22 ] Question Consistency
+       Reason: The score is 0.22 because the output contains multiple irrelevant statements that do not directly address the question about the timing of a first pregnancy check-up. These include prompts for response formats, instructions to skip questions, and incorrect suggestions about check-up timing. However, the score is not zero because there is an attempt to engage with the input, albeit not effectively.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 2 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.60 ] Question Consistency
-       Reason: The score is 0.60 because the output partially addresses the input by mentioning contractions, which is relevant to the context of pregnancy and hospital visits. However, the inclusion of irrelevant statements like 'Contractions stop.' and 'Skip.' detracts from the overall relevance, preventing a higher score.
+  [ score: 0.50 ] Question Consistency
+       Reason: The score is 0.50 because while the output includes some relevant information about when to go to the hospital during pregnancy, it also contains irrelevant statements such as 'contractions stop' and options like 'I don't know' and 'skip,' which do not directly address the input question. These irrelevant elements prevent the score from being higher, but the presence of some relevant content maintains the score at its current level.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 3 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.71 ] Question Consistency
+  [ score: 0.62 ] Question Consistency
+       Reason: The score is 0.62 because while the output attempts to address the question about pregnancy check-ups, it includes irrelevant prompts and suggestions that detract from providing a clear, direct answer. However, it still partially addresses the input, which is why it isn't lower.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 4 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.80 ] Question Consistency
+  [ score: 0.00 ] Question Consistency
+       Reason: The score is 0.00 because the output contains multiple irrelevant statements that do not address the question about breastfeeding within the first hour of birth. Instead, it includes repeated questions, instructions, and suggested response options that do not provide any relevant information.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 5 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.50 ] Question Consistency
-       Reason: The score is 0.50 because while the output attempts to address the question, it includes vague and incorrect statements that detract from clarity. However, it still partially acknowledges the protective role of the vaccine, which is why it isn't lower.
+  [ score: 0.14 ] Question Consistency
+       Reason: The score is 0.14 because the output primarily consists of instructions and suggested response options rather than directly addressing the question about who the tetanus vaccine protects during pregnancy. This lack of direct relevance significantly lowers the score.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 6 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.83 ] Question Consistency
+  [ score: 0.67 ] Question Consistency
+       Reason: The score is 0.67 because the response partially addresses the benefits of iron and folic acid supplements for pregnancy, but includes a prompt for user interaction that doesn't directly answer the question. This slightly detracts from the overall relevance, preventing a higher score.
   [ score: 0.00 ] Response Appropriateness
-       Reason: The score is 0.00 because the response 'no' does not address the question about the recommendation of iron and folic acid supplements for pregnant women. It lacks context and information relevant to the inquiry.
+       Reason: The score is 0.00 because the response 'No.' is irrelevant and does not address the question about the recommendation of iron and folic acid supplements for pregnant women. It fails to provide a clear answer from the given options.
 
 --- Turn: attitude-pre-assessment_user_123_250616-0635 (attitude-pre-assessment) | ID: 1 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.88 ] Question Consistency
+  [ score: 0.22 ] Question Consistency
+       Reason: The score is 0.22 because the output primarily consists of response options rather than directly addressing the input statement about pregnancy check-ups. While the options are related to the input, they do not provide a specific answer or explanation, leading to a lower relevancy score.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: attitude-pre-assessment_user_123_250616-0635 (attitude-pre-assessment) | ID: 2 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.86 ] Question Consistency
+  [ score: 0.12 ] Question Consistency
+       Reason: The score is 0.12 because the output primarily consists of response format options rather than directly addressing the safety of home birth, which was the main focus of the input. The presence of multiple irrelevant statements significantly detracts from the relevancy, resulting in a low score.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: attitude-pre-assessment_user_123_250616-0635 (attitude-pre-assessment) | ID: 3 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.86 ] Question Consistency
+  [ score: 1.00 ] Question Consistency
   [ score: 1.00 ] Response Appropriateness
 
 
@@ -123,19 +132,20 @@ REPORTING_AIRTIME_NOT_RECEIVED       1.00      1.00      1.00         1
 
 --- Confusion Matrix ---
 shape: (7, 8)
-┌─────────────────────────────────┬─────────────────────────────┬───────────────────────────────┬────────────────┬───────────────────────┬────────────────────────┬────────────────────────────┬─────────────────────────────────┐
-│ Actual                          ┆ Pred: ASKING_TO_DELETE_DATA ┆ Pred: ASKING_TO_STOP_MESSAGES ┆ Pred: CHITCHAT ┆ Pred: HEALTH_QUESTION ┆ Pred: JOURNEY_RESPONSE ┆ Pred: QUESTION_ABOUT_STUDY ┆ Pred: REPORTING_AIRTIME_NOT_RE… │
-│ ---                             ┆ ---                         ┆ ---                           ┆ ---            ┆ ---                   ┆ ---                    ┆ ---                        ┆ ---                             │
-│ str                             ┆ i64                         ┆ i64                           ┆ i64            ┆ i64                   ┆ i64                    ┆ i64                        ┆ i64                             │
-╞═════════════════════════════════╪═════════════════════════════╪═══════════════════════════════╪════════════════╪═══════════════════════╪════════════════════════╪════════════════════════════╪═════════════════════════════════╡
-│ Actual: ASKING_TO_DELETE_DATA   ┆ 2                           ┆ 0                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
-│ Actual: ASKING_TO_STOP_MESSAGE… ┆ 0                           ┆ 3                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
-│ Actual: CHITCHAT                ┆ 0                           ┆ 0                             ┆ 3              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
-│ Actual: HEALTH_QUESTION         ┆ 0                           ┆ 0                             ┆ 0              ┆ 2                     ┆ 0                      ┆ 0                          ┆ 0                               │
-│ Actual: JOURNEY_RESPONSE        ┆ 0                           ┆ 0                             ┆ 0              ┆ 0                     ┆ 13                     ┆ 0                          ┆ 0                               │
-│ Actual: QUESTION_ABOUT_STUDY    ┆ 0                           ┆ 0                             ┆ 1              ┆ 0                     ┆ 0                      ┆ 1                          ┆ 0                               │
-│ Actual: REPORTING_AIRTIME_NOT_… ┆ 0                           ┆ 0                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 1                               │
-└─────────────────────────────────┴─────────────────────────────┴───────────────────────────────┴────────────────┴───────────────────────┴────────────────────────┴────────────────────────────┴─────────────────────────────────┘
+┌─────────────────────────────────┬───────────────────────┬─────────────────────────┬────────────────┬───────────────────────┬────────────────────────┬────────────────────────────┬───────────────────────────┐
+│ Actual                          ┆ Pred:                 ┆ Pred:                   ┆ Pred: CHITCHAT ┆ Pred: HEALTH_QUESTION ┆ Pred: JOURNEY_RESPONSE ┆ Pred: QUESTION_ABOUT_STUDY ┆ Pred:                     │
+│ ---                             ┆ ASKING_TO_DELETE_DATA ┆ ASKING_TO_STOP_MESSAGES ┆ ---            ┆ ---                   ┆ ---                    ┆ ---                        ┆ REPORTING_AIRTIME_NOT_RE… │
+│ str                             ┆ ---                   ┆ ---                     ┆ i64            ┆ i64                   ┆ i64                    ┆ i64                        ┆ ---                       │
+│                                 ┆ i64                   ┆ i64                     ┆                ┆                       ┆                        ┆                            ┆ i64                       │
+╞═════════════════════════════════╪═══════════════════════╪═════════════════════════╪════════════════╪═══════════════════════╪════════════════════════╪════════════════════════════╪═══════════════════════════╡
+│ Actual: ASKING_TO_DELETE_DATA   ┆ 2                     ┆ 0                       ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                         │
+│ Actual: ASKING_TO_STOP_MESSAGE… ┆ 0                     ┆ 3                       ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                         │
+│ Actual: CHITCHAT                ┆ 0                     ┆ 0                       ┆ 3              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                         │
+│ Actual: HEALTH_QUESTION         ┆ 0                     ┆ 0                       ┆ 0              ┆ 2                     ┆ 0                      ┆ 0                          ┆ 0                         │
+│ Actual: JOURNEY_RESPONSE        ┆ 0                     ┆ 0                       ┆ 0              ┆ 0                     ┆ 13                     ┆ 0                          ┆ 0                         │
+│ Actual: QUESTION_ABOUT_STUDY    ┆ 0                     ┆ 0                       ┆ 1              ┆ 0                     ┆ 0                      ┆ 1                          ┆ 0                         │
+│ Actual: REPORTING_AIRTIME_NOT_… ┆ 0                     ┆ 0                       ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 1                         │
+└─────────────────────────────────┴───────────────────────┴─────────────────────────┴────────────────┴───────────────────────┴────────────────────────┴────────────────────────────┴───────────────────────────┘
 ============================================================
 
 
@@ -146,19 +156,19 @@ shape: (7, 8)
 📊 Behaviour-pre-assessment Performance (4 turns):
   - Intent Accuracy: 87.50%
   - Extraction Accuracy: 100.00%
-  - Avg. Question Consistency: 0.67
+  - Avg. Question Consistency: 0.27
   - Avg. Response Appropriateness: 1.00
 
 📊 Knowledge-pre-assessment Performance (6 turns):
   - Intent Accuracy: 100.00%
   - Extraction Accuracy: 100.00%
-  - Avg. Question Consistency: 0.69
+  - Avg. Question Consistency: 0.36
   - Avg. Response Appropriateness: 0.83
 
 📊 Attitude-pre-assessment Performance (3 turns):
   - Intent Accuracy: 100.00%
   - Extraction Accuracy: 100.00%
-  - Avg. Question Consistency: 0.86
+  - Avg. Question Consistency: 0.45
   - Avg. Response Appropriateness: 1.00
 
 ==================================================
@@ -172,8 +182,8 @@ shape: (7, 8)
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.09 ] Question Consistency
-       Reason: The score is 0.09 because the output primarily consists of options rather than direct responses to the input question. While the options might be useful in other contexts, they do not address the specific inquiry about pregnancy check-ups, leading to a low relevancy score.
+  [ score: 0.18 ] Question Consistency
+       Reason: The score is 0.18 because the output contains multiple statements that do not directly address the input question, leading to a low relevancy score. However, the presence of some relevant content prevents the score from being zero.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: behaviour-pre-assessment_user_123_250616-0635 (behaviour-pre-assessment) | ID: 2 ---
@@ -181,87 +191,96 @@ shape: (7, 8)
        Details: Expected: 'QUESTION_ABOUT_STUDY', Got: 'CHITCHAT'
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.80 ] Question Consistency
+  [ score: 0.20 ] Question Consistency
+       Reason: The score is 0.20 because the output primarily consists of response format prompts and options, which do not directly address the input question about dietary changes during pregnancy. The presence of these irrelevant statements significantly lowers the relevancy score.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: behaviour-pre-assessment_user_123_250616-0635 (behaviour-pre-assessment) | ID: 3 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 1.00 ] Question Consistency
+  [ score: 0.50 ] Question Consistency
+       Reason: The score is 0.50 because while the response partially addresses the question about the number of tetanus vaccine doses received, it includes an irrelevant statement about reply options, which detracts from the overall relevancy.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: behaviour-pre-assessment_user_123_250616-0635 (behaviour-pre-assessment) | ID: 4 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.80 ] Question Consistency
+  [ score: 0.20 ] Question Consistency
+       Reason: The score is 0.20 because the output primarily consists of suggested response formats rather than directly addressing the input question about alcohol or smoking during pregnancy. The presence of multiple irrelevant statements dilutes the focus on the actual query, preventing a higher score.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 1 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.71 ] Question Consistency
+  [ score: 0.22 ] Question Consistency
+       Reason: The score is 0.22 because the output contains multiple irrelevant statements that do not directly address the question about the timing of a first pregnancy check-up. These include prompts for response formats, instructions to skip questions, and incorrect suggestions about check-up timing. However, the score is not zero because there is an attempt to engage with the input, albeit not effectively.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 2 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.60 ] Question Consistency
-       Reason: The score is 0.60 because the output partially addresses the input by mentioning contractions, which is relevant to the context of pregnancy and hospital visits. However, the inclusion of irrelevant statements like 'Contractions stop.' and 'Skip.' detracts from the overall relevance, preventing a higher score.
+  [ score: 0.50 ] Question Consistency
+       Reason: The score is 0.50 because while the output includes some relevant information about when to go to the hospital during pregnancy, it also contains irrelevant statements such as 'contractions stop' and options like 'I don't know' and 'skip,' which do not directly address the input question. These irrelevant elements prevent the score from being higher, but the presence of some relevant content maintains the score at its current level.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 3 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.71 ] Question Consistency
+  [ score: 0.62 ] Question Consistency
+       Reason: The score is 0.62 because while the output attempts to address the question about pregnancy check-ups, it includes irrelevant prompts and suggestions that detract from providing a clear, direct answer. However, it still partially addresses the input, which is why it isn't lower.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 4 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.80 ] Question Consistency
+  [ score: 0.00 ] Question Consistency
+       Reason: The score is 0.00 because the output contains multiple irrelevant statements that do not address the question about breastfeeding within the first hour of birth. Instead, it includes repeated questions, instructions, and suggested response options that do not provide any relevant information.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 5 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.50 ] Question Consistency
-       Reason: The score is 0.50 because while the output attempts to address the question, it includes vague and incorrect statements that detract from clarity. However, it still partially acknowledges the protective role of the vaccine, which is why it isn't lower.
+  [ score: 0.14 ] Question Consistency
+       Reason: The score is 0.14 because the output primarily consists of instructions and suggested response options rather than directly addressing the question about who the tetanus vaccine protects during pregnancy. This lack of direct relevance significantly lowers the score.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: knowledge-pre-assessment_user_123_250616-0635 (knowledge-pre-assessment) | ID: 6 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.83 ] Question Consistency
+  [ score: 0.67 ] Question Consistency
+       Reason: The score is 0.67 because the response partially addresses the benefits of iron and folic acid supplements for pregnancy, but includes a prompt for user interaction that doesn't directly answer the question. This slightly detracts from the overall relevance, preventing a higher score.
   [ score: 0.00 ] Response Appropriateness
-       Reason: The score is 0.00 because the response 'no' does not address the question about the recommendation of iron and folic acid supplements for pregnant women. It lacks context and information relevant to the inquiry.
+       Reason: The score is 0.00 because the response 'No.' is irrelevant and does not address the question about the recommendation of iron and folic acid supplements for pregnant women. It fails to provide a clear answer from the given options.
 
 --- Turn: attitude-pre-assessment_user_123_250616-0635 (attitude-pre-assessment) | ID: 1 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.88 ] Question Consistency
+  [ score: 0.22 ] Question Consistency
+       Reason: The score is 0.22 because the output primarily consists of response options rather than directly addressing the input statement about pregnancy check-ups. While the options are related to the input, they do not provide a specific answer or explanation, leading to a lower relevancy score.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: attitude-pre-assessment_user_123_250616-0635 (attitude-pre-assessment) | ID: 2 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.86 ] Question Consistency
+  [ score: 0.12 ] Question Consistency
+       Reason: The score is 0.12 because the output primarily consists of response format options rather than directly addressing the safety of home birth, which was the main focus of the input. The presence of multiple irrelevant statements significantly detracts from the relevancy, resulting in a low score.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: attitude-pre-assessment_user_123_250616-0635 (attitude-pre-assessment) | ID: 3 ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.86 ] Question Consistency
+  [ score: 1.00 ] Question Consistency
   [ score: 1.00 ] Response Appropriateness
 
 
@@ -287,19 +306,20 @@ REPORTING_AIRTIME_NOT_RECEIVED       1.00      1.00      1.00         1
 
 --- Confusion Matrix ---
 shape: (7, 8)
-┌─────────────────────────────────┬─────────────────────────────┬───────────────────────────────┬────────────────┬───────────────────────┬────────────────────────┬────────────────────────────┬─────────────────────────────────┐
-│ Actual                          ┆ Pred: ASKING_TO_DELETE_DATA ┆ Pred: ASKING_TO_STOP_MESSAGES ┆ Pred: CHITCHAT ┆ Pred: HEALTH_QUESTION ┆ Pred: JOURNEY_RESPONSE ┆ Pred: QUESTION_ABOUT_STUDY ┆ Pred: REPORTING_AIRTIME_NOT_RE… │
-│ ---                             ┆ ---                         ┆ ---                           ┆ ---            ┆ ---                   ┆ ---                    ┆ ---                        ┆ ---                             │
-│ str                             ┆ i64                         ┆ i64                           ┆ i64            ┆ i64                   ┆ i64                    ┆ i64                        ┆ i64                             │
-╞═════════════════════════════════╪═════════════════════════════╪═══════════════════════════════╪════════════════╪═══════════════════════╪════════════════════════╪════════════════════════════╪═════════════════════════════════╡
-│ Actual: ASKING_TO_DELETE_DATA   ┆ 2                           ┆ 0                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
-│ Actual: ASKING_TO_STOP_MESSAGE… ┆ 0                           ┆ 3                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
-│ Actual: CHITCHAT                ┆ 0                           ┆ 0                             ┆ 3              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
-│ Actual: HEALTH_QUESTION         ┆ 0                           ┆ 0                             ┆ 0              ┆ 2                     ┆ 0                      ┆ 0                          ┆ 0                               │
-│ Actual: JOURNEY_RESPONSE        ┆ 0                           ┆ 0                             ┆ 0              ┆ 0                     ┆ 13                     ┆ 0                          ┆ 0                               │
-│ Actual: QUESTION_ABOUT_STUDY    ┆ 0                           ┆ 0                             ┆ 1              ┆ 0                     ┆ 0                      ┆ 1                          ┆ 0                               │
-│ Actual: REPORTING_AIRTIME_NOT_… ┆ 0                           ┆ 0                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 1                               │
-└─────────────────────────────────┴─────────────────────────────┴───────────────────────────────┴────────────────┴───────────────────────┴────────────────────────┴────────────────────────────┴─────────────────────────────────┘
+┌─────────────────────────────────┬───────────────────────┬─────────────────────────┬────────────────┬───────────────────────┬────────────────────────┬────────────────────────────┬───────────────────────────┐
+│ Actual                          ┆ Pred:                 ┆ Pred:                   ┆ Pred: CHITCHAT ┆ Pred: HEALTH_QUESTION ┆ Pred: JOURNEY_RESPONSE ┆ Pred: QUESTION_ABOUT_STUDY ┆ Pred:                     │
+│ ---                             ┆ ASKING_TO_DELETE_DATA ┆ ASKING_TO_STOP_MESSAGES ┆ ---            ┆ ---                   ┆ ---                    ┆ ---                        ┆ REPORTING_AIRTIME_NOT_RE… │
+│ str                             ┆ ---                   ┆ ---                     ┆ i64            ┆ i64                   ┆ i64                    ┆ i64                        ┆ ---                       │
+│                                 ┆ i64                   ┆ i64                     ┆                ┆                       ┆                        ┆                            ┆ i64                       │
+╞═════════════════════════════════╪═══════════════════════╪═════════════════════════╪════════════════╪═══════════════════════╪════════════════════════╪════════════════════════════╪═══════════════════════════╡
+│ Actual: ASKING_TO_DELETE_DATA   ┆ 2                     ┆ 0                       ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                         │
+│ Actual: ASKING_TO_STOP_MESSAGE… ┆ 0                     ┆ 3                       ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                         │
+│ Actual: CHITCHAT                ┆ 0                     ┆ 0                       ┆ 3              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                         │
+│ Actual: HEALTH_QUESTION         ┆ 0                     ┆ 0                       ┆ 0              ┆ 2                     ┆ 0                      ┆ 0                          ┆ 0                         │
+│ Actual: JOURNEY_RESPONSE        ┆ 0                     ┆ 0                       ┆ 0              ┆ 0                     ┆ 13                     ┆ 0                          ┆ 0                         │
+│ Actual: QUESTION_ABOUT_STUDY    ┆ 0                     ┆ 0                       ┆ 1              ┆ 0                     ┆ 0                      ┆ 1                          ┆ 0                         │
+│ Actual: REPORTING_AIRTIME_NOT_… ┆ 0                     ┆ 0                       ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 1                         │
+└─────────────────────────────────┴───────────────────────┴─────────────────────────┴────────────────┴───────────────────────┴────────────────────────┴────────────────────────────┴───────────────────────────┘
 ============================================================
 
 
@@ -310,19 +330,19 @@ shape: (7, 8)
 📊 Behaviour-pre-assessment Performance (4 turns):
   - Intent Accuracy: 87.50%
   - Extraction Accuracy: 100.00%
-  - Avg. Question Consistency: 0.67
+  - Avg. Question Consistency: 0.27
   - Avg. Response Appropriateness: 1.00
 
 📊 Knowledge-pre-assessment Performance (6 turns):
   - Intent Accuracy: 100.00%
   - Extraction Accuracy: 100.00%
-  - Avg. Question Consistency: 0.69
+  - Avg. Question Consistency: 0.36
   - Avg. Response Appropriateness: 0.83
 
 📊 Attitude-pre-assessment Performance (3 turns):
   - Intent Accuracy: 100.00%
   - Extraction Accuracy: 100.00%
-  - Avg. Question Consistency: 0.86
+  - Avg. Question Consistency: 0.45
   - Avg. Response Appropriateness: 1.00
 
 ==================================================

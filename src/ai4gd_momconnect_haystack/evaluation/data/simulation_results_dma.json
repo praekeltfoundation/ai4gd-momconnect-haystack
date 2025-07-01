@@ -10,7 +10,7 @@
       {
         "question_name": null,
         "question_number": 1,
-        "llm_utterance": "To what extent do you feel like you can make decisions about your health?\n\nI strongly disagree\nI disagree\nI'm not sure\nI agree\nI strongly agree\nSkip",
+        "llm_utterance": "How much do you agree or disagree with this statement: *I feel like I can make decisions about my health.*\n\nPlease reply with one of the following:\n- 'I strongly disagree'\n- 'I disagree'\n- 'I'm not sure'\n- 'I agree'\n- 'I strongly agree'\n- 'Skip'",
         "user_utterance": "Is my information kept private?",
         "follow_up_utterance": "I strongly agree",
         "user_response": "I strongly agree",
@@ -21,7 +21,7 @@
       {
         "question_name": null,
         "question_number": 2,
-        "llm_utterance": "Do you feel comfortable talking about your health issues with a health worker?\n\nI strongly disagree\nI disagree\nI'm not sure\nI agree\nI strongly agree\nSkip",
+        "llm_utterance": "Do you feel like you can talk about your health issues with a health worker?\n\nPlease reply with one of the following:\n- 'I strongly disagree'\n- 'I disagree'\n- 'I'm not sure'\n- 'I agree'\n- 'I strongly agree'\n- 'Skip'",
         "user_utterance": "Can I take Panado while I'm pregnant?",
         "follow_up_utterance": "I strongly agree",
         "user_response": "I strongly agree",
@@ -32,7 +32,7 @@
       {
         "question_name": null,
         "question_number": 3,
-        "llm_utterance": "Do you feel that you can disagree with a health worker about your treatment plan?\n\nI strongly disagree\nI disagree\nI'm not sure\nI agree\nI strongly agree\nSkip",
+        "llm_utterance": "I feel that I can disagree with a health worker about my treatment plan.\n\nPlease reply with one of the following:\n- 'I strongly disagree'\n- 'I disagree'\n- 'I'm not sure'\n- 'I agree'\n- 'I strongly agree'\n- 'Skip'",
         "user_utterance": "Unsubscribe",
         "follow_up_utterance": "I strongly agree",
         "user_response": "I strongly agree",
@@ -43,7 +43,7 @@
       {
         "question_name": null,
         "question_number": 4,
-        "llm_utterance": "I feel that I can do things to improve my health.\n\nI strongly disagree\nI disagree\nI'm not sure\nI agree\nI strongly agree\nSkip",
+        "llm_utterance": "Almost done! Do you feel that you can do things to improve your health?\n\nPlease reply with one of the following:\n- 'I strongly disagree'\n- 'I disagree'\n- 'I'm not sure'\n- 'I agree'\n- 'I strongly agree'\n- 'Skip'",
         "user_utterance": "The airtime thing didn't work for me.",
         "follow_up_utterance": "I strongly agree",
         "user_response": "I strongly agree",
@@ -54,7 +54,7 @@
       {
         "question_name": null,
         "question_number": 5,
-        "llm_utterance": "Do you feel that you can find information about your health from sources other than a health worker?\n\nI strongly disagree\nI disagree\nI'm not sure\nI agree\nI strongly agree\nSkip",
+        "llm_utterance": "Do you feel that you can find information about your health from sources other than a health worker?\n\nPlease reply with one of the following:\n- 'I strongly disagree'\n- 'I disagree'\n- 'I'm not sure'\n- 'I agree'\n- 'I strongly agree'\n- 'Skip'",
         "user_utterance": "Thank you so much",
         "follow_up_utterance": "I strongly agree",
         "user_response": "I strongly agree",
