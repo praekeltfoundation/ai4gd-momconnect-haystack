@@ -1,97 +1,34 @@
 import json
 import logging
-from typing import Any
 
 from haystack.dataclasses import ChatMessage
-from pydantic import ValidationError
-from sqlalchemy import select
 
-from ai4gd_momconnect_haystack.database import AsyncSessionLocal
-from ai4gd_momconnect_haystack.enums import (
-    AssessmentType,
+
+from ai4gd_momconnect_haystack.crud import (
+    get_assessment_history,
+    get_or_create_chat_history,
+)
+from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType
+from ai4gd_momconnect_haystack.pipelines import (
+    create_anc_survey_contextualization_pipeline,
+    get_next_anc_survey_step,
+    run_anc_survey_contextualization_pipeline,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import AssessmentHistory
 
 from . import doc_store, pipelines
-from .pydantic_models import (
-    AssessmentQuestion,
-    AssessmentRun,
-    Turn,
-    ResponseScore,
+from .utilities import (
+    all_onboarding_questions,
+    ANC_SURVEY_MAP,
+    assessment_flow_map,
+    assessment_map_to_their_pre,
+    kab_b_post_flow_id,
+    kab_b_pre_flow_id,
 )
+
 
 # --- Configuration ---
 logger = logging.getLogger(__name__)
-
-onboarding_flow_id = "onboarding"
-dma_pre_flow_id = "dma-pre-assessment"
-dma_post_flow_id = "dma-post-assessment"
-kab_k_pre_flow_id = "knowledge-pre-assessment"
-kab_k_post_flow_id = "knowledge-post-assessment"
-kab_a_pre_flow_id = "attitude-pre-assessment"
-kab_a_post_flow_id = "attitude-post-assessment"
-kab_b_pre_flow_id = "behaviour-pre-assessment"
-kab_b_post_flow_id = "behaviour-post-assessment"
-anc_survey_flow_id = "anc-survey"
-faqs_flow_id = "faqs"
-
-all_onboarding_questions = doc_store.ONBOARDING_FLOW
-all_anc_survey_questions = doc_store.ANC_SURVEY_FLOW
-faq_questions = doc_store.FAQ_DATA
-# The following assessments have the same pre and post flows, so we can use the same IDs
-all_dma_questions = doc_store.DMA_FLOW
-all_kab_k_questions = doc_store.KAB_K_FLOW
-all_kab_a_questions = doc_store.KAB_A_FLOW
-# The kab_b pre and post flows are different, so we use separate IDs
-all_kab_b_pre_questions = doc_store.KAB_B_PRE_FLOW
-all_kab_b_post_questions = doc_store.KAB_B_POST_FLOW
-# We also need content for messaging that happens at the end of assessments:
-dma_end_messaging_pre = doc_store.DMA_ASSESSMENT_END_FLOW
-kab_k_end_messaging_pre = doc_store.KAB_K_ASSESSMENT_END_FLOW
-kab_a_end_messaging_pre = doc_store.KAB_A_ASSESSMENT_END_FLOW
-kab_b_end_messaging_pre = doc_store.KAB_B_ASSESSMENT_END_FLOW
-
-assessment_flow_map = {
-    dma_pre_flow_id: all_dma_questions,
-    dma_post_flow_id: all_dma_questions,
-    kab_k_pre_flow_id: all_kab_k_questions,
-    kab_k_post_flow_id: all_kab_k_questions,
-    kab_a_pre_flow_id: all_kab_a_questions,
-    kab_a_post_flow_id: all_kab_a_questions,
-    kab_b_pre_flow_id: all_kab_b_pre_questions,
-    kab_b_post_flow_id: all_kab_b_post_questions,
-}
-
-assessment_end_flow_map = {
-    dma_pre_flow_id: dma_end_messaging_pre,
-    kab_k_pre_flow_id: kab_k_end_messaging_pre,
-    kab_a_pre_flow_id: kab_a_end_messaging_pre,
-    kab_b_pre_flow_id: kab_b_end_messaging_pre,
-}
-
-assessment_map_to_their_pre = {
-    dma_pre_flow_id: AssessmentType.dma_pre_assessment,
-    dma_post_flow_id: AssessmentType.dma_pre_assessment,
-    kab_k_pre_flow_id: AssessmentType.knowledge_pre_assessment,
-    kab_k_post_flow_id: AssessmentType.knowledge_pre_assessment,
-    kab_a_pre_flow_id: AssessmentType.attitude_pre_assessment,
-    kab_a_post_flow_id: AssessmentType.attitude_pre_assessment,
-    kab_b_pre_flow_id: AssessmentType.behaviour_pre_assessment,
-    kab_b_post_flow_id: AssessmentType.behaviour_pre_assessment,
-}
-
-assessment_map_to_assessment_types = {
-    dma_pre_flow_id: AssessmentType.dma_pre_assessment,
-    dma_post_flow_id: AssessmentType.dma_post_assessment,
-    kab_k_pre_flow_id: AssessmentType.knowledge_pre_assessment,
-    kab_k_post_flow_id: AssessmentType.knowledge_post_assessment,
-    kab_a_pre_flow_id: AssessmentType.attitude_pre_assessment,
-    kab_a_post_flow_id: AssessmentType.attitude_post_assessment,
-    kab_b_pre_flow_id: AssessmentType.behaviour_pre_assessment,
-    kab_b_post_flow_id: AssessmentType.behaviour_post_assessment,
-}
-
-ANC_SURVEY_MAP = {item.title: item for item in all_anc_survey_questions}
 
 
 def get_next_onboarding_question(
@@ -143,11 +80,23 @@ def get_next_onboarding_question(
         logger.error(
             f"Could not find question data for question_number {chosen_question_number}. Skipping."
         )
+        return None
     else:
         logger.info(f"Original question was: '{current_step_data.content}'")
 
+    # Append valid responses to the final question, if they exist
+    valid_responses = current_step_data.valid_responses
+    if valid_responses:
+        options = "\n".join(
+            ["Please reply with one of the following:"]
+            + [f"- '{vr}'" for vr in valid_responses]
+        )
+        final_question_text = f"{contextualized_question}\n\n{options}"
+    else:
+        final_question_text = contextualized_question
+
     return {
-        "contextualized_question": contextualized_question,
+        "contextualized_question": final_question_text,
         "question_number": chosen_question_number,
     }
 
@@ -189,24 +138,6 @@ def extract_onboarding_data_from_response(
     else:
         logger.warning("Data extraction pipeline did not produce a result.")
     return user_context
-
-
-async def get_assessment_history(
-    user_id: str, assessment_type: AssessmentType
-) -> list[AssessmentHistory]:
-    """
-    Retrieves assessment question history for a given user and assessment type.
-    If no history exists, an empty list is returned.
-    """
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            select(AssessmentHistory).filter(
-                AssessmentHistory.user_id == user_id,
-                AssessmentHistory.assessment_id == assessment_type.value,
-            )
-        )
-        history = result.scalars().all()
-        return list(history)
 
 
 async def get_assessment_question(
@@ -311,134 +242,77 @@ async def get_assessment_question(
     }
 
 
-def validate_assessment_answer(
-    user_response: str, question_number: int, current_flow_id: str
-) -> dict[str, Any]:
-    """
-    Validates a user's response to an assessment question.
-
-    question_number uses 1-based indexing
-    """
-    current_question = None
-    for q in assessment_flow_map[current_flow_id]:
-        if q.question_number == question_number:
-            current_question = q
-    if not current_question:
-        logger.error(
-            f"Could not find question number {question_number} in flow '{current_flow_id}'."
-        )
-        return {
-            "processed_user_response": None,
-            "next_question_number": question_number,
-        }
-    valid_responses_and_scores = current_question.valid_responses_and_scores
-    if not valid_responses_and_scores:
-        logger.error(f"No valid responses found for question {question_number}.")
-        return {
-            "processed_user_response": None,
-            "next_question_number": question_number,
-        }
-    valid_responses = [item.response for item in valid_responses_and_scores]
-
-    validator_pipe = pipelines.create_assessment_response_validator_pipeline()
-    processed_user_response = pipelines.run_assessment_response_validator_pipeline(
-        validator_pipe, user_response, valid_responses
-    )
-
-    # Move to the next step, or try again if the response was invalid
-    if processed_user_response:
-        logger.info(
-            f"Storing validated response for question_number {question_number}: {processed_user_response}"
-        )
-        question_number += 1
-    else:
-        logger.warning(f"Response validation failed for step {question_number}.")
-
-    return {
-        "processed_user_response": processed_user_response,
-        "next_question_number": question_number,
-    }
-
-
-def validate_assessment_end_response(
-    previous_message: str,
-    previous_message_nr: int,
-    previous_message_valid_responses: list[str],
-    user_response: str,
-) -> dict[str, Any]:
-    """ """
-    # Create and run a pipeline that validates the user's response to the previous message
-    validator_pipe = pipelines.create_assessment_end_response_validator_pipeline()
-    processed_user_response = pipelines.run_assessment_end_response_validator_pipeline(
-        validator_pipe,
-        user_response,
-        previous_message_valid_responses,
-        previous_message,
-    )
-    # Move to the next step, or try again if the response was invalid
-    if processed_user_response:
-        logger.info(
-            f"Storing validated response for message_number {previous_message_nr}: {processed_user_response}"
-        )
-        next_message_nr = previous_message_nr + 1
-    else:
-        logger.warning(f"Response validation failed for step {previous_message_nr}.")
-        next_message_nr = previous_message_nr
-
-    return {
-        "processed_user_response": processed_user_response,
-        "next_message_number": next_message_nr,
-    }
-
-
-def get_anc_survey_question(
-    user_context: dict, chat_history: list[ChatMessage]
-) -> dict | None:
+async def get_anc_survey_question(user_id: str, user_context: dict) -> dict | None:
     """
     Gets the next contextualized ANC survey question by first determining the
     next logical step, then fetching the content and contextualizing it.
     """
-    # 1. Get the next logical step from the Navigator Pipeline
-    logger.info("Running clinic visit navigator pipeline...")
-    navigator_pipe = pipelines.create_clinic_visit_navigator_pipeline()
-    if not navigator_pipe:
-        logger.error("Failed to create ANC survey navigator pipeline.")
+    # TODO: Improve survey histories to know when it's truly a user's first time completing one. For now we are forcing "first_survey" to True.
+    user_context["first_survey"] = True
+    chat_history = await get_or_create_chat_history(user_id, HistoryType.anc)
+    if chat_history:
+        current_step = [
+            cm.meta["step_title"] for cm in chat_history if cm.role.value == "assistant"
+        ][-1]
+        next_step = get_next_anc_survey_step(current_step, user_context)
+    else:
+        next_step = "start"
+
+    is_final = False
+    if not next_step:
+        is_final = True
+        logger.warning(f"End of survey reached! Last step was: {current_step}")
         return None
 
-    step_result = pipelines.run_clinic_visit_navigator_pipeline(
-        navigator_pipe, user_context
-    )
+    text_to_prepend = ""
+    if next_step == "not_going_next_one":
+        question_data = ANC_SURVEY_MAP.get(next_step)
+        if not question_data:
+            logger.error(f"Could not find question content for step_id: '{next_step}'")
+            return None
+        text_to_prepend = question_data.content + "\n\n"
+        current_step = next_step
+        next_step = get_next_anc_survey_step(current_step, user_context)
+        if not next_step:
+            is_final = True
+            logger.warning(f"End of survey reached! Last step was: {current_step}")
+            return None
 
-    if not step_result or "next_step" not in step_result:
-        logger.error("Question navigation failed in 'anc-survey' flow.")
-        return None
-
-    next_step_id = step_result["next_step"]
-    is_final = step_result.get("is_final_step", False)
-
-    # 2. Fetch the original question content from our loaded JSON data
-    question_data = ANC_SURVEY_MAP.get(next_step_id)
+    question_data = ANC_SURVEY_MAP.get(next_step)
     if not question_data:
-        logger.error(f"Could not find question content for step_id: '{next_step_id}'")
+        logger.error(f"Could not find question content for step_id: '{next_step}'")
         return None
 
     original_question_content = question_data.content
     valid_responses = question_data.valid_responses
     if not valid_responses:
-        logger.error(
-            f"Could not find valid responses for question for step_id: '{next_step_id}'"
-        )
-        return None
+        if next_step not in [
+            "start_going_soon",
+            "not_going_next_one",
+            "Q_visit_other",
+            "Q_challenges_other",
+            "Q_why_no_visit_other",
+            "Q_why_not_go_other",
+            "mom_ANC_remind_me_01",
+            "mom_ANC_remind_me_02",
+            "end_if_feedback",
+            "end",
+        ]:
+            logger.error(
+                f"Could not find valid responses for question for step_id: '{next_step}'"
+            )
+            return None
+        else:
+            valid_responses = []
 
-    # 3. Get the final, contextualized question from the Contextualizer Pipeline
-    logger.info(f"Running contextualization pipeline for step: '{next_step_id}'...")
-    contextualizer_pipe = pipelines.create_anc_survey_contextualization_pipeline()
+    logger.info(f"Running contextualization pipeline for step: '{next_step}'...")
+    contextualizer_pipe = create_anc_survey_contextualization_pipeline()
     if not contextualizer_pipe:
         logger.error("Failed to create ANC survey contextualization pipeline.")
         # Fallback to original content if pipeline creation fails
         contextualized_question = original_question_content
     else:
-        contextualized_question = pipelines.run_anc_survey_contextualization_pipeline(
+        contextualized_question = run_anc_survey_contextualization_pipeline(
             contextualizer_pipe,
             user_context,
             chat_history,
@@ -446,38 +320,53 @@ def get_anc_survey_question(
             valid_responses,
         )
 
-    # 4. Append valid responses to the final question, if they exist
-    valid_responses = question_data.valid_responses
+    final_question_text = text_to_prepend + contextualized_question
     if valid_responses:
-        options = "\n".join(valid_responses)
-        final_question_text = f"{contextualized_question}\n\n{options}"
-    else:
-        final_question_text = contextualized_question
+        options = "\n".join(
+            ["Please reply with one of the following:"]
+            + [f"- '{vr}'" for vr in valid_responses]
+        )
+        final_question_text += f"\n\n{options}"
 
     return {
         "contextualized_question": final_question_text.strip(),
         "is_final_step": is_final,
-        "question_identifier": next_step_id,
+        "question_identifier": next_step,
     }
 
 
 def extract_anc_data_from_response(
-    user_response: str, user_context: dict, chat_history: list[ChatMessage]
+    user_response: str,
+    user_context: dict,
+    step_title: str,
+    previous_service_message: str,
 ) -> dict:
     """
     Extracts data from a user's response to an ANC survey question.
     """
     logger.info("Running ANC survey data extraction pipeline...")
-    anc_data_extraction_pipe = pipelines.create_clinic_visit_data_extraction_pipeline()
-    extracted_data = pipelines.run_clinic_visit_data_extraction_pipeline(
-        anc_data_extraction_pipe, user_response, user_context, chat_history
-    )
-
+    question_data = ANC_SURVEY_MAP.get(step_title)
+    if not question_data:
+        logger.error(f"Could not find question content for step_id: '{step_title}'")
+        return user_context
+    valid_responses = question_data.valid_responses
+    if valid_responses:
+        anc_data_extraction_pipe = (
+            pipelines.create_clinic_visit_data_extraction_pipeline()
+        )
+        extracted_data = pipelines.run_clinic_visit_data_extraction_pipeline(
+            anc_data_extraction_pipe,
+            user_response,
+            previous_service_message,
+            valid_responses,
+        )
+    else:
+        extracted_data = user_response
     if extracted_data:
+        print(f"[Extracted ANC Data]:\n{json.dumps(extracted_data, indent=2)}\n")
         # Update the user_context with the newly extracted data
-        for key, value in extracted_data.items():
-            user_context[key] = value
-            logger.info(f"Updated user_context for {key}: {value}")
+        user_context[step_title] = extracted_data
+        logger.info(f"Updated user_context for {step_title}: {extracted_data}")
     else:
         logger.warning("ANC data extraction pipeline did not produce a result.")
 
@@ -537,170 +426,3 @@ def handle_user_message(
         logger.error(f"Intent detected: {intent}. No specific action defined.")
 
     return intent, response
-
-
-def load_and_validate_assessment_questions(
-    assessment_id: str,
-) -> list[AssessmentQuestion] | None:
-    """
-    Extracts and validates a specific list of questions using the pre-loaded
-    assessment_flow_map.
-    """
-    logger.info(f"Loading and validating questions for '{assessment_id}'...")
-
-    # Use the existing global map to get the raw question data
-    raw_question_data = assessment_flow_map.get(assessment_id)
-
-    if not raw_question_data or not isinstance(raw_question_data, list):
-        logger.error(
-            f"No valid question data found for '{assessment_id}' in the assessment_flow_map."
-        )
-        return None
-
-    try:
-        validated_questions = [
-            AssessmentQuestion.model_validate(q) for q in raw_question_data
-        ]
-        logger.info(
-            f"Successfully validated {len(validated_questions)} questions for '{assessment_id}'."
-        )
-        return validated_questions
-    except ValidationError as e:
-        logger.critical(f"Data structure error in source for '{assessment_id}':\n{e}")
-        return None
-
-
-def _calculate_assessment_score_range(
-    assessment_questions: list[AssessmentQuestion],
-) -> tuple[int, int]:
-    """
-    Calculates the min/max possible scores using validated Question models.
-    """
-    total_min_score, total_max_score = 0, 0
-    for question in assessment_questions:
-        # Assumes the Pydantic model now has 'valid_responses_and_scores'
-        responses_and_scores = question.valid_responses_and_scores
-        if isinstance(responses_and_scores, list):
-            scores = [
-                item.score
-                for item in responses_and_scores
-                if isinstance(item, ResponseScore) and item.score is not None
-            ]
-        else:
-            scores = []
-
-        if scores:
-            total_min_score += min(scores)
-            total_max_score += max(scores)
-    return total_min_score, total_max_score
-
-
-def _score_single_turn(
-    turn: Turn,
-    question_lookup_by_num: dict[int, AssessmentQuestion],
-) -> dict[str, Any]:
-    """
-    Scores a single assessment turn.
-    """
-    result = turn.model_dump()
-    result["score"] = 0
-
-    q_num = turn.question_number
-    if q_num is None:
-        result["score_error"] = "Turn has no question number."
-        return result
-
-    question_data = question_lookup_by_num.get(q_num)
-    if not question_data:
-        result["score_error"] = (
-            f"Question number {q_num} not found in master assessment file."
-        )
-        return result
-
-    responses_and_scores = getattr(question_data, "valid_responses_and_scores", None)
-    if isinstance(responses_and_scores, list) and all(
-        isinstance(i, ResponseScore) for i in responses_and_scores
-    ):
-        score_val = None
-        # Find the matching response in the list of ResponseScore objects
-        for item in responses_and_scores:
-            if isinstance(item, ResponseScore) and item.response == turn.user_response:
-                score_val = item.score
-                break  # Found a match
-
-        if score_val is not None:
-            result["score"] = score_val
-        else:
-            result["score_error"] = "User's answer is not a valid, scorable option."
-    else:
-        result["score_error"] = "This question is not structured for scoring."
-
-    return result
-
-
-def score_assessment_from_simulation(
-    simulation_output: list[AssessmentRun],
-    assessment_id: str,
-    assessment_questions: list[AssessmentQuestion],
-) -> dict[str, Any] | None:
-    """
-    Calculates the final score for a specific assessment run.
-    """
-    logger.info(
-        f"Calculating final score for '{assessment_id}' from simulation output..."
-    )
-
-    assessment_run = next(
-        (run for run in simulation_output if run.flow_type == assessment_id),
-        None,
-    )
-    if not assessment_run:
-        logger.error(
-            f"Could not find a valid run for '{assessment_id}' in the simulation output."
-        )
-        return None
-
-    question_lookup = {q.question_number: q for q in assessment_questions}
-
-    # ---Score Calculation Logic ---
-    min_possible_score, max_possible_score = _calculate_assessment_score_range(
-        assessment_questions
-    )
-    results = [
-        _score_single_turn(turn, question_lookup)
-        for turn in assessment_run.turns
-        if turn.question_number is not None
-    ]
-    user_total_score = sum(r["score"] for r in results if r.get("score") is not None)
-    score_percentage = (
-        (user_total_score / max_possible_score * 100) if max_possible_score > 0 else 0.0
-    )
-
-    logger.info(f"Final score for '{assessment_id}' calculated: {user_total_score}")
-
-    return {
-        "overall_score": user_total_score,
-        "score_percentage": round(score_percentage, 2),
-        "assessment_min_score": min_possible_score,
-        "assessment_max_score": max_possible_score,
-        "turns": results,
-    }
-
-
-def score_assessment_question(
-    user_response: str, question_number: int, flow_id: AssessmentType
-) -> int | None:
-    assessment_questions = load_and_validate_assessment_questions(
-        assessment_map_to_their_pre[flow_id.value]
-    )
-    if assessment_questions:
-        question_lookup = {q.question_number: q for q in assessment_questions}
-        score_result = _score_single_turn(
-            Turn.model_validate(
-                {"user_response": user_response, "question_number": question_number}
-            ),
-            question_lookup,
-        )
-        if "score" in score_result.keys():
-            return score_result["score"]
-    return None

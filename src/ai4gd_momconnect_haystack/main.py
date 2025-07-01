@@ -11,30 +11,50 @@ from haystack.dataclasses import ChatMessage
 from pydantic import ValidationError
 from sqlalchemy import delete
 
+from ai4gd_momconnect_haystack.assessment_logic import (
+    _score_single_turn,
+    load_and_validate_assessment_questions,
+    score_assessment_from_simulation,
+    validate_assessment_answer,
+    validate_assessment_end_response,
+)
+from ai4gd_momconnect_haystack.crud import (
+    calculate_and_store_assessment_result,
+    get_assessment_end_messaging_history,
+    get_assessment_result,
+    save_assessment_end_message,
+    save_assessment_question,
+    save_chat_history,
+)
 from ai4gd_momconnect_haystack.sqlalchemy_models import (
     AssessmentEndMessagingHistory,
     AssessmentHistory,
     AssessmentResultHistory,
+    ChatHistory,
+)
+from ai4gd_momconnect_haystack.tasks import (
+    extract_anc_data_from_response,
+    extract_onboarding_data_from_response,
+    get_anc_survey_question,
+    get_assessment_question,
+    get_next_onboarding_question,
+    handle_user_message,
+)
+from ai4gd_momconnect_haystack.utilities import (
+    assessment_map_to_their_pre,
+    assessment_end_flow_map,
+    generate_scenario_id,
+    load_json_and_validate,
+    save_json_file,
 )
 
-from . import tasks
 from .database import AsyncSessionLocal, init_db
-from .enums import AssessmentType
+from .enums import AssessmentType, HistoryType
 from .pydantic_models import (
     AssessmentEndScoreBasedMessage,
     AssessmentEndSimpleMessage,
     AssessmentRun,
     Turn,
-)
-from .utilities import (
-    calculate_and_store_assessment_result,
-    generate_scenario_id,
-    get_assessment_end_messaging_history,
-    get_assessment_result,
-    load_json_and_validate,
-    save_assessment_end_message,
-    save_json_file,
-    save_assessment_question,
 )
 
 load_dotenv()
@@ -74,7 +94,6 @@ def read_json(filepath: Path) -> dict:
     except Exception as e:
         logger.error("Error loading JSON from %s: %s", filepath, e)
         raise
-
 
 async def _get_user_response(
     gt_lookup: dict[str, dict],
@@ -196,7 +215,8 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             print("-" * 20)
             logger.info(f"Onboarding Question Attempt: {attempt + 1}")
 
-            result = tasks.get_next_onboarding_question(user_context, chat_history)
+            result = get_next_onboarding_question(user_context, chat_history)
+
             if not result:
                 logger.info("Onboarding flow complete.")
                 break
@@ -231,11 +251,13 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 if user_response is None:
                     break
 
+                print(f"User_response: {user_response}")
+
                 print(f"Use_response: {user_response}")
                 chat_history.append(ChatMessage.from_user(text=user_response))
 
                 # Classify user's intent and act accordingly
-                intent, intent_related_response = tasks.handle_user_message(
+                intent, intent_related_response = handle_user_message(
                     contextualized_question, user_response
                 )
                 print(f"Predicted Intent: {intent}")
@@ -277,10 +299,9 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             if final_user_response is None:
                 continue
 
-            ### Endpoint 2: Turn can call to get extracted data from a user response.
             previous_context = user_context.copy()
-            user_context = tasks.extract_onboarding_data_from_response(
-                final_user_response, user_context, chat_history
+            user_context = extract_onboarding_data_from_response(
+                user_response, user_context, chat_history
             )
 
             # Identify what changed in user_context
@@ -340,11 +361,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
         run_results["turns"] = onboarding_turns
         simulation_results.append(run_results)
 
-        logger.info("Onboarding Chat History:")
-        for msg in chat_history:
-            logger.info(f"{msg.role.value}:\n{msg.text}")
-        chat_history = []
-
     # ** DMA Scenario **
     print("")
     sim_dma = "dma-pre-assessment" in gt_lookup_by_flow
@@ -393,7 +409,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             print("-" * 20)
             logger.info(f"Assessment Step: Requesting question {question_number}")
 
-            result = await tasks.get_assessment_question(
+            result = await get_assessment_question(
                 user_id=user_id,
                 flow_id=flow_id,
                 question_number=question_number,
@@ -435,7 +451,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     break
 
                 print(f"User_response: {user_response}")
-                intent, intent_related_response = tasks.handle_user_message(
+                intent, intent_related_response = handle_user_message(
                     contextualized_question, user_response
                 )
                 print(f"Predicted Intent: {intent}")
@@ -478,7 +494,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             if final_user_response is None:
                 continue
 
-            result = tasks.validate_assessment_answer(
+            result = validate_assessment_answer(
                 final_user_response, question_number, flow_id.value
             )
             if not result:
@@ -504,12 +520,12 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 }
             )
             question_number = result["next_question_number"]
-            assessment_questions = tasks.load_and_validate_assessment_questions(
-                tasks.assessment_map_to_their_pre[flow_id.value]
+            assessment_questions = load_and_validate_assessment_questions(
+                assessment_map_to_their_pre[flow_id.value]
             )
             if assessment_questions:
                 question_lookup = {q.question_number: q for q in assessment_questions}
-                score_result = tasks._score_single_turn(
+                score_result = _score_single_turn(
                     Turn.model_validate(dma_turns[-1]),
                     question_lookup,
                 )
@@ -549,7 +565,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             messaging_history = await get_assessment_end_messaging_history(
                 user_id=user_id, assessment_type=flow_id
             )
-            flow_content = tasks.assessment_end_flow_map[flow_id.value]
+            flow_content = assessment_end_flow_map[flow_id.value]
             task = ""
             if not messaging_history:
                 previous_message_nr = 0
@@ -612,7 +628,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 logger.error("Valid responses not found.")
                 break
             if previous_message_nr > 0:
-                intent, intent_related_response = tasks.handle_user_message(
+                intent, intent_related_response = handle_user_message(
                     previous_message, user_response
                 )
             else:
@@ -643,7 +659,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     if not previous_message_valid_responses:
                         logger.error("Valid responses not found.")
                         break
-                    result = tasks.validate_assessment_end_response(
+                    result = validate_assessment_end_response(
                         previous_message=previous_message,
                         previous_message_nr=next_message_nr - 1,
                         previous_message_valid_responses=previous_message_valid_responses,
@@ -743,7 +759,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             print(f"Task: {task}")
             print(f"Question #: {next_message_nr}")
             print(f"Question: {next_message}")
-            user_response, gt_turn = await _get_user_response(
+            user_response = await _get_user_response(
                 gt_lookup={},
                 flow_id=flow_id.value,
                 contextualized_question=next_message,
@@ -755,14 +771,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             print(f"User_response: {user_response}")
         # End of assessment-end messaging
 
-        # Inspect the assessment questions and results that were stored as history before deleting them:
-        history = await tasks.get_assessment_history(user_id, flow_id)
-        if history:
-            logger.info(
-                "Stored the following pre-assessment questions during simulation:"
-            )
-            for q in history:
-                logger.info(f"Question {q.question_number}: {q.question}")
         async with AsyncSessionLocal() as session:
             async with session.begin():
                 await session.execute(
@@ -846,7 +854,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 print("-" * 20)
                 logger.info(f"Assessment Step: Requesting question {question_number}")
 
-                result = await tasks.get_assessment_question(
+                result = await get_assessment_question(
                     user_id=user_id,
                     flow_id=flow_id,
                     question_number=question_number,
@@ -887,7 +895,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     if user_response is None:
                         break
                     print(f"User_response: {user_response}")
-                    intent, intent_related_response = tasks.handle_user_message(
+                    intent, intent_related_response = handle_user_message(
                         contextualized_question, user_response
                     )
                     print(f"Predicted Intent: {intent}")
@@ -927,8 +935,8 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 if final_user_response is None:
                     continue
 
-                result = tasks.validate_assessment_answer(
-                    final_user_response, question_number, flow_id.value
+                result = validate_assessment_answer(
+                    user_response, question_number, flow_id.value
                 )
                 if not result:
                     logger.warning(
@@ -952,14 +960,14 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     }
                 )
                 question_number = result["next_question_number"]
-                assessment_questions = tasks.load_and_validate_assessment_questions(
-                    tasks.assessment_map_to_their_pre[flow_id.value]
+                assessment_questions = load_and_validate_assessment_questions(
+                    assessment_map_to_their_pre[flow_id.value]
                 )
                 if assessment_questions:
                     question_lookup = {
                         q.question_number: q for q in assessment_questions
                     }
-                    score_result = tasks._score_single_turn(
+                    score_result = _score_single_turn(
                         Turn.model_validate(kab_turns[-1]),
                         question_lookup,
                     )
@@ -999,7 +1007,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 messaging_history = await get_assessment_end_messaging_history(
                     user_id=user_id, assessment_type=flow_id
                 )
-                flow_content = tasks.assessment_end_flow_map[flow_id.value]
+                flow_content = assessment_end_flow_map[flow_id.value]
                 task = ""
                 if not messaging_history:
                     previous_message_nr = 0
@@ -1061,7 +1069,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     logger.error("Valid responses not found.")
                     break
                 if previous_message_nr > 0:
-                    intent, intent_related_response = tasks.handle_user_message(
+                    intent, intent_related_response = handle_user_message(
                         previous_message, user_response
                     )
                 else:
@@ -1092,7 +1100,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         assert previous_message_valid_responses is not None, (
                             "Valid responses not found!"
                         )
-                        result = tasks.validate_assessment_end_response(
+                        result = validate_assessment_end_response(
                             previous_message=previous_message,
                             previous_message_nr=next_message_nr - 1,
                             previous_message_valid_responses=previous_message_valid_responses,
@@ -1200,7 +1208,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 print(f"Task: {task}")
                 print(f"Question #: {next_message_nr}")
                 print(f"Question: {next_message}")
-                user_response, gt_turn = await _get_user_response(
+                user_response = await _get_user_response(
                     gt_lookup={},
                     flow_id=flow_id.value,
                     contextualized_question=next_message,
@@ -1212,15 +1220,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 print(f"User_response: {user_response}")
             # End of assessment-end messaging
 
-            # Inspect the pre-assessment questions that were stored as history,
-            # before deleting them:
-            history = await tasks.get_assessment_history(user_id, flow_id)
-            if history:
-                logger.info(
-                    "Stored the following assessment questions during simulation:"
-                )
-                for q in history:
-                    logger.info(f"Question {q.question_number}: {q.question}")
             async with AsyncSessionLocal() as session:
                 async with session.begin():
                     await session.execute(
@@ -1232,8 +1231,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             # And also the overall assessment result, if there is one:
             assessment_result = await get_assessment_result(user_id, flow_id)
             if assessment_result:
-                print("Assessment Result:")
-                print(assessment_result)
                 async with AsyncSessionLocal() as session:
                     async with session.begin():
                         await session.execute(
@@ -1262,6 +1259,13 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
     if sim_anc_survey:
         logger.info("\n--- Simulating ANC Survey ---")
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                await session.execute(
+                    delete(ChatHistory).where(
+                        ChatHistory.user_id == user_id,
+                    )
+                )
         chat_history.append(ChatMessage.from_system(text=SERVICE_PERSONA))
         anc_user_context = {
             "age": user_context.get("age"),
@@ -1293,8 +1297,8 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             print("-" * 20)
             logger.info("ANC Survey Step: Requesting next question...")
 
-            result = tasks.get_anc_survey_question(
-                user_context=anc_user_context, chat_history=chat_history
+            result = await get_anc_survey_question(
+                user_id=user_id, user_context=anc_user_context
             )
 
             if not result or not result.get("contextualized_question"):
@@ -1304,9 +1308,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             contextualized_question = result["contextualized_question"]
             question_identifier = result["question_identifier"]
             survey_complete = result.get("is_final_step", False)
-            chat_history.append(
-                ChatMessage.from_assistant(text=contextualized_question)
-            )
 
             print("-" * 20)
             print(f"Question title: {question_identifier}")
@@ -1332,7 +1333,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
                 print(f"Use_response: {user_response}")
                 chat_history.append(ChatMessage.from_user(text=user_response))
-                intent, intent_related_response = tasks.handle_user_message(
+                intent, intent_related_response = handle_user_message(
                     contextualized_question, user_response
                 )
                 print(f"Predicted Intent: {intent}")
@@ -1373,42 +1374,47 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             if final_user_response is None:
                 continue
 
-            previous_context = anc_user_context.copy()
-            anc_user_context = tasks.extract_anc_data_from_response(
-                final_user_response, anc_user_context, chat_history
-            )
-
-            # Find all new and changed keys by comparing the context before and after extraction
-            extracted_data = {
-                k: anc_user_context[k]
-                for k in anc_user_context
-                if k not in previous_context
-                or anc_user_context[k] != previous_context.get(k)
-            }
-            print("UserContext after response extraction:")
-            print(extracted_data)
-
-            # Log the full dictionary of extracted data as part of a single turn record
-            anc_survey_turns.append(
-                {
-                    "question_name": question_identifier,
-                    "llm_utterance": contextualized_question,
-                    "user_utterance": gt_turn.get("user_utterance")
-                    if gt_turn
-                    else final_user_response,
-                    "follow_up_utterance": final_user_response,
-                    "llm_initial_predicted_intent": initial_predicted_intent,
-                    "llm_final_predicted_intent": final_predicted_intent,
-                    "llm_extracted_user_response": extracted_data,
-                }
-            )
+                previous_context = anc_user_context.copy()
+                anc_user_context = extract_anc_data_from_response(
+                    user_response,
+                    anc_user_context,
+                    question_identifier,
+                    contextualized_question,
+                )
+                # Identify what changed in user_context
+                diff_keys = [
+                    k
+                    for k in anc_user_context
+                    if anc_user_context[k] != previous_context.get(k)
+                ]
+                if diff_keys:
+                    chat_history.append(previous_chat_message)
+                    for updated_field in diff_keys:
+                        logger.info(
+                            f"Creating turn for extracted field: {updated_field}"
+                        )
+                        anc_survey_turns.append(
+                            {
+                                "question_name": question_identifier,
+                                "llm_utterance": contextualized_question,
+                                "user_utterance": user_response,
+                                "llm_extracted_user_response": anc_user_context[
+                                    updated_field
+                                ],
+                            }
+                        )
+                    # There is only expected to be one updated field:
+                    chat_history.append(
+                        ChatMessage.from_user(text=anc_user_context[updated_field])
+                    )
+                    # Save the updated chat_history to the db
+                    await save_chat_history(user_id, chat_history, HistoryType.anc)
+                else:
+                    logger.info(
+                        "No valid data extracted... Trying again in the next simulation loop."
+                    )
         run_results["turns"] = anc_survey_turns
         simulation_results.append(run_results)
-
-        logger.info("ANC Survey Chat History:")
-        for msg in chat_history:
-            logger.info(f"{msg.role.value}:\n{msg.text}")
-        chat_history = []
 
     # --- End of Simulation ---
 
@@ -1428,7 +1434,7 @@ def _process_run(run: AssessmentRun) -> dict:
 
     logging.info(f"Processing scorable assessment: {run.flow_type}")
 
-    assessment_questions = tasks.load_and_validate_assessment_questions(run.flow_type)
+    assessment_questions = load_and_validate_assessment_questions(run.flow_type)
 
     print(f"ASSESSMENT Q: {assessment_questions}")
     if not assessment_questions:
@@ -1440,7 +1446,7 @@ def _process_run(run: AssessmentRun) -> dict:
         )
         return run.model_dump()
 
-    scored_data = tasks.score_assessment_from_simulation(
+    scored_data = score_assessment_from_simulation(
         [run], run.flow_type, assessment_questions
     )
     print(f"ASSESSMENT Q: {assessment_questions}")

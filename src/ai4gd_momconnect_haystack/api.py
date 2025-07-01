@@ -8,6 +8,24 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from haystack.dataclasses import ChatMessage
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from ai4gd_momconnect_haystack.assessment_logic import (
+    create_assessment_end_error_response,
+    determine_task,
+    get_content_from_message_data,
+    response_is_required_for,
+    score_assessment_question,
+    validate_assessment_answer,
+    validate_assessment_end_response,
+)
+from ai4gd_momconnect_haystack.crud import (
+    calculate_and_store_assessment_result,
+    get_assessment_end_messaging_history,
+    get_assessment_result,
+    get_or_create_chat_history,
+    save_assessment_end_message,
+    save_assessment_question,
+    save_chat_history,
+)
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentEndRequest,
     AssessmentEndResponse,
@@ -18,35 +36,22 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     SurveyRequest,
     SurveyResponse,
 )
-
-
-from .enums import HistoryType
-from .tasks import (
-    assessment_end_flow_map,
+from ai4gd_momconnect_haystack.tasks import (
     extract_anc_data_from_response,
     extract_onboarding_data_from_response,
     get_anc_survey_question,
     get_assessment_question,
-    score_assessment_question,
-    validate_assessment_end_response,
     get_next_onboarding_question,
     handle_user_message,
-    validate_assessment_answer,
 )
-from .utilities import (
-    calculate_and_store_assessment_result,
-    create_assessment_end_error_response,
-    determine_task,
-    get_assessment_end_messaging_history,
-    get_assessment_result,
-    get_content_from_message_data,
-    get_or_create_chat_history,
+from ai4gd_momconnect_haystack.utilities import (
+    assessment_end_flow_map,
     load_json_and_validate,
-    response_is_required_for,
-    save_assessment_end_message,
-    save_chat_history,
-    save_assessment_question,
 )
+
+
+from .enums import HistoryType
+
 
 load_dotenv()
 
@@ -353,37 +358,63 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
         user_id=user_id, history_type=request.survey_id
     )
 
-    last_question = chat_history[-1] if chat_history else ""
+    last_question = ""
+    last_step_title = ""
+    if chat_history:
+        assistant_chat_messages = [
+            cm for cm in chat_history if cm.role.value == "assistant"
+        ]
+        last_chat_message = (
+            assistant_chat_messages[-1] if assistant_chat_messages else None
+        )
+        if last_chat_message:
+            last_question = last_chat_message.text
+            last_step_title = last_chat_message.meta["step_title"]
     if request.user_input:
-        chat_history.append(ChatMessage.from_user(text=user_input))
         intent, intent_related_response = handle_user_message(last_question, user_input)
     else:
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
         chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA)]
+    user_context = request.user_context
     if intent == "JOURNEY_RESPONSE" and request.user_input:
         # There's only one survey type, so we can assume anc until we add more
         # First, extract data from the user's last response to update the context
+        previous_context_keys = list(user_context.keys())
         user_context = extract_anc_data_from_response(
             user_response=request.user_input,
             user_context=request.user_context,
-            chat_history=chat_history,
+            step_title=last_step_title,
+            previous_service_message=last_question,
         )
-    else:
-        user_context = request.user_context
+        for k, v in user_context.items():
+            if k not in previous_context_keys:
+                chat_history.append(ChatMessage.from_user(text=v))
+                await save_chat_history(
+                    user_id=request.user_id,
+                    messages=chat_history,
+                    history_type=request.survey_id,
+                )
+                # There can only be one extracted data point
+                break
     # Then, get the next logical question based on the updated context
-    question_result = get_anc_survey_question(
-        user_context=user_context, chat_history=chat_history
+    # await get_or_create_chat_history()
+    question_result = await get_anc_survey_question(
+        user_id=user_id, user_context=user_context
     )
     question = ""
-    survey_complete = True  # Default to True if no further question is found
+    survey_complete = True
+    next_step = ""
     if question_result:
         question = question_result.get("contextualized_question", "")
         survey_complete = question_result.get("is_final_step", False)
+        next_step = question_result.get("question_identifier", "")
     # Add the new question or a completion message to the history
     if (not question) and survey_complete:
         completion_message = "Thank you for completing the survey!"
         question = completion_message
-    chat_history.append(ChatMessage.from_assistant(text=question))
+    chat_history.append(
+        ChatMessage.from_assistant(text=question, meta={"step_title": next_step})
+    )
     await save_chat_history(
         user_id=request.user_id, messages=chat_history, history_type=request.survey_id
     )
