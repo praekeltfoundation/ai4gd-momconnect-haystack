@@ -1,3 +1,5 @@
+import logging
+from contextlib import asynccontextmanager
 from os import environ
 from pathlib import Path
 from typing import Annotated
@@ -28,6 +30,7 @@ from ai4gd_momconnect_haystack.crud import (
     save_assessment_question,
     save_chat_history,
 )
+from ai4gd_momconnect_haystack.doc_store import setup_document_store
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentEndRequest,
     AssessmentEndResponse,
@@ -51,11 +54,11 @@ from ai4gd_momconnect_haystack.utilities import (
     load_json_and_validate,
 )
 
-
 from .enums import HistoryType
 
-
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 DATA_PATH = Path("src/ai4gd_momconnect_haystack/")
 
@@ -74,7 +77,16 @@ def setup_sentry():
 
 setup_sentry()
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Application startup...")
+    setup_document_store(startup=True)
+    yield
+    logger.info("Application shutdown...")
+
+
+app = FastAPI(lifespan=lifespan)
 
 Instrumentator().instrument(app).expose(app)
 
