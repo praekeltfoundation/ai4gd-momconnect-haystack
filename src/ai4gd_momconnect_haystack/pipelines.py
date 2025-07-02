@@ -611,11 +611,22 @@ def create_faq_answering_pipeline() -> Pipeline | None:
         return None
     pipeline = Pipeline()
 
+    prompt_builder = ChatPromptBuilder(
+        template=[
+            ChatMessage.from_system("""
+{# This is a placeholder template to declare input variables to be overridden at runtime#}
+{% for doc in documents %}{{ doc.content }}{% endfor %}
+{{ user_question }}
+""")
+        ],
+        required_variables=["documents", "user_question"],
+    )
+
     document_store = setup_document_store()
     retriever = FilterRetriever(document_store=document_store)
 
     pipeline.add_component("retriever", retriever)
-    pipeline.add_component("prompt_builder", ChatPromptBuilder())
+    pipeline.add_component("prompt_builder", prompt_builder)
     pipeline.add_component("llm", llm_generator)
 
     pipeline.connect("retriever.documents", "prompt_builder.documents")
@@ -689,8 +700,8 @@ def run_next_onboarding_question_pipeline(
                 e,
             )
         except Exception as e:
-            logger.error(
-                "Unexpected error in next_onboarding_question_pipeline execution: %s", e
+            logger.warning(
+                "Unexpected error in next onboarding question pipeline execution: %s", e
             )
 
     # Fallback logic
@@ -990,11 +1001,11 @@ def run_assessment_end_response_validator_pipeline(
             result,
         )
     except json.JSONDecodeError as e:
-        logger.error(
+        logger.warning(
             "Failed to decode JSON from LLM response in validation pipeline: %s", e
         )
     except Exception as e:
-        logger.error(f"Error running assessment end response validation pipeline: {e}")
+        logger.warning(f"Error running assessment end response validation pipeline: {e}")
 
     return None
 
@@ -1065,7 +1076,7 @@ def run_anc_survey_contextualization_pipeline(
             e,
         )
     except Exception as e:
-        logger.error(f"Error running ANC survey contextualization pipeline: {e}")
+        logger.warning(f"Error running ANC survey contextualization pipeline: {e}")
 
     return original_question
 
@@ -1137,9 +1148,9 @@ def run_clinic_visit_data_extraction_pipeline(
             result,
         )
     except json.JSONDecodeError as e:
-        logger.error(f"Failed to decode JSON from LLM response: {e}")
+        logger.warning(f"Failed to decode JSON from LLM response: {e}")
     except Exception as e:
-        logger.error(f"Error running clinic visit data extraction pipeline: {e}")
+        logger.warning(f"Error running clinic visit data extraction pipeline: {e}")
 
     return None
 
@@ -1187,7 +1198,7 @@ def run_intent_detection_pipeline(
     except json.JSONDecodeError as e:
         logger.warning("Intent pipeline failed to produce valid JSON response: %s", e)
     except Exception as e:
-        logger.error("Error running intent detection pipeline: %s", e)
+        logger.warning("Error running intent detection pipeline: %s", e)
 
     return None
 
@@ -1219,7 +1230,7 @@ def run_faq_pipeline(user_question: str) -> dict[str, Any] | None:
                 },
                 "prompt_builder": {
                     "template": [ChatMessage.from_system(FAQ_PROMPT)],
-                    "template_variables": {"user_question": user_question},
+                    "user_question": user_question,
                 },
             }
         )
@@ -1231,6 +1242,6 @@ def run_faq_pipeline(user_question: str) -> dict[str, Any] | None:
             "FAQ pipeline failed to produce a valid response. Result: %s", result
         )
     except Exception as e:
-        logger.error("Error running FAQ pipeline: %s", e)
+        logger.warning("Error running FAQ pipeline: %s", e)
 
     return None

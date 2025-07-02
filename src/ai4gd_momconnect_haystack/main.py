@@ -1391,7 +1391,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 final_user_response,
                 anc_user_context,
                 question_identifier,
-                contextualized_question,
             )
             # Identify what changed in user_context
             diff_keys = [

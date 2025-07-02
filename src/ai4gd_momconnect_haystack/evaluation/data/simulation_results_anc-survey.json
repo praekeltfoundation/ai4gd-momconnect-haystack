@@ -6,7 +6,7 @@
       {
         "question_name": "start",
         "question_number": null,
-        "llm_utterance": "Hi there \ud83d\udc4b\ud83c\udffd, have you been attending your *antenatal care appointments* regularly? \ud83c\udfe5\n\nPlease reply with one of the following:\n- 'Yes, I went'\n- 'No, I'm not going'\n- 'I'm going soon'",
+        "llm_utterance": "Hi there \ud83d\udc4b\ud83c\udffd Did you have your *pregnancy check-up* this week? \ud83c\udfe5\n\nPlease reply with one of the following:\n- 'Yes, I went'\n- 'No, I'm not going'\n- 'I'm going soon'",
         "user_utterance": "How do I know I can trust you?",
         "follow_up_utterance": "Yes, I went",
         "user_response": "Yes, I went",
@@ -16,7 +16,7 @@
       {
         "question_name": "Q_seen",
         "question_number": null,
-        "llm_utterance": "Did a healthcare provider see you during your antenatal care visit?",
+        "llm_utterance": "Did a health worker see you during your recent pregnancy check-up?",
         "user_utterance": "What is this AI thing you are using?",
         "follow_up_utterance": "Yes",
         "user_response": "Yes",
@@ -26,7 +26,7 @@
       {
         "question_name": "seen_yes",
         "question_number": null,
-        "llm_utterance": "That's wonderful news! \ud83c\udf1f We're interested to hear more about your antenatal care visit. Do you have a couple of minutes to share about your experience?\n\nPlease reply with one of the following:\n- 'Yes'\n- 'Remind me tomorrow'",
+        "llm_utterance": "That's great to hear! We'd like to hear about your recent check-up. Can you spare 2 minutes to share about it?\n\nPlease reply with one of the following:\n- 'Yes'\n- 'Remind me tomorrow'",
         "user_utterance": "Suppose my friend wanted to join this study, how would she do that?",
         "follow_up_utterance": "Yes",
         "user_response": "Yes",
@@ -36,7 +36,7 @@
       {
         "question_name": "Q_bp",
         "question_number": null,
-        "llm_utterance": "During your latest antenatal care visit, did a healthcare provider check your blood pressure?",
+        "llm_utterance": "Were your blood pressure levels taken during your recent check-up?",
         "user_utterance": "My baby is not drinking milk properly.",
         "follow_up_utterance": "I don't know",
         "user_response": "I don't know",
@@ -46,7 +46,7 @@
       {
         "question_name": "Q_experience",
         "question_number": null,
-        "llm_utterance": "How would you rate your overall experience at the check-up?\n\na. Very good\nb. Good\nc. OK\nd. Bad\ne. Very bad",
+        "llm_utterance": "How did you find your overall experience during the check-up?\n\na. Very good\nb. Good\nc. OK\nd. Bad\ne. Very bad",
         "user_utterance": "Help my child is sick",
         "follow_up_utterance": "Good",
         "user_response": "Good",
@@ -56,7 +56,7 @@
       {
         "question_name": "good",
         "question_number": null,
-        "llm_utterance": "Thank you for sharing your feedback. We have just 2 more questions to go. Your answers will help us improve services for pregnant women in South Africa. Would you like to continue?\n\nPlease reply with 'Continue' to continue.",
+        "llm_utterance": "Just 2 more questions left! Your answers will help us improve services for pregnant women in South Africa. Shall we continue?\n\nPlease reply with 'Continue' to continue.",
         "user_utterance": "I'm worried about my blood pressure",
         "follow_up_utterance": "Yes",
         "user_response": "Continue",
@@ -66,7 +66,7 @@
       {
         "question_name": "Q_visit_bad",
         "question_number": null,
-        "llm_utterance": "Please tell us what made you the most uncomfortable or caused you the biggest problem at your check-up by selecting from the options below:\n\na. I didn't have my maternity record\ud83d\udcdd\nb. I was shamed or embarrassed \ud83d\ude33\nc. I was not given privacy to discuss my worries or challenges \ud83e\udd10\nd. I was not given enough information about tests, supplements or my pregnancy \u2139\ufe0f\ne. The staff were disrespectful \ud83e\udd2c\nf. They asked me to pay \ud83d\udcb0\ng. I had to wait a long time \u231b\nh. Something else \ud83d\ude1e",
+        "llm_utterance": "Please select from the following options to indicate what made you the most uncomfortable or posed the biggest challenge during your check-up:\n\na. I didn't have my maternity record\ud83d\udcdd\nb. I was shamed or embarrassed \ud83d\ude33\nc. I was not given privacy to discuss my worries or challenges \ud83e\udd10\nd. I was not given enough information about tests, supplements or my pregnancy \u2139\ufe0f\ne. The staff were disrespectful \ud83e\udd2c\nf. They asked me to pay \ud83d\udcb0\ng. I had to wait a long time \u231b\nh. Something else \ud83d\ude1e",
         "user_utterance": "I don't want to be part of this anymore.",
         "follow_up_utterance": "had to wait long time",
         "user_response": "Waited a long time \u231b",
@@ -76,7 +76,7 @@
       {
         "question_name": "Q_challenges",
         "question_number": null,
-        "llm_utterance": "I understand that waiting at the clinic was a challenge for you. If you face difficulties attending your future check-ups, what is your biggest challenge?\n\na. No challenges - all fine\ud83d\udc4c\nb. Transport is expensive or it\u2019s far to travel \ud83d\ude8c\nc. I don't have support from my partner or family \ud83e\udd1d\nd. It's hard to get there during clinic opening hours \ud83c\udfe5\ne. Something else \ud83d\ude1e",
+        "llm_utterance": "Some aspects of attending check-ups can be challenging. If you face difficulties, what is your *main obstacle* when coming for appointments?\n\na. No challenges - all fine\ud83d\udc4c\nb. Transport is expensive or it\u2019s far to travel \ud83d\ude8c\nc. I don't have support from my partner or family \ud83e\udd1d\nd. It's hard to get there during clinic opening hours \ud83c\udfe5\ne. Something else \ud83d\ude1e",
         "user_utterance": "Wipe my details now!",
         "follow_up_utterance": "Clinic opening hours \ud83c\udfe5",
         "user_response": "Clinic opening hours \ud83c\udfe5",

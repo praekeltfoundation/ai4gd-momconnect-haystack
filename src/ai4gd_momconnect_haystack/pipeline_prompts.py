@@ -17,6 +17,8 @@ Remaining questions to complete user profile:
 {% for q in remaining_questions %}
 Question {{ q.question_number }}: "{{ q.content }}" (with valid possible responses: "{{ q.valid_responses }}")
 {% endfor %}
+
+JSON Response:
 """
 
 
@@ -239,16 +241,16 @@ JSON Response:
     """
 
 INTENT_DETECTION_PROMPT = """
-You are an intent classifier for a maternal health chatbot.
+You are an AI assitant performing intent classification of user responses in a maternal health chatbot.
 
-Last question the user was asked:
+Last question that was sent to the user:
 "{{ last_question }}"
 
 User's response:
 "{{ user_response }}"
 
 Please classify the user's response, in light of the last question sent to the user, into one of these intents:
-- 'JOURNEY_RESPONSE': The user is answering, attempting to answer, or skipping the question asked.
+- 'JOURNEY_RESPONSE': The user is directly answering, attempting to answer, or skipping the question asked.
 - 'QUESTION_ABOUT_STUDY': The user is asking a question about the research study itself (e.g., "who are you?", "why are you asking this?").
 - 'HEALTH_QUESTION': The user is asking a new question related to health, pregnancy, or their wellbeing, instead of answering the question.
 - 'ASKING_TO_STOP_MESSAGES': The user explicitly expresses a desire to stop receiving messages.
