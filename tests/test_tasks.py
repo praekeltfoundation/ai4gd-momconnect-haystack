@@ -192,10 +192,6 @@ def test_score_assessment_from_simulation_no_valid_run(validated_assessment_ques
 async def test_get_assessment_question():
     with (
         mock.patch(
-            "ai4gd_momconnect_haystack.tasks.pipelines.create_assessment_contextualization_pipeline",
-            return_value=mock.MagicMock(),
-        ) as mock_create_pipeline,
-        mock.patch(
             "ai4gd_momconnect_haystack.tasks.pipelines.run_assessment_contextualization_pipeline",
             return_value="mock_question",
         ) as mock_run_pipeline,
@@ -215,7 +211,6 @@ async def test_get_assessment_question():
             "contextualized_question": "mock_question\n\n1. I strongly agree\n2. I agree\n3. I'm not sure\n4. I disagree\n5. I strongly disagree",
         }
 
-        mock_create_pipeline.assert_called_once()
         mock_run_pipeline.assert_called_once()
         mock_get_history.assert_awaited_once()
 
@@ -223,10 +218,6 @@ async def test_get_assessment_question():
 @pytest.mark.asyncio
 async def test_get_last_assessment_question():
     with (
-        mock.patch(
-            "ai4gd_momconnect_haystack.tasks.pipelines.create_assessment_contextualization_pipeline",
-            return_value=mock.MagicMock(),
-        ) as mock_create_pipeline,
         mock.patch(
             "ai4gd_momconnect_haystack.tasks.pipelines.run_assessment_contextualization_pipeline",
             return_value="mock_question",
@@ -258,7 +249,6 @@ async def test_get_last_assessment_question():
         )
         assert result == {}
 
-        mock_create_pipeline.assert_called_once()
         mock_run_pipeline.assert_called_once()
         mock_get_history.assert_awaited()
 

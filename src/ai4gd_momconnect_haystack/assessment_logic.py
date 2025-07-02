@@ -173,9 +173,8 @@ def validate_assessment_answer(
         )
     )
 
-    validator_pipe = pipelines.create_assessment_response_validator_pipeline()
     processed_user_response = pipelines.run_assessment_response_validator_pipeline(
-        validator_pipe, user_response, valid_responses, valid_responses_for_prompt
+        user_response, valid_responses, valid_responses_for_prompt
     )
 
     # Move to the next step, or try again if the response was invalid
@@ -201,9 +200,7 @@ def validate_assessment_end_response(
 ) -> dict[str, Any]:
     """ """
     # Create and run a pipeline that validates the user's response to the previous message
-    validator_pipe = pipelines.create_assessment_end_response_validator_pipeline()
     processed_user_response = pipelines.run_assessment_end_response_validator_pipeline(
-        validator_pipe,
         user_response,
         previous_message_valid_responses,
         previous_message,

@@ -2,26 +2,38 @@
   {
     "scenario_id": "dma-assessment_user_123_250616-0635",
     "flow_type": "dma-pre-assessment",
-    "overall_score": 20,
-    "score_percentage": 100.0,
+    "overall_score": 18,
+    "score_percentage": 90.0,
     "assessment_min_score": 0,
     "assessment_max_score": 20,
     "turns": [
       {
         "question_name": null,
         "question_number": 1,
-        "llm_utterance": "Do you feel like you can make decisions about your health?\n\n1. I strongly agree\n2. I agree\n3. I'm not sure\n4. I disagree\n5. I strongly disagree",
+        "llm_utterance": "How much do you agree or disagree with this statement: *I feel like I can make decisions about my health*?\n\n1. I strongly agree\n2. I agree\n3. I'm not sure\n4. I disagree\n5. I strongly disagree",
         "user_utterance": "Is my information kept private?",
         "follow_up_utterance": "I strongly agree",
-        "user_response": "I strongly agree",
-        "llm_initial_predicted_intent": "CHITCHAT",
+        "user_response": null,
+        "llm_initial_predicted_intent": "JOURNEY_RESPONSE",
         "llm_final_predicted_intent": "JOURNEY_RESPONSE",
-        "score": 4
+        "score": 0,
+        "score_error": "User's answer is not a valid, scorable option."
+      },
+      {
+        "question_name": null,
+        "question_number": 1,
+        "llm_utterance": "How much do you agree or disagree with this statement: *I feel like I can make decisions about my health*?\n\n1. I strongly agree\n2. I agree\n3. I'm not sure\n4. I disagree\n5. I strongly disagree",
+        "user_utterance": "Is my information kept private?",
+        "follow_up_utterance": "I strongly agree",
+        "user_response": "I'm not sure",
+        "llm_initial_predicted_intent": "JOURNEY_RESPONSE",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE",
+        "score": 2
       },
       {
         "question_name": null,
         "question_number": 2,
-        "llm_utterance": "Do you feel comfortable talking about your health issues with a health worker?\n\n1. I strongly agree\n2. I agree\n3. I'm not sure\n4. I disagree\n5. I strongly disagree",
+        "llm_utterance": "Can you talk about your health issues with a health worker?\n\n1. I strongly agree\n2. I agree\n3. I'm not sure\n4. I disagree\n5. I strongly disagree",
         "user_utterance": "Can I take Panado while I'm pregnant?",
         "follow_up_utterance": "I strongly agree",
         "user_response": "I strongly agree",
@@ -32,7 +44,7 @@
       {
         "question_name": null,
         "question_number": 3,
-        "llm_utterance": "Do you feel that you can disagree with a health worker about your treatment plan?\n\n1. I strongly agree\n2. I agree\n3. I'm not sure\n4. I disagree\n5. I strongly disagree",
+        "llm_utterance": "I feel that I can disagree with a health worker about my treatment plan.\n\n1. I strongly agree\n2. I agree\n3. I'm not sure\n4. I disagree\n5. I strongly disagree",
         "user_utterance": "Unsubscribe",
         "follow_up_utterance": "I strongly agree",
         "user_response": "I strongly agree",
@@ -43,7 +55,7 @@
       {
         "question_name": null,
         "question_number": 4,
-        "llm_utterance": "Almost done! *I feel that I can do things to improve my health.*\n\n1. I strongly agree\n2. I agree\n3. I'm not sure\n4. I disagree\n5. I strongly disagree",
+        "llm_utterance": "Do you feel that you can do things to improve your health?\n\n1. I strongly agree\n2. I agree\n3. I'm not sure\n4. I disagree\n5. I strongly disagree",
         "user_utterance": "The airtime thing didn't work for me.",
         "follow_up_utterance": "I strongly agree",
         "user_response": "I strongly agree",

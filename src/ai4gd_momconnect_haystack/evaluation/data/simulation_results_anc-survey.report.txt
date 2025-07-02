@@ -10,7 +10,7 @@
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
   [ score: 0.67 ] Question Consistency
-       Reason: The score is 0.67 because while the response includes some relevant information, it also contains general greetings and instructions that do not directly address the question about attending a pregnancy check-up. These irrelevant elements slightly detract from the overall relevancy, preventing a higher score.
+       Reason: The score is 0.67 because while the response partially addresses the question about the pregnancy check-up, it includes irrelevant statements like a generic greeting and an instruction, which do not contribute to answering the query. However, the score is not lower because the core question about the check-up is acknowledged.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: Q_seen ---
@@ -26,7 +26,7 @@
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
   [ score: 0.50 ] Question Consistency
-       Reason: The score is 0.50 because while the output includes some relevant elements, such as acknowledging the request for feedback, it also contains multiple irrelevant statements that do not directly address the input's request for a brief review. These irrelevant statements dilute the overall relevance of the response, preventing a higher score.
+       Reason: The score is 0.50 because while the output includes response options and format prompts, it doesn't directly address the input's request for feedback on an experience. The presence of these irrelevant elements prevents a higher score, but the inclusion of some relevant content maintains the score at its current level.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: Q_bp ---
@@ -47,7 +47,7 @@
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 1.00 ] Question Consistency
+  [ score: 0.75 ] Question Consistency
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: Q_visit_bad ---
@@ -68,7 +68,7 @@
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.80 ] Question Consistency
+  [ score: 1.00 ] Question Consistency
   [ score: 1.00 ] Response Appropriateness
 
 
@@ -94,19 +94,24 @@ REPORTING_AIRTIME_NOT_RECEIVED       1.00      1.00      1.00         1
 
 --- Confusion Matrix ---
 shape: (7, 8)
-┌─────────────────────────────────┬─────────────────────────────┬───────────────────────────────┬────────────────┬───────────────────────┬────────────────────────┬────────────────────────────┬─────────────────────────────────┐
-│ Actual                          ┆ Pred: ASKING_TO_DELETE_DATA ┆ Pred: ASKING_TO_STOP_MESSAGES ┆ Pred: CHITCHAT ┆ Pred: HEALTH_QUESTION ┆ Pred: JOURNEY_RESPONSE ┆ Pred: QUESTION_ABOUT_STUDY ┆ Pred: REPORTING_AIRTIME_NOT_RE… │
-│ ---                             ┆ ---                         ┆ ---                           ┆ ---            ┆ ---                   ┆ ---                    ┆ ---                        ┆ ---                             │
-│ str                             ┆ i64                         ┆ i64                           ┆ i64            ┆ i64                   ┆ i64                    ┆ i64                        ┆ i64                             │
-╞═════════════════════════════════╪═════════════════════════════╪═══════════════════════════════╪════════════════╪═══════════════════════╪════════════════════════╪════════════════════════════╪═════════════════════════════════╡
-│ Actual: ASKING_TO_DELETE_DATA   ┆ 1                           ┆ 0                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
-│ Actual: ASKING_TO_STOP_MESSAGE… ┆ 0                           ┆ 1                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
-│ Actual: CHITCHAT                ┆ 0                           ┆ 0                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
-│ Actual: HEALTH_QUESTION         ┆ 0                           ┆ 0                             ┆ 0              ┆ 3                     ┆ 0                      ┆ 0                          ┆ 0                               │
-│ Actual: JOURNEY_RESPONSE        ┆ 0                           ┆ 0                             ┆ 0              ┆ 0                     ┆ 9                      ┆ 0                          ┆ 0                               │
-│ Actual: QUESTION_ABOUT_STUDY    ┆ 0                           ┆ 0                             ┆ 2              ┆ 0                     ┆ 0                      ┆ 1                          ┆ 0                               │
-│ Actual: REPORTING_AIRTIME_NOT_… ┆ 0                           ┆ 0                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 1                               │
-└─────────────────────────────────┴─────────────────────────────┴───────────────────────────────┴────────────────┴───────────────────────┴────────────────────────┴────────────────────────────┴─────────────────────────────────┘
+┌──────────────────────────┬───────────────────────┬─────────────────────────┬────────────────┬───────────────────────┬────────────────────────┬──────────────────────┬─────────────────────────────────┐
+│ Actual                   ┆ Pred:                 ┆ Pred:                   ┆ Pred: CHITCHAT ┆ Pred: HEALTH_QUESTION ┆ Pred: JOURNEY_RESPONSE ┆ Pred:                ┆ Pred: REPORTING_AIRTIME_NOT_RE… │
+│ ---                      ┆ ASKING_TO_DELETE_DATA ┆ ASKING_TO_STOP_MESSAGES ┆ ---            ┆ ---                   ┆ ---                    ┆ QUESTION_ABOUT_STUDY ┆ ---                             │
+│ str                      ┆ ---                   ┆ ---                     ┆ i64            ┆ i64                   ┆ i64                    ┆ ---                  ┆ i64                             │
+│                          ┆ i64                   ┆ i64                     ┆                ┆                       ┆                        ┆ i64                  ┆                                 │
+╞══════════════════════════╪═══════════════════════╪═════════════════════════╪════════════════╪═══════════════════════╪════════════════════════╪══════════════════════╪═════════════════════════════════╡
+│ Actual:                  ┆ 1                     ┆ 0                       ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                    ┆ 0                               │
+│ ASKING_TO_DELETE_DATA    ┆                       ┆                         ┆                ┆                       ┆                        ┆                      ┆                                 │
+│ Actual:                  ┆ 0                     ┆ 1                       ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                    ┆ 0                               │
+│ ASKING_TO_STOP_MESSAGE…  ┆                       ┆                         ┆                ┆                       ┆                        ┆                      ┆                                 │
+│ Actual: CHITCHAT         ┆ 0                     ┆ 0                       ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                    ┆ 0                               │
+│ Actual: HEALTH_QUESTION  ┆ 0                     ┆ 0                       ┆ 0              ┆ 3                     ┆ 0                      ┆ 0                    ┆ 0                               │
+│ Actual: JOURNEY_RESPONSE ┆ 0                     ┆ 0                       ┆ 0              ┆ 0                     ┆ 9                      ┆ 0                    ┆ 0                               │
+│ Actual:                  ┆ 0                     ┆ 0                       ┆ 2              ┆ 0                     ┆ 0                      ┆ 1                    ┆ 0                               │
+│ QUESTION_ABOUT_STUDY     ┆                       ┆                         ┆                ┆                       ┆                        ┆                      ┆                                 │
+│ Actual:                  ┆ 0                     ┆ 0                       ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                    ┆ 1                               │
+│ REPORTING_AIRTIME_NOT_…  ┆                       ┆                         ┆                ┆                       ┆                        ┆                      ┆                                 │
+└──────────────────────────┴───────────────────────┴─────────────────────────┴────────────────┴───────────────────────┴────────────────────────┴──────────────────────┴─────────────────────────────────┘
 ============================================================
 
 
@@ -117,7 +122,7 @@ shape: (7, 8)
 📊 Anc-survey Performance (9 turns):
   - Intent Accuracy: 88.89%
   - Extraction Accuracy: 100.00%
-  - Avg. Question Consistency: 0.89
+  - Avg. Question Consistency: 0.88
   - Avg. Response Appropriateness: 1.00
 
 ==================================================
@@ -133,7 +138,7 @@ shape: (7, 8)
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
   [ score: 0.67 ] Question Consistency
-       Reason: The score is 0.67 because while the response includes some relevant information, it also contains general greetings and instructions that do not directly address the question about attending a pregnancy check-up. These irrelevant elements slightly detract from the overall relevancy, preventing a higher score.
+       Reason: The score is 0.67 because while the response partially addresses the question about the pregnancy check-up, it includes irrelevant statements like a generic greeting and an instruction, which do not contribute to answering the query. However, the score is not lower because the core question about the check-up is acknowledged.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: Q_seen ---
@@ -149,7 +154,7 @@ shape: (7, 8)
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
   [ score: 0.50 ] Question Consistency
-       Reason: The score is 0.50 because while the output includes some relevant elements, such as acknowledging the request for feedback, it also contains multiple irrelevant statements that do not directly address the input's request for a brief review. These irrelevant statements dilute the overall relevance of the response, preventing a higher score.
+       Reason: The score is 0.50 because while the output includes response options and format prompts, it doesn't directly address the input's request for feedback on an experience. The presence of these irrelevant elements prevents a higher score, but the inclusion of some relevant content maintains the score at its current level.
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: Q_bp ---
@@ -170,7 +175,7 @@ shape: (7, 8)
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 1.00 ] Question Consistency
+  [ score: 0.75 ] Question Consistency
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: anc-survey_user_123_250616-0635 (anc-survey) | ID: Q_visit_bad ---
@@ -191,7 +196,7 @@ shape: (7, 8)
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
-  [ score: 0.80 ] Question Consistency
+  [ score: 1.00 ] Question Consistency
   [ score: 1.00 ] Response Appropriateness
 
 
@@ -217,19 +222,24 @@ REPORTING_AIRTIME_NOT_RECEIVED       1.00      1.00      1.00         1
 
 --- Confusion Matrix ---
 shape: (7, 8)
-┌─────────────────────────────────┬─────────────────────────────┬───────────────────────────────┬────────────────┬───────────────────────┬────────────────────────┬────────────────────────────┬─────────────────────────────────┐
-│ Actual                          ┆ Pred: ASKING_TO_DELETE_DATA ┆ Pred: ASKING_TO_STOP_MESSAGES ┆ Pred: CHITCHAT ┆ Pred: HEALTH_QUESTION ┆ Pred: JOURNEY_RESPONSE ┆ Pred: QUESTION_ABOUT_STUDY ┆ Pred: REPORTING_AIRTIME_NOT_RE… │
-│ ---                             ┆ ---                         ┆ ---                           ┆ ---            ┆ ---                   ┆ ---                    ┆ ---                        ┆ ---                             │
-│ str                             ┆ i64                         ┆ i64                           ┆ i64            ┆ i64                   ┆ i64                    ┆ i64                        ┆ i64                             │
-╞═════════════════════════════════╪═════════════════════════════╪═══════════════════════════════╪════════════════╪═══════════════════════╪════════════════════════╪════════════════════════════╪═════════════════════════════════╡
-│ Actual: ASKING_TO_DELETE_DATA   ┆ 1                           ┆ 0                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
-│ Actual: ASKING_TO_STOP_MESSAGE… ┆ 0                           ┆ 1                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
-│ Actual: CHITCHAT                ┆ 0                           ┆ 0                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
-│ Actual: HEALTH_QUESTION         ┆ 0                           ┆ 0                             ┆ 0              ┆ 3                     ┆ 0                      ┆ 0                          ┆ 0                               │
-│ Actual: JOURNEY_RESPONSE        ┆ 0                           ┆ 0                             ┆ 0              ┆ 0                     ┆ 9                      ┆ 0                          ┆ 0                               │
-│ Actual: QUESTION_ABOUT_STUDY    ┆ 0                           ┆ 0                             ┆ 2              ┆ 0                     ┆ 0                      ┆ 1                          ┆ 0                               │
-│ Actual: REPORTING_AIRTIME_NOT_… ┆ 0                           ┆ 0                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 1                               │
-└─────────────────────────────────┴─────────────────────────────┴───────────────────────────────┴────────────────┴───────────────────────┴────────────────────────┴────────────────────────────┴─────────────────────────────────┘
+┌──────────────────────────┬───────────────────────┬─────────────────────────┬────────────────┬───────────────────────┬────────────────────────┬──────────────────────┬─────────────────────────────────┐
+│ Actual                   ┆ Pred:                 ┆ Pred:                   ┆ Pred: CHITCHAT ┆ Pred: HEALTH_QUESTION ┆ Pred: JOURNEY_RESPONSE ┆ Pred:                ┆ Pred: REPORTING_AIRTIME_NOT_RE… │
+│ ---                      ┆ ASKING_TO_DELETE_DATA ┆ ASKING_TO_STOP_MESSAGES ┆ ---            ┆ ---                   ┆ ---                    ┆ QUESTION_ABOUT_STUDY ┆ ---                             │
+│ str                      ┆ ---                   ┆ ---                     ┆ i64            ┆ i64                   ┆ i64                    ┆ ---                  ┆ i64                             │
+│                          ┆ i64                   ┆ i64                     ┆                ┆                       ┆                        ┆ i64                  ┆                                 │
+╞══════════════════════════╪═══════════════════════╪═════════════════════════╪════════════════╪═══════════════════════╪════════════════════════╪══════════════════════╪═════════════════════════════════╡
+│ Actual:                  ┆ 1                     ┆ 0                       ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                    ┆ 0                               │
+│ ASKING_TO_DELETE_DATA    ┆                       ┆                         ┆                ┆                       ┆                        ┆                      ┆                                 │
+│ Actual:                  ┆ 0                     ┆ 1                       ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                    ┆ 0                               │
+│ ASKING_TO_STOP_MESSAGE…  ┆                       ┆                         ┆                ┆                       ┆                        ┆                      ┆                                 │
+│ Actual: CHITCHAT         ┆ 0                     ┆ 0                       ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                    ┆ 0                               │
+│ Actual: HEALTH_QUESTION  ┆ 0                     ┆ 0                       ┆ 0              ┆ 3                     ┆ 0                      ┆ 0                    ┆ 0                               │
+│ Actual: JOURNEY_RESPONSE ┆ 0                     ┆ 0                       ┆ 0              ┆ 0                     ┆ 9                      ┆ 0                    ┆ 0                               │
+│ Actual:                  ┆ 0                     ┆ 0                       ┆ 2              ┆ 0                     ┆ 0                      ┆ 1                    ┆ 0                               │
+│ QUESTION_ABOUT_STUDY     ┆                       ┆                         ┆                ┆                       ┆                        ┆                      ┆                                 │
+│ Actual:                  ┆ 0                     ┆ 0                       ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                    ┆ 1                               │
+│ REPORTING_AIRTIME_NOT_…  ┆                       ┆                         ┆                ┆                       ┆                        ┆                      ┆                                 │
+└──────────────────────────┴───────────────────────┴─────────────────────────┴────────────────┴───────────────────────┴────────────────────────┴──────────────────────┴─────────────────────────────────┘
 ============================================================
 
 
@@ -240,7 +250,7 @@ shape: (7, 8)
 📊 Anc-survey Performance (9 turns):
   - Intent Accuracy: 88.89%
   - Extraction Accuracy: 100.00%
-  - Avg. Question Consistency: 0.89
+  - Avg. Question Consistency: 0.88
   - Avg. Response Appropriateness: 1.00
 
 ==================================================

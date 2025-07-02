@@ -10,7 +10,6 @@ from ai4gd_momconnect_haystack.crud import (
 )
 from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType
 from ai4gd_momconnect_haystack.pipelines import (
-    create_anc_survey_contextualization_pipeline,
     get_next_anc_survey_step,
     run_anc_survey_contextualization_pipeline,
 )
@@ -52,9 +51,7 @@ def get_next_onboarding_question(
 
     # LLM decides the next question
     logger.info("Running next question selection pipeline...")
-    next_question_pipeline = pipelines.create_next_onboarding_question_pipeline()
     next_question_result = pipelines.run_next_onboarding_question_pipeline(
-        next_question_pipeline,
         user_context,
         [q.model_dump() for q in remaining_questions_list],
         chat_history,
@@ -110,11 +107,8 @@ def extract_onboarding_data_from_response(
     Extracts data from a user's response to an onboarding question.
     """
     logger.info("Running data extraction pipeline...")
-    onboarding_data_extraction_pipe = (
-        pipelines.create_onboarding_data_extraction_pipeline()
-    )
     extracted_data = pipelines.run_onboarding_data_extraction_pipeline(
-        onboarding_data_extraction_pipe, user_response, user_context, chat_history
+        user_response, user_context, chat_history
     )
 
     print(f"[Extracted Data]:\n{json.dumps(extracted_data, indent=2)}\n")
@@ -167,12 +161,8 @@ async def get_assessment_question(
                     assessment_flow_map[kab_b_pre_flow_id]
                 ):
                     logger.info("Running contextualization pipeline...")
-                    assessment_contextualization_pipe = (
-                        pipelines.create_assessment_contextualization_pipeline()
-                    )
                     contextualized_question = (
                         pipelines.run_assessment_contextualization_pipeline(
-                            assessment_contextualization_pipe,
                             flow_id.value,
                             question_number,
                             user_context,
@@ -225,11 +215,7 @@ async def get_assessment_question(
 
     # Contextualize the question
     logger.info("Running contextualization pipeline...")
-    assessment_contextualization_pipe = (
-        pipelines.create_assessment_contextualization_pipeline()
-    )
     contextualized_question = pipelines.run_assessment_contextualization_pipeline(
-        assessment_contextualization_pipe,
         flow_id_to_use,
         question_number,
         user_context,
@@ -317,19 +303,12 @@ async def get_anc_survey_question(user_id: str, user_context: dict) -> dict | No
             valid_responses = []
 
     logger.info(f"Running contextualization pipeline for step: '{next_step}'...")
-    contextualizer_pipe = create_anc_survey_contextualization_pipeline()
-    if not contextualizer_pipe:
-        logger.error("Failed to create ANC survey contextualization pipeline.")
-        # Fallback to original content if pipeline creation fails
-        contextualized_question = original_question_content
-    else:
-        contextualized_question = run_anc_survey_contextualization_pipeline(
-            contextualizer_pipe,
-            user_context,
-            chat_history,
-            original_question_content,
-            valid_responses,
-        )
+    contextualized_question = run_anc_survey_contextualization_pipeline(
+        user_context,
+        chat_history,
+        original_question_content,
+        valid_responses,
+    )
 
     final_question_text = prepare_valid_responses_to_display_to_anc_survey_user(
         text_to_prepend, contextualized_question, valid_responses, next_step
@@ -346,7 +325,6 @@ def extract_anc_data_from_response(
     user_response: str,
     user_context: dict,
     step_title: str,
-    previous_service_message: str,
 ) -> dict:
     """
     Extracts data from a user's response to an ANC survey question.
@@ -358,14 +336,10 @@ def extract_anc_data_from_response(
         return user_context
     valid_responses = question_data.valid_responses
     if valid_responses:
-        anc_data_extraction_pipe = (
-            pipelines.create_clinic_visit_data_extraction_pipeline()
-        )
         previous_question = prepare_valid_responses_to_use_in_anc_survey_system_prompt(
             question_data.content, valid_responses, step_title
         )
         extracted_data = pipelines.run_clinic_visit_data_extraction_pipeline(
-            anc_data_extraction_pipe,
             user_response,
             previous_question,
             valid_responses,
@@ -386,21 +360,15 @@ def extract_anc_data_from_response(
 def detect_user_intent(last_question: str, user_response: str) -> str | None:
     """Runs the intent detection pipeline."""
     logger.info("Running intent detection pipeline...")
-    intent_pipeline = pipelines.create_intent_detection_pipeline()
-    result = pipelines.run_intent_detection_pipeline(
-        intent_pipeline, last_question, user_response
-    )
+    result = pipelines.run_intent_detection_pipeline(last_question, user_response)
     return result.get("intent") if result else None
 
 
 def get_faq_answer(user_question: str) -> str | None:
     """Runs the FAQ answering pipeline."""
     logger.info("Running FAQ answering pipeline...")
-    faq_pipeline = pipelines.create_faq_answering_pipeline()
     result = pipelines.run_faq_pipeline(
-        faq_pipeline,
         user_question,
-        filters={"field": "meta.flow_id", "operator": "==", "value": "faqs"},
     )
     return result.get("answer") if result else None
 
