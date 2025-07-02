@@ -405,7 +405,6 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
             user_response=request.user_input,
             user_context=request.user_context,
             step_title=last_step_title,
-            previous_service_message=last_question,
         )
         for k, v in user_context.items():
             if k not in previous_context_keys:
