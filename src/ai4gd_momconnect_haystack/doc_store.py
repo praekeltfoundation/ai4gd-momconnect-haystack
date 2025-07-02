@@ -1,5 +1,5 @@
-import logging
 import json
+import logging
 from os import environ
 from pathlib import Path
 from typing import Any
@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from haystack import Document, Pipeline
 from haystack.components.embedders import OpenAIDocumentEmbedder
 from haystack.components.writers import DocumentWriter
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret
 from haystack_integrations.document_stores.weaviate import (
     AuthApiKey,
@@ -208,7 +209,10 @@ def create_embedding_pipeline(doc_store: WeaviateDocumentStore) -> Pipeline:
             progress_bar=True,
         ),
     )
-    indexing_pipeline.add_component("writer", DocumentWriter(document_store=doc_store))
+    indexing_pipeline.add_component(
+        "writer",
+        DocumentWriter(document_store=doc_store, policy=DuplicatePolicy.OVERWRITE),
+    )
     indexing_pipeline.connect("embedder.documents", "writer.documents")
     logger.info("Created document embedding and writing pipeline.")
     return indexing_pipeline
@@ -232,6 +236,7 @@ def ingest_onboarding_content(
     for piece in content:
         doc_count += 1
         doc = Document(
+            id=f"{flow_id}-{piece.question_number}",
             content=piece.content,
             meta={
                 "flow_id": flow_id,
@@ -269,6 +274,7 @@ def ingest_assessment_content(
         doc_count += 1
         if piece.valid_responses_and_scores:
             doc = Document(
+                id=f"{flow_id}-{piece.question_number}",
                 content=piece.content,
                 meta={
                     "flow_id": flow_id,
@@ -281,6 +287,7 @@ def ingest_assessment_content(
             )
         else:
             doc = Document(
+                id=f"{flow_id}-{piece.question_number}",
                 content=piece.content,
                 meta={
                     "flow_id": flow_id,
@@ -317,6 +324,7 @@ def ingest_survey_content(
     for piece in content:
         doc_count += 1
         doc = Document(
+            id=f"{flow_id}-{piece.title}",
             content=piece.content,
             meta={
                 "flow_id": flow_id,
@@ -351,6 +359,7 @@ def ingest_faq_content(indexing_pipeline: Pipeline, content: list[FAQ], flow_id:
     for piece in content:
         doc_count += 1
         doc = Document(
+            id=f"{flow_id}-{piece.title}",
             content=piece.content,
             meta={
                 "flow_id": flow_id,
@@ -395,7 +404,7 @@ def get_remaining_onboarding_questions(
 
 
 # --- Setup ---
-def setup_document_store() -> WeaviateDocumentStore:
+def setup_document_store(startup: bool = False) -> WeaviateDocumentStore:
     """
     Initializes document store and ingests data if needed.
 
@@ -410,7 +419,7 @@ def setup_document_store() -> WeaviateDocumentStore:
     logger.info(f"Document store currently contains {initial_doc_count} documents.")
 
     # If the document store is empty, ingest the content
-    if initial_doc_count == 0:
+    if startup or initial_doc_count == 0:
         logger.info("Document store is empty. Proceeding with ingestion.")
         indexing_pipe = create_embedding_pipeline(document_store)
         logger.info("--- Ingesting Onboarding Content ---")
