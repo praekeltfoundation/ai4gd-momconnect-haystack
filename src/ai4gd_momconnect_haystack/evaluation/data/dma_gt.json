@@ -8,36 +8,50 @@
         {
             "question_name": "confidence_health_decisions",
             "question_number": 1,
-            "llm_utterance": "Great! Your answers to these 5 quick questions can help us support you better.\n\nHow much do you agree or disagree with this statement?\n\n**I feel like I can make decisions about my health.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I'm not sure\n• I agree\n• I strongly agree\n• Skip",
-            "user_utterance": "I strongly agree",
+            "llm_utterance": "Great! Your answers to these 5 quick questions can help us support you better.\n\nHow much do you agree or disagree with this statement?\n\n**I feel like I can make decisions about my health.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I’m not sure\n• I agree\n• I strongly agree\n• Skip",
+            "user_utterance": "Is my information kept private?",
+            "intent": "QUESTION_ABOUT_STUDY",
+            "follow_up_utterance": "I strongly agree",
+            "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "I strongly agree"
         },
         {
             "question_name": "confidence_discussing_problems",
             "question_number": 2,
-            "llm_utterance": "Thanks. How about this one?\n\n**I feel like I can talk about my health issues with a health worker.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I'm not sure\n• I agree\n• I strongly agree\n• Skip",
-            "user_utterance": "I strongly agree",
+            "llm_utterance": "Thanks. How about this one?\n\n**I feel like I can talk about my health issues with a health worker.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I’m not sure\n• I agree\n• I strongly agree\n• Skip",
+            "user_utterance": "Can I take Panado while I'm pregnant?",
+            "intent": "HEALTH_QUESTION",
+            "follow_up_utterance": "I strongly agree",
             "user_response": "I strongly agree" 
         },
         {
             "question_name": "confidence_questioning_provider",
             "question_number": 3,
-            "llm_utterance": "Here's the next one 👇🏽\n\nHow much do you agree or disagree with this statement:\n\n**I feel that I can disagree with a health worker about my treatment plan.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I'm not sure\n• I agree\n• I strongly agree\n• Skip",
-            "user_utterance": "I strongly agree",
+            "llm_utterance": "Here’s the next one 👇🏽\n\nHow much do you agree or disagree with this statement:\n\n**I feel that I can disagree with a health worker about my treatment plan.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I’m not sure\n• I agree\n• I strongly agree\n• Skip",
+            "user_utterance": "Unsubscribe",
+            "intent": "ASKING_TO_STOP_MESSAGES",
+            "follow_up_utterance": "I strongly agree",
+            "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "I strongly agree"
         },
         {
             "question_name": "confidence_improving_health",
             "question_number": 4,
-            "llm_utterance": "Almost done! How much do you agree or disagree with this one:\n\n**I feel that I can do things to improve my health.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I'm not sure\n• I agree\n• I strongly agree\n• Skip",
-            "user_utterance": "I strongly agree",
+            "llm_utterance": "Almost done! How much do you agree or disagree with this one:\n\n**I feel that I can do things to improve my health.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I’m not sure\n• I agree\n• I strongly agree\n• Skip",
+            "user_utterance": "The airtime thing didn't work for me.",
+            "intent": "REPORTING_AIRTIME_NOT_RECEIVED",
+            "follow_up_utterance": "I strongly agree",
+            "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "I strongly agree"
         },
         {
             "question_name": "confidence_finding_info",
             "question_number": 5,
-            "llm_utterance": "Great, thanks ⭐\n\nHere's the last one:\n\n**I feel that I can find information about my health from other places, not just a health worker.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I'm not sure\n• I agree\n• I strongly agree\n• Skip",
-            "user_utterance": "I strongly agree",
+            "llm_utterance": "Great, thanks ⭐\n\nHere's the last one:\n\n**I feel that I can find information about my health from other places, not just a health worker.**\n\nPlease reply with one of these options:\n• I strongly disagree\n• I disagree\n• I’m not sure\n• I agree\n• I strongly agree\n• Skip",
+            "user_utterance": "Thank you so much",
+            "intent": "CHITCHAT",
+            "follow_up_utterance": "I strongly agree",
+            "follow_up_intent": "JOURNEY_RESPONSE",
             "user_response": "I strongly agree"
         }
         ]

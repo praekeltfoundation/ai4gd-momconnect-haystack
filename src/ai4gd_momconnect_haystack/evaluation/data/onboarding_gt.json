@@ -9,49 +9,70 @@
           "question_name": "province",
           "question_number": 1,
           "llm_utterance": "Which province do you live in?",
-          "user_utterance": "I live on a farm out in the North West.",
+          "user_utterance": "how long will this take?",
+          "intent": "QUESTION_ABOUT_STUDY",
+          "follow_up_utterance": "I live on a farm out in the North West.",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "North West"
         },
         {
           "question_name": "area_type",
           "question_number": 2,
           "llm_utterance": "What kind of area do you live in? 🏘️",
-          "user_utterance": "I live on a farm.",
+          "user_utterance": "My baby has a rash, what should I do?",
+          "intent": "HEALTH_QUESTION",
+          "follow_up_utterance": "I live on a farm.",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "Farm or smallholding"
         },
         {
           "question_name": "relationship_status",
           "question_number": 3,
-          "llm_utterance": "What's your current relationship status? 👤",
-          "user_utterance": "I am single.",
+          "llm_utterance": "What’s your current relationship status? 👤",
+          "user_utterance": "my feet r swollen, is dat bad?",
+          "intent": "HEALTH_QUESTION",
+          "follow_up_utterance": "I am single.",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "Single"
         },
         {
           "question_name": "education_level",
           "question_number": 4,
-          "llm_utterance": "What's your highest level of education? 📚",
-          "user_utterance": "I only finished Grade 9 at school.",
+          "llm_utterance": "What’s your highest level of education? 📚",
+          "user_utterance": "Leave me alone",
+          "intent": "ASKING_TO_STOP_MESSAGES",
+          "follow_up_utterance": "I only finished Grade 9 at school.",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "Some high school"
         },
         {
           "question_name": "hunger_days",
           "question_number": 5,
-          "llm_utterance": "In the last week, how many days did you miss a meal because there wasn't money for food? 🍞",
-          "user_utterance": "I sometimes go without food, maybe 3-4 days.",
+          "llm_utterance": "In the last week, how many days did you miss a meal because there wasn’t money for food? 🍞",
+          "user_utterance": "Can you please erase everything you have on me?",
+          "intent": "ASKING_TO_DELETE_DATA",
+          "follow_up_utterance": "I sometimes go without food, maybe 3-4 days.",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "3-4 days"
         },
         {
           "question_name": "num_children",
           "question_number": 6,
           "llm_utterance": "How many children do you have? Count all your children of any age. 👶🏽",
-          "user_utterance": "I have one little one already.",
+          "user_utterance": "when wil i get my R5 airtime?",
+          "intent": "REPORTING_AIRTIME_NOT_RECEIVED",
+          "follow_up_utterance": "I have one little one already.",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": 1
         },
         {
           "question_name": "phone_ownership",
           "question_number": 7,
-          "llm_utterance": "Do you own the phone you're using right now? 📱",
-          "user_utterance": "No, I don't own this phone.",
+          "llm_utterance": "Do you own the phone you’re using right now? 📱",
+          "user_utterance": "ok cool",
+          "intent": "CHITCHAT",
+          "follow_up_utterance": "No, I don't own this phone.",
+          "follow_up_intent": "JOURNEY_RESPONSE",
           "user_response": "No"
         }
       ]

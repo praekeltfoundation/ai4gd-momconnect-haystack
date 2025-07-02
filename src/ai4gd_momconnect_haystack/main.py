@@ -106,10 +106,11 @@ async def _get_user_response(
     contextualized_question: str,
     turn_identifier_key: str,
     turn_identifier_value: Any,
-) -> str | None:
+    use_follow_up: bool = False,
+) -> tuple[str | None, dict | None]:
     """
     Gets a user's response, either from ground truth data or from stdin.
-    Returns the user's response as a string, or None if a GT turn is not found.
+    Returns the user's response as a string and the ground truth turn dict.
     """
     if gt_lookup:
         scenario = gt_lookup.get(flow_id, {})
@@ -123,20 +124,27 @@ async def _get_user_response(
             None,
         )
         if gt_turn:
-            user_response = str(gt_turn.get("user_utterance", ""))
+            if use_follow_up:
+                user_response = str(gt_turn.get("follow_up_utterance", ""))
+            else:
+                user_response = str(gt_turn.get("user_utterance", ""))
+
+            if not user_response:
+                return None, None
+
             logger.info(
                 f"AUTO-RESPONSE for {turn_identifier_key} "
-                f"#{turn_identifier_value}: {user_response}"
+                f"#{turn_identifier_value} (Follow-up: {use_follow_up}): {user_response}"
             )
-            return user_response
+            return user_response, gt_turn
         else:
             logger.warning(
                 f"Could not find a GT turn for {flow_id} with "
                 f"{turn_identifier_key}: {turn_identifier_value}. Ending flow."
             )
-            return None
+            return None, None
     else:
-        return input(contextualized_question + "\n> ")
+        return input(contextualized_question + "\n> "), None
 
 
 async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
@@ -146,6 +154,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
     logger.info("--- Starting Haystack POC Simulation ---")
     simulation_results = []
 
+    # ---Pre-process GT data for easy lookup ---
     gt_lookup_by_flow = {}
     if gt_scenarios:
         logger.info("Running in AUTOMATED mode.")
@@ -156,11 +165,10 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
     else:
         logger.info("Running in INTERACTIVE mode.")
 
-    # --- Simulation ---
     # ** Onboarding Scenario **
     logger.info("\n--- Simulating Onboarding ---")
     user_id = "TestUser"
-    user_context: dict[str, Any] = {  # Simulation data collected progressively
+    user_context: dict[str, Any] = {
         "age": "33",
         "gender": "female",
         "goal": "Complete the onboarding process",
@@ -225,58 +233,81 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 ChatMessage.from_assistant(text=contextualized_question)
             )
 
+            print("-" * 20)
+            print(f"Question #: {question_number}")
+
             # Simulate User Response & Data Extraction
-            # Keep getting a user response until it is one that continues the journey:
-            intent = None
-            while intent != "JOURNEY_RESPONSE":
-                # Get user_response from GT data or input()
-                print(f"Question #: {question_number}")
-                print(f"Question: {contextualized_question}")
-                user_response = await _get_user_response(
+
+            has_deflected = False
+            final_user_response = None
+            initial_predicted_intent = None
+            final_predicted_intent = None
+            current_prompt = contextualized_question
+
+            while True:
+                user_response, gt_turn = await _get_user_response(
                     gt_lookup=gt_lookup_by_flow,
                     flow_id=flow_id,
-                    contextualized_question=contextualized_question,
+                    contextualized_question=current_prompt,
                     turn_identifier_key="question_number",
                     turn_identifier_value=question_number,
+                    use_follow_up=has_deflected,
                 )
 
                 if user_response is None:
                     break
 
                 print(f"User_response: {user_response}")
+
+                print(f"Use_response: {user_response}")
                 chat_history.append(ChatMessage.from_user(text=user_response))
 
                 # Classify user's intent and act accordingly
                 intent, intent_related_response = handle_user_message(
                     contextualized_question, user_response
                 )
-                # If a question about the study or about health was asked, print the
-                # response that would be sent to users
-                if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
-                    print(intent_related_response)
-                elif intent in [
-                    "ASKING_TO_STOP_MESSAGES",
-                    "ASKING_TO_DELETE_DATA",
-                    "REPORTING_AIRTIME_NOT_RECEIVED",
-                ]:
-                    print(f"Turn must be notified that user is {intent}")
-                elif intent == "CHITCHAT":
-                    print(intent_related_response)
-                    print(
-                        (
-                            f"User is chitchatting and needs to still respond to "
-                            f"the previous question: {contextualized_question}"
-                        )
-                    )
+                print(f"Predicted Intent: {intent}")
+
+                if not has_deflected:
+                    initial_predicted_intent = intent
                 else:
-                    # intent must be JOURNEY_RESPONSE
-                    pass
-            if user_response is None:
-                break
+                    final_predicted_intent = intent
+
+                if intent == "JOURNEY_RESPONSE":
+                    final_user_response = user_response
+                    if not has_deflected:
+                        final_predicted_intent = initial_predicted_intent
+                    break
+                else:
+                    if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
+                        print(f"Intent: {intent}")
+                        print(intent_related_response)
+                    elif intent in [
+                        "ASKING_TO_STOP_MESSAGES",
+                        "ASKING_TO_DELETE_DATA",
+                        "REPORTING_AIRTIME_NOT_RECEIVED",
+                    ]:
+                        print(f"Turn must be notified that user is {intent}")
+                    elif intent == "CHITCHAT":
+                        print(intent_related_response)
+                        print(
+                            (
+                                f"User is chitchatting and needs to still respond to "
+                                f"the previous question: {current_prompt}"
+                            )
+                        )
+
+                    # Set flag to fetch the follow_up_utterance on the next loop
+                    has_deflected = True
+                    if not gt_scenario:
+                        current_prompt = f"Thanks. To continue, please answer:\n> {contextualized_question}"
+
+            if final_user_response is None:
+                continue
 
             previous_context = user_context.copy()
             user_context = extract_onboarding_data_from_response(
-                user_response, user_context, chat_history
+                final_user_response, user_context, chat_history
             )
 
             # Identify what changed in user_context
@@ -303,7 +334,16 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                             {
                                 "question_name": key,
                                 "llm_utterance": contextualized_question,
-                                "user_utterance": user_response,
+                                "user_utterance": gt_turn.get("user_utterance")
+                                if gt_turn
+                                else final_user_response,
+                                "follow_up_utterance": gt_turn.get(
+                                    "follow_up_utterance"
+                                )
+                                if gt_turn
+                                else None,
+                                "llm_initial_predicted_intent": initial_predicted_intent,
+                                "llm_final_predicted_intent": final_predicted_intent,
                                 "llm_extracted_user_response": value,
                             }
                         )
@@ -313,7 +353,14 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         {
                             "question_name": updated_field,
                             "llm_utterance": contextualized_question,
-                            "user_utterance": user_response,
+                            "user_utterance": gt_turn.get("user_utterance")
+                            if gt_turn
+                            else final_user_response,
+                            "follow_up_utterance": gt_turn.get("follow_up_utterance")
+                            if gt_turn
+                            else None,
+                            "llm_initial_predicted_intent": initial_predicted_intent,
+                            "llm_final_predicted_intent": final_predicted_intent,
                             "llm_extracted_user_response": user_context[updated_field],
                         }
                     )
@@ -387,62 +434,94 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 score=None,
             )
 
-            # Simulate User Response
-            # Get user_response from GT data or input()
-            user_response = ""
             print(f"Question #: {question_number}")
             print(f"Question: {contextualized_question}")
-            user_response = await _get_user_response(
-                gt_lookup=gt_lookup_by_flow,
-                flow_id=flow_id.value,
-                contextualized_question=contextualized_question,
-                turn_identifier_key="question_number",
-                turn_identifier_value=question_number,
-            )
-            if user_response is None:
-                break
-            print(f"User_response: {user_response}")
 
-            # Classify user's intent and act accordingly
-            intent, intent_related_response = handle_user_message(
-                contextualized_question, user_response
-            )
-            # If a question about the study or about health was asked, print the
-            # response that would be sent to users
-            if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
-                print(intent_related_response)
-            elif intent in [
-                "ASKING_TO_STOP_MESSAGES",
-                "ASKING_TO_DELETE_DATA",
-                "REPORTING_AIRTIME_NOT_RECEIVED",
-            ]:
-                print(f"Turn must be notified that user is {intent}")
-            elif intent == "CHITCHAT":
-                print(intent_related_response)
-                print(
-                    (
-                        f"User is chitchatting and needs to still respond to "
-                        f"the previous question: {contextualized_question}"
-                    )
+            has_deflected = False
+            final_user_response = None
+            initial_predicted_intent = None
+            final_predicted_intent = None
+            current_prompt = contextualized_question
+
+            while True:
+                user_response, gt_turn = await _get_user_response(
+                    gt_lookup=gt_lookup_by_flow,
+                    flow_id=flow_id.value,
+                    contextualized_question=contextualized_question,
+                    turn_identifier_key="question_number",
+                    turn_identifier_value=question_number,
+                    use_follow_up=has_deflected,
                 )
-            else:
-                # intent must be JOURNEY_RESPONSE
-                pass
+
+                if user_response is None:
+                    break
+
+                print(f"User_response: {user_response}")
+                intent, intent_related_response = handle_user_message(
+                    contextualized_question, user_response
+                )
+                print(f"Predicted Intent: {intent}")
+
+                if not has_deflected:
+                    initial_predicted_intent = intent
+                else:
+                    final_predicted_intent = intent
+
+                if intent == "JOURNEY_RESPONSE":
+                    final_user_response = user_response
+                    if not has_deflected:
+                        final_predicted_intent = initial_predicted_intent
+                    break
+                else:
+                    # If a question about the study or about health was asked, print the
+                    # response that would be sent to users
+                    if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
+                        print(intent_related_response)
+                    elif intent in [
+                        "ASKING_TO_STOP_MESSAGES",
+                        "ASKING_TO_DELETE_DATA",
+                        "REPORTING_AIRTIME_NOT_RECEIVED",
+                    ]:
+                        print(f"Turn must be notified that user is {intent}")
+                    elif intent == "CHITCHAT":
+                        print(intent_related_response)
+                        print(
+                            (
+                                f"User is chitchatting and needs to still respond to "
+                                f"the previous question: {contextualized_question}"
+                            )
+                        )
+
+                    # Set flag to fetch the follow_up_utterance on the next loop
+                    has_deflected = True
+                    if not gt_scenario:
+                        current_prompt = f"Thanks. To continue, please answer:\n> {contextualized_question}"
+
+            if final_user_response is None:
+                continue
 
             result = validate_assessment_answer(
-                user_response, question_number, flow_id.value
+                final_user_response, question_number, flow_id.value
             )
             if not result:
                 logger.warning(
                     f"Response validation failed for question {question_number}."
                 )
                 continue
+
             processed_user_response = result["processed_user_response"]
             dma_turns.append(
                 {
                     "question_number": question_number,
                     "llm_utterance": contextualized_question,
-                    "user_utterance": user_response,
+                    "user_utterance": gt_turn.get("user_utterance")
+                    if gt_turn
+                    else final_user_response,
+                    "follow_up_utterance": gt_turn.get("follow_up_utterance")
+                    if gt_turn
+                    else None,
+                    "llm_initial_predicted_intent": initial_predicted_intent,
+                    "llm_final_predicted_intent": final_predicted_intent,
                     "llm_extracted_user_response": processed_user_response,
                 }
             )
@@ -686,7 +765,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             print(f"Task: {task}")
             print(f"Question #: {next_message_nr}")
             print(f"Question: {next_message}")
-            user_response = await _get_user_response(
+            user_response, gt_turn = await _get_user_response(
                 gt_lookup={},
                 flow_id=flow_id.value,
                 contextualized_question=next_message,
@@ -772,10 +851,11 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             run_results = {
                 "scenario_id": scenario_id_to_use,
                 "flow_type": flow_id.value,
-                "turns": None,
+                "turns": [],
             }
             kab_turns = []
             print(f"FlowID: {flow_id}")
+
             for _ in range(max_assessment_steps):
                 print("-" * 20)
                 logger.info(f"Assessment Step: Requesting question {question_number}")
@@ -799,76 +879,70 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     score=None,
                 )
 
-                # Simulate User Response
-                # Get user_response from GT data or input()
+                print("-" * 20)
                 print(f"Question #: {question_number}")
                 print(f"Question: {contextualized_question}")
-                user_response = ""
-                user_response = await _get_user_response(
-                    gt_lookup=gt_lookup_by_flow,
-                    flow_id=flow_id.value,
-                    contextualized_question=contextualized_question,
-                    turn_identifier_key="question_number",
-                    turn_identifier_value=question_number,
-                )
-                if user_response is None:
-                    break
-                print(f"User_response: {user_response}")
 
-                # Classify user's intent and act accordingly
-                intent, intent_related_response = handle_user_message(
-                    contextualized_question, user_response
-                )
-                # If a question about the study or about health was asked, print the
-                # response that would be sent to users
-                if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
-                    print(intent_related_response)
-                elif intent in [
-                    "ASKING_TO_STOP_MESSAGES",
-                    "ASKING_TO_DELETE_DATA",
-                    "REPORTING_AIRTIME_NOT_RECEIVED",
-                ]:
-                    print(f"Turn must be notified that user is {intent}")
-                elif intent == "CHITCHAT":
-                    print(intent_related_response)
-                    print(
-                        (
-                            f"User is chitchatting and needs to still respond to "
-                            f"the previous question: {contextualized_question}"
-                        )
-                    )
-                else:
-                    # intent must be JOURNEY_RESPONSE
-                    pass
+                has_deflected = False
+                final_user_response = None
+                initial_predicted_intent = None
+                final_predicted_intent = None
+                current_prompt = contextualized_question
 
-                # Classify user's intent and act accordingly
-                intent, intent_related_response = handle_user_message(
-                    contextualized_question, user_response
-                )
-                # If a question about the study or about health was asked, print the
-                # response that would be sent to users
-                if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
-                    print(intent_related_response)
-                elif intent in [
-                    "ASKING_TO_STOP_MESSAGES",
-                    "ASKING_TO_DELETE_DATA",
-                    "REPORTING_AIRTIME_NOT_RECEIVED",
-                ]:
-                    print(f"Turn must be notified that user is {intent}")
-                elif intent == "CHITCHAT":
-                    print(intent_related_response)
-                    print(
-                        (
-                            f"User is chitchatting and needs to still respond to "
-                            f"the previous question: {contextualized_question}"
-                        )
+                while True:
+                    user_response, gt_turn = await _get_user_response(
+                        gt_lookup=gt_lookup_by_flow,
+                        flow_id=flow_id.value,
+                        contextualized_question=contextualized_question,
+                        turn_identifier_key="question_number",
+                        turn_identifier_value=question_number,
+                        use_follow_up=has_deflected,
                     )
-                else:
-                    # intent must be JOURNEY_RESPONSE
-                    pass
+                    if user_response is None:
+                        break
+                    print(f"User_response: {user_response}")
+                    intent, intent_related_response = handle_user_message(
+                        contextualized_question, user_response
+                    )
+                    print(f"Predicted Intent: {intent}")
+
+                    if not has_deflected:
+                        initial_predicted_intent = intent
+                    else:
+                        final_predicted_intent = intent
+
+                    if intent == "JOURNEY_RESPONSE":
+                        final_user_response = user_response
+                        if not has_deflected:
+                            final_predicted_intent = initial_predicted_intent
+                        break
+                    else:
+                        if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
+                            print(intent_related_response)
+                        elif intent in [
+                            "ASKING_TO_STOP_MESSAGES",
+                            "ASKING_TO_DELETE_DATA",
+                            "REPORTING_AIRTIME_NOT_RECEIVED",
+                        ]:
+                            print(f"Turn must be notified that user is {intent}")
+                        elif intent == "CHITCHAT":
+                            print(intent_related_response)
+                            print(
+                                (
+                                    f"User is chitchatting and needs to still respond to "
+                                    f"the previous question: {contextualized_question}"
+                                )
+                            )
+
+                        has_deflected = True
+                        if not gt_scenario:
+                            current_prompt = f"Thanks. To continue, please answer:\n> {contextualized_question}"
+
+                if final_user_response is None:
+                    continue
 
                 result = validate_assessment_answer(
-                    user_response, question_number, flow_id.value
+                    final_user_response, question_number, flow_id.value
                 )
                 if not result:
                     logger.warning(
@@ -880,7 +954,14 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     {
                         "question_number": question_number,
                         "llm_utterance": contextualized_question,
-                        "user_utterance": user_response,
+                        "user_utterance": gt_turn.get("user_utterance")
+                        if gt_turn
+                        else final_user_response,
+                        "follow_up_utterance": gt_turn.get("follow_up_utterance")
+                        if gt_turn
+                        else None,
+                        "llm_initial_predicted_intent": initial_predicted_intent,
+                        "llm_final_predicted_intent": final_predicted_intent,
                         "llm_extracted_user_response": processed_user_response,
                     }
                 )
@@ -1133,7 +1214,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 print(f"Task: {task}")
                 print(f"Question #: {next_message_nr}")
                 print(f"Question: {next_message}")
-                user_response = await _get_user_response(
+                user_response, gt_turn = await _get_user_response(
                     gt_lookup={},
                     flow_id=flow_id.value,
                     contextualized_question=next_message,
@@ -1211,7 +1292,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
         run_results = {
             "scenario_id": scenario_id_to_use,
             "flow_type": flow_id,
-            "turns": None,
+            "turns": [],
         }
         anc_survey_turns = []
         for _ in range(max_survey_steps):
@@ -1234,91 +1315,119 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             question_identifier = result["question_identifier"]
             survey_complete = result.get("is_final_step", False)
 
-            # Simulate User Response
-            # Get user_response from GT data or input()
+            print("-" * 20)
             print(f"Question title: {question_identifier}")
             print(f"Question: {contextualized_question}")
-            user_response = ""
-            # Find the specific turn in the GT list by searching for the matching question_number
-            user_response = await _get_user_response(
-                gt_lookup=gt_lookup_by_flow,
-                flow_id=flow_id,
-                contextualized_question=contextualized_question,
-                turn_identifier_key="question_name",
-                turn_identifier_value=question_identifier,
-            )
-            print(f"User_response: {user_response}")
-            if user_response is None:
-                break
 
-            # Classify user's intent and act accordingly
-            intent, intent_related_response = handle_user_message(
-                contextualized_question, user_response
-            )
-            # If a question about the study or about health was asked, print the
-            # response that would be sent to users
-            if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
-                print(intent_related_response)
-            elif intent in [
-                "ASKING_TO_STOP_MESSAGES",
-                "ASKING_TO_DELETE_DATA",
-                "REPORTING_AIRTIME_NOT_RECEIVED",
-            ]:
-                print(f"Turn must be notified that user is {intent}")
-            elif intent == "CHITCHAT":
-                print(intent_related_response)
-                print(
-                    (
-                        f"User is chitchatting and needs to still respond to "
-                        f"the previous question: {contextualized_question}"
-                    )
-                )
-            else:
-                # intent must be JOURNEY_RESPONSE. Perform data extraction to add it and the preceding question to the chat history.
-                previous_chat_message = ChatMessage.from_assistant(
-                    text=contextualized_question,
-                    meta={"step_title": question_identifier},
-                )
+            has_deflected = False
+            final_user_response = None
+            initial_predicted_intent = None
+            final_predicted_intent = None
+            current_prompt = contextualized_question
 
-                previous_context = anc_user_context.copy()
-                anc_user_context = extract_anc_data_from_response(
-                    user_response,
-                    anc_user_context,
-                    question_identifier,
-                    contextualized_question,
+            while True:
+                user_response, gt_turn = await _get_user_response(
+                    gt_lookup=gt_lookup_by_flow,
+                    flow_id=flow_id,
+                    contextualized_question=contextualized_question,
+                    turn_identifier_key="question_name",
+                    turn_identifier_value=question_identifier,
+                    use_follow_up=has_deflected,
                 )
-                # Identify what changed in user_context
-                diff_keys = [
-                    k
-                    for k in anc_user_context
-                    if anc_user_context[k] != previous_context.get(k)
-                ]
-                if diff_keys:
-                    chat_history.append(previous_chat_message)
-                    for updated_field in diff_keys:
-                        logger.info(
-                            f"Creating turn for extracted field: {updated_field}"
-                        )
-                        anc_survey_turns.append(
-                            {
-                                "question_name": question_identifier,
-                                "llm_utterance": contextualized_question,
-                                "user_utterance": user_response,
-                                "llm_extracted_user_response": anc_user_context[
-                                    updated_field
-                                ],
-                            }
-                        )
-                    # There is only expected to be one updated field:
-                    chat_history.append(
-                        ChatMessage.from_user(text=anc_user_context[updated_field])
-                    )
-                    # Save the updated chat_history to the db
-                    await save_chat_history(user_id, chat_history, HistoryType.anc)
+                if user_response is None:
+                    break
+
+                print(f"Use_response: {user_response}")
+                chat_history.append(ChatMessage.from_user(text=user_response))
+                intent, intent_related_response = handle_user_message(
+                    contextualized_question, user_response
+                )
+                print(f"Predicted Intent: {intent}")
+
+                if not has_deflected:
+                    initial_predicted_intent = intent
                 else:
-                    logger.info(
-                        "No valid data extracted... Trying again in the next simulation loop."
+                    final_predicted_intent = intent
+
+                if intent == "JOURNEY_RESPONSE":
+                    final_user_response = user_response
+                    if not has_deflected:
+                        final_predicted_intent = initial_predicted_intent
+                        user_context[question_identifier] = final_user_response
+                    break
+                else:
+                    if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
+                        print(intent_related_response)
+                    elif intent in [
+                        "ASKING_TO_STOP_MESSAGES",
+                        "ASKING_TO_DELETE_DATA",
+                        "REPORTING_AIRTIME_NOT_RECEIVED",
+                    ]:
+                        print(f"Turn must be notified that user is {intent}")
+                    elif intent == "CHITCHAT":
+                        print(intent_related_response)
+                        print(
+                            (
+                                f"User is chitchatting and needs to still respond to "
+                                f"the previous question: {contextualized_question}"
+                            )
+                        )
+
+                    has_deflected = True
+                    if not gt_scenario:
+                        current_prompt = f"Thanks. To continue, please answer:\n> {contextualized_question}"
+
+            if final_user_response is None:
+                continue
+
+            # intent must be JOURNEY_RESPONSE. Perform data extraction to add it and the preceding question to the chat history.
+            previous_chat_message = ChatMessage.from_assistant(
+                text=contextualized_question,
+                meta={"step_title": question_identifier},
+            )
+
+            previous_context = anc_user_context.copy()
+            anc_user_context = extract_anc_data_from_response(
+                final_user_response,
+                anc_user_context,
+                question_identifier,
+                contextualized_question,
+            )
+            # Identify what changed in user_context
+            diff_keys = [
+                k
+                for k in anc_user_context
+                if anc_user_context[k] != previous_context.get(k)
+            ]
+            if diff_keys:
+                chat_history.append(previous_chat_message)
+                for updated_field in diff_keys:
+                    logger.info(f"Creating turn for extracted field: {updated_field}")
+                    anc_survey_turns.append(
+                        {
+                            "question_name": question_identifier,
+                            "llm_utterance": contextualized_question,
+                            "user_utterance": gt_turn.get("user_utterance")
+                            if gt_turn
+                            else final_user_response,
+                            "follow_up_utterance": final_user_response,
+                            "llm_initial_predicted_intent": initial_predicted_intent,
+                            "llm_final_predicted_intent": final_predicted_intent,
+                            "llm_extracted_user_response": anc_user_context[
+                                updated_field
+                            ],
+                        }
                     )
+                # There is only expected to be one updated field:
+                chat_history.append(
+                    ChatMessage.from_user(text=anc_user_context[updated_field])
+                )
+                # Save the updated chat_history to the db
+                await save_chat_history(user_id, chat_history, HistoryType.anc)
+            else:
+                logger.info(
+                    "No valid data extracted... Trying again in the next simulation loop."
+                )
         run_results["turns"] = anc_survey_turns
         simulation_results.append(run_results)
 
@@ -1368,11 +1477,11 @@ def _process_run(run: AssessmentRun) -> dict:
 
 
 async def async_main(
-    RESULT_PATH=OUTPUT_PATH,
     GT_FILE_PATH=GT_FILE_PATH,
     is_automated=False,
     save_simulation=False,
-) -> None:
+    RESULT_FILE_PATH=None,
+) -> Path | None:
     """
     Runs the interactive simulation, orchestrates scoring on the in-memory
     results, and saves the final augmented report.
@@ -1382,14 +1491,7 @@ async def async_main(
     logging.info("Database initialized.")
     logging.info("Starting interactive simulation...")
 
-    # # 1. Run the simulation to get the raw output directly in memory.
-    # raw_simulation_output = await run_simulation()
-    # logging.info("Simulation complete. Starting validation and scoring process...")
-    #
-    # Simple check for the '--automated' flag without using argparse
-    # is_automated = "--automated"  # Placeholder None
-    raw_simulation_output: list[dict[str, Any]] = []
-
+    # 1. Run the simulation to get the raw output directly in memory.
     if is_automated:
         logging.info("Starting simulation in AUTOMATED mode...")
         gt_data = read_json(GT_FILE_PATH)
@@ -1404,14 +1506,13 @@ async def async_main(
             logging.critical(
                 f"Failed to load ground truth file from {GT_FILE_PATH}. Exiting."
             )
-            return
+            return None
         raw_simulation_output = await run_simulation(gt_scenarios=gt_scenarios)
     else:
         logging.info("Starting simulation in INTERACTIVE mode...")
         raw_simulation_output = await run_simulation(gt_scenarios=None)
 
-    print("_________ RUN OUPUT__________")
-    print(raw_simulation_output)
+    print("_________ COMPLETED SIMULATION__________")
 
     # 2. Validate the IN-MEMORY raw output directly using Pydantic.
     try:
@@ -1421,7 +1522,7 @@ async def async_main(
         logging.info("Simulation output validated successfully.")
     except ValidationError as e:
         logging.critical(f"Simulation produced invalid output data:\n{e}")
-        return
+        return None
 
     # 3. Load the doc stores which contain the assessment questions and rules.
     doc_store_dma = load_json_and_validate(DOC_STORE_DMA_PATH, dict)
@@ -1431,7 +1532,7 @@ async def async_main(
         logging.critical(
             "Could not load one or more required doc store files. Exiting."
         )
-        return
+        return None
 
     # 4. Process each validated simulation run using the helper function.
     final_augmented_output = [_process_run(run) for run in simulation_output]
@@ -1442,7 +1543,9 @@ async def async_main(
         # For now, it saves the output to a local JSON file for inspection.
         file_extention = datetime.now().strftime("%y%m%d-%H%M")
         SIMULATION_FILE_PATH = (
-            RESULT_PATH / f"simulation_run_results_{file_extention}.json"
+            OUTPUT_PATH / f"simulation_run_results_{file_extention}.json"
+            if RESULT_FILE_PATH is None
+            else RESULT_FILE_PATH
         )
 
         save_json_file(
@@ -1453,6 +1556,7 @@ async def async_main(
             f"Processing complete. Final output generated and save to {SIMULATION_FILE_PATH}"
         )
         return SIMULATION_FILE_PATH
+    return None
 
 
 def main() -> None:
@@ -1463,6 +1567,5 @@ def main() -> None:
         print("\nSimulation cancelled by user.")
 
 
-# MODIFIED: Allow script to be run directly
 if __name__ == "__main__":
     main()

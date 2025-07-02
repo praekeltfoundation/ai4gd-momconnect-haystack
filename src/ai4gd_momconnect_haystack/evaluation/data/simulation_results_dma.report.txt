@@ -1,0 +1,178 @@
+
+
+==================================================
+          DETAILED TURN-BY-TURN REPORT
+==================================================
+
+--- Turn: dma-assessment_user_123_250616-0635 (dma-pre-assessment) | ID: 1 ---
+  Initial Intent: [❌] FAILED
+       Details: Expected: 'QUESTION_ABOUT_STUDY', Got: 'CHITCHAT'
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: dma-assessment_user_123_250616-0635 (dma-pre-assessment) | ID: 2 ---
+  Initial Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: dma-assessment_user_123_250616-0635 (dma-pre-assessment) | ID: 3 ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: dma-assessment_user_123_250616-0635 (dma-pre-assessment) | ID: 4 ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 0.86 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: dma-assessment_user_123_250616-0635 (dma-pre-assessment) | ID: 5 ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+
+============================================================
+           INTENT CLASSIFICATION SUMMARY REPORT
+============================================================
+
+--- Classification Report ---
+                                precision    recall  f1-score   support
+
+       ASKING_TO_STOP_MESSAGES       1.00      1.00      1.00         1
+                      CHITCHAT       0.50      1.00      0.67         1
+               HEALTH_QUESTION       1.00      1.00      1.00         1
+              JOURNEY_RESPONSE       1.00      1.00      1.00         4
+          QUESTION_ABOUT_STUDY       0.00      0.00      0.00         1
+REPORTING_AIRTIME_NOT_RECEIVED       1.00      1.00      1.00         1
+
+                      accuracy                           0.89         9
+                     macro avg       0.75      0.83      0.78         9
+                  weighted avg       0.83      0.89      0.85         9
+
+
+--- Confusion Matrix ---
+shape: (6, 7)
+┌─────────────────────────────────┬───────────────────────────────┬────────────────┬───────────────────────┬────────────────────────┬────────────────────────────┬─────────────────────────────────┐
+│ Actual                          ┆ Pred: ASKING_TO_STOP_MESSAGES ┆ Pred: CHITCHAT ┆ Pred: HEALTH_QUESTION ┆ Pred: JOURNEY_RESPONSE ┆ Pred: QUESTION_ABOUT_STUDY ┆ Pred: REPORTING_AIRTIME_NOT_RE… │
+│ ---                             ┆ ---                           ┆ ---            ┆ ---                   ┆ ---                    ┆ ---                        ┆ ---                             │
+│ str                             ┆ i64                           ┆ i64            ┆ i64                   ┆ i64                    ┆ i64                        ┆ i64                             │
+╞═════════════════════════════════╪═══════════════════════════════╪════════════════╪═══════════════════════╪════════════════════════╪════════════════════════════╪═════════════════════════════════╡
+│ Actual: ASKING_TO_STOP_MESSAGE… ┆ 1                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: CHITCHAT                ┆ 0                             ┆ 1              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: HEALTH_QUESTION         ┆ 0                             ┆ 0              ┆ 1                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: JOURNEY_RESPONSE        ┆ 0                             ┆ 0              ┆ 0                     ┆ 4                      ┆ 0                          ┆ 0                               │
+│ Actual: QUESTION_ABOUT_STUDY    ┆ 0                             ┆ 1              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: REPORTING_AIRTIME_NOT_… ┆ 0                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 1                               │
+└─────────────────────────────────┴───────────────────────────────┴────────────────┴───────────────────────┴────────────────────────┴────────────────────────────┴─────────────────────────────────┘
+============================================================
+
+
+==================================================
+            PERFORMANCE SUMMARY REPORT
+==================================================
+
+📊 Dma-pre-assessment Performance (5 turns):
+  - Intent Accuracy: 88.89%
+  - Extraction Accuracy: 100.00%
+  - Avg. Question Consistency: 0.97
+  - Avg. Response Appropriateness: 1.00
+
+==================================================
+
+
+==================================================
+          DETAILED TURN-BY-TURN REPORT
+==================================================
+
+--- Turn: dma-assessment_user_123_250616-0635 (dma-pre-assessment) | ID: 1 ---
+  Initial Intent: [❌] FAILED
+       Details: Expected: 'QUESTION_ABOUT_STUDY', Got: 'CHITCHAT'
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: dma-assessment_user_123_250616-0635 (dma-pre-assessment) | ID: 2 ---
+  Initial Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: dma-assessment_user_123_250616-0635 (dma-pre-assessment) | ID: 3 ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: dma-assessment_user_123_250616-0635 (dma-pre-assessment) | ID: 4 ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 0.86 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: dma-assessment_user_123_250616-0635 (dma-pre-assessment) | ID: 5 ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+
+============================================================
+           INTENT CLASSIFICATION SUMMARY REPORT
+============================================================
+
+--- Classification Report ---
+                                precision    recall  f1-score   support
+
+       ASKING_TO_STOP_MESSAGES       1.00      1.00      1.00         1
+                      CHITCHAT       0.50      1.00      0.67         1
+               HEALTH_QUESTION       1.00      1.00      1.00         1
+              JOURNEY_RESPONSE       1.00      1.00      1.00         4
+          QUESTION_ABOUT_STUDY       0.00      0.00      0.00         1
+REPORTING_AIRTIME_NOT_RECEIVED       1.00      1.00      1.00         1
+
+                      accuracy                           0.89         9
+                     macro avg       0.75      0.83      0.78         9
+                  weighted avg       0.83      0.89      0.85         9
+
+
+--- Confusion Matrix ---
+shape: (6, 7)
+┌─────────────────────────────────┬───────────────────────────────┬────────────────┬───────────────────────┬────────────────────────┬────────────────────────────┬─────────────────────────────────┐
+│ Actual                          ┆ Pred: ASKING_TO_STOP_MESSAGES ┆ Pred: CHITCHAT ┆ Pred: HEALTH_QUESTION ┆ Pred: JOURNEY_RESPONSE ┆ Pred: QUESTION_ABOUT_STUDY ┆ Pred: REPORTING_AIRTIME_NOT_RE… │
+│ ---                             ┆ ---                           ┆ ---            ┆ ---                   ┆ ---                    ┆ ---                        ┆ ---                             │
+│ str                             ┆ i64                           ┆ i64            ┆ i64                   ┆ i64                    ┆ i64                        ┆ i64                             │
+╞═════════════════════════════════╪═══════════════════════════════╪════════════════╪═══════════════════════╪════════════════════════╪════════════════════════════╪═════════════════════════════════╡
+│ Actual: ASKING_TO_STOP_MESSAGE… ┆ 1                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: CHITCHAT                ┆ 0                             ┆ 1              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: HEALTH_QUESTION         ┆ 0                             ┆ 0              ┆ 1                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: JOURNEY_RESPONSE        ┆ 0                             ┆ 0              ┆ 0                     ┆ 4                      ┆ 0                          ┆ 0                               │
+│ Actual: QUESTION_ABOUT_STUDY    ┆ 0                             ┆ 1              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 0                               │
+│ Actual: REPORTING_AIRTIME_NOT_… ┆ 0                             ┆ 0              ┆ 0                     ┆ 0                      ┆ 0                          ┆ 1                               │
+└─────────────────────────────────┴───────────────────────────────┴────────────────┴───────────────────────┴────────────────────────┴────────────────────────────┴─────────────────────────────────┘
+============================================================
+
+
+==================================================
+            PERFORMANCE SUMMARY REPORT
+==================================================
+
+📊 Dma-pre-assessment Performance (5 turns):
+  - Intent Accuracy: 88.89%
+  - Extraction Accuracy: 100.00%
+  - Avg. Question Consistency: 0.97
+  - Avg. Response Appropriateness: 1.00
+
+==================================================

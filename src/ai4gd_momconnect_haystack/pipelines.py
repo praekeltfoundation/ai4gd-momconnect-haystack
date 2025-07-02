@@ -1229,7 +1229,7 @@ def run_assessment_response_validator_pipeline(
         logger.error(f"Failed to decode JSON from LLM response: {e}")
         return None
     except Exception as e:
-        logger.error(f"Error running assessment response validation pipeline: {e}")
+        logger.error(f"Error running assessment end response validation pipeline: {e}")
         return None
 
 
