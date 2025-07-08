@@ -435,8 +435,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             )
 
             print(f"Question #: {question_number}")
-            print(f"Question: {contextualized_question}")
-
+            # print(f"Question: {contextualized_question}")
             has_deflected = False
             final_user_response = None
             initial_predicted_intent = None
@@ -881,8 +880,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
                 print("-" * 20)
                 print(f"Question #: {question_number}")
-                print(f"Question: {contextualized_question}")
-
+                # print(f"Question: {contextualized_question}")
                 has_deflected = False
                 final_user_response = None
                 initial_predicted_intent = None
@@ -1317,8 +1315,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
             print("-" * 20)
             print(f"Question title: {question_identifier}")
-            print(f"Question: {contextualized_question}")
-
+            # print(f"Question: {contextualized_question}")
             has_deflected = False
             final_user_response = None
             initial_predicted_intent = None

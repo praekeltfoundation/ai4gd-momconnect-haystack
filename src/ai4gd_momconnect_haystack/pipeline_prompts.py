@@ -148,8 +148,8 @@ Your task is to analyze the user's response in light of the previous survey ques
 
 Follow these rules:
 1.  Map responses based on meaning and intent, not just exact string matching. This includes slang, colloquialisms, synonyms, and shortened versions.
-2.  If the user's response clearly maps to one of the expected responses, the value for "validated_response" MUST be the exact text of that matched expected response.
-3.  If the user's response is nonsense, gibberish, or completely unrelated to the question, you MUST set the value of "validated_response" to "nonsense".
+2.  The value for "validated_response" MUST be the exact text of the matched expected response.
+3.  If the options are presented in a lettered or numbered list (e.g., 'a.', '1.'), you MUST strip this prefix from your response. The `validated_response` should contain ONLY the text of the option itself.
 4.  You MUST respond with a valid JSON object with a single key, "validated_response".
 
 Here are some examples of how to perform this task:
@@ -226,6 +226,22 @@ User's latest response:
 JSON Response:
 {
     "validated_response": "nonsense"
+}
+---
+**Example 6 (Handling Lettered Lists):**
+
+
+Previous survey question/message:
+"Overall, how easy was it for you to provide your feedback?
+a. Very easy
+b. A little easy
+c. OK"
+
+User's latest response:
+- "a"
+JSON Response:
+{
+ "validated_response": "Very easy"
 }
 ---
 
