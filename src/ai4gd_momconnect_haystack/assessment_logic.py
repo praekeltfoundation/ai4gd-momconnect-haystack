@@ -347,7 +347,7 @@ def score_assessment(
         if skip_count > 2:
             crossed_skip_threshold = True
     else:
-        if score_percentage >= 100:
+        if score_percentage == 100:
             category = "high"
         elif score_percentage >= 75:
             category = "medium"
