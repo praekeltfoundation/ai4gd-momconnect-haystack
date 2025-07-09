@@ -1,5 +1,8 @@
 import os
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+
+from alembic import command
+from alembic.config import Config
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///chat.db")
@@ -15,3 +18,8 @@ async def init_db():
     """Initializes the database and creates tables if they don't exist."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+
+def run_migrations():
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
