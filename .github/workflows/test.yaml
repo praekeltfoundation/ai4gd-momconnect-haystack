@@ -52,3 +52,6 @@ jobs:
         run: uv sync
       - name: Test
         run: uv run pytest
+      - name: Run migrations
+        run: |
+          uv run alembic check | grep 'No new upgrade operations detected.' || (echo 'There are changes which require migrations.' && exit 1)
