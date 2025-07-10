@@ -30,6 +30,7 @@ from ai4gd_momconnect_haystack.crud import (
     save_assessment_question,
     save_chat_history,
 )
+from ai4gd_momconnect_haystack.database import run_migrations
 from ai4gd_momconnect_haystack.doc_store import setup_document_store
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentEndRequest,
@@ -82,6 +83,7 @@ setup_sentry()
 async def lifespan(app: FastAPI):
     logger.info("Application startup...")
     setup_document_store(startup=True)
+    run_migrations()
     yield
     logger.info("Application shutdown...")
 

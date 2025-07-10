@@ -1,10 +1,12 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Float, Integer, String, JSON, DateTime
+from sqlalchemy import JSON, Boolean, DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from .database import Base
+
+# TODO: Add a check to the github actions for schema changes without migrations
 
 
 class ChatHistory(Base):
