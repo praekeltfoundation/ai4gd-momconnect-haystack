@@ -37,7 +37,7 @@ jobs:
         ports:
           - 5432:5432
     env:
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/ai4gd_haystack
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/ai4gd_haystack
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
