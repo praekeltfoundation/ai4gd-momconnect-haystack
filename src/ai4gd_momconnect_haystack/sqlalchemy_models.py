@@ -41,6 +41,7 @@ class AssessmentHistory(Base):
     question: Mapped[str] = mapped_column(String, nullable=False)
     user_response: Mapped[str] = mapped_column(String, nullable=True)
     score: Mapped[int] = mapped_column(Integer, nullable=True)
+    temp_check: Mapped[int] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
