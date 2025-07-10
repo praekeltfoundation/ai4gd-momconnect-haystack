@@ -52,7 +52,7 @@ jobs:
         run: uv sync
       - name: Test
         run: uv run pytest
-      - name:: Run migrations
+      - name: Run migrations
         run: |
           uv run alembic upgrade head
       - name: Check migrations
