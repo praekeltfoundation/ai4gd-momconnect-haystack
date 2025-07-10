@@ -7,6 +7,19 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    matrix:
+      postgres_version: ['14', '16']
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres_version }}
+        env:
+          POSTGRES_DB: ai4gd_haystack
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/ai4gd_haystack
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
