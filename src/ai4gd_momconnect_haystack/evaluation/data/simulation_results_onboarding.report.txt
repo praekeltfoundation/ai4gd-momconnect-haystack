@@ -4,6 +4,16 @@
           DETAILED TURN-BY-TURN REPORT
 ==================================================
 
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: province ---
+  Initial Intent: [❌] FAILED
+       Details: Expected: 'QUESTION_ABOUT_STUDY', Got: 'JOURNEY_RESPONSE'
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [❌] FAILED
+       Details: Expected: 'north west', Got: 'skipped - system'
+  [ score: 1.00 ] Question Consistency
+  [ score: 0.00 ] Response Appropriateness
+       Reason: The score is 0.00 because the output failed to specify a province, which was the main requirement of the input question. Instead, it provided irrelevant details about living on a farm and a directional location without addressing the core query.
+
 --- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: area_type ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
@@ -12,6 +22,13 @@
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: relationship_status ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: education_level ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
@@ -32,6 +49,15 @@
   [ score: 1.00 ] Question Consistency
   [ score: 1.00 ] Response Appropriateness
 
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: phone_ownership ---
+  Initial Intent: [❌] FAILED
+       Details: Expected: 'CHITCHAT', Got: 'JOURNEY_RESPONSE'
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [❌] FAILED
+       Details: Expected: 'no', Got: 'skipped - system'
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
 
 ============================================================
            INTENT CLASSIFICATION SUMMARY REPORT
@@ -41,30 +67,40 @@
                                 precision    recall  f1-score   support
 
          ASKING_TO_DELETE_DATA       1.00      1.00      1.00         1
+       ASKING_TO_STOP_MESSAGES       1.00      1.00      1.00         1
+                      CHITCHAT       0.00      0.00      0.00         1
                HEALTH_QUESTION       1.00      1.00      1.00         2
-              JOURNEY_RESPONSE       1.00      1.00      1.00         4
+              JOURNEY_RESPONSE       0.78      1.00      0.88         7
+          QUESTION_ABOUT_STUDY       0.00      0.00      0.00         1
 REPORTING_AIRTIME_NOT_RECEIVED       1.00      1.00      1.00         1
 
-                      accuracy                           1.00         8
-                     macro avg       1.00      1.00      1.00         8
-                  weighted avg       1.00      1.00      1.00         8
+                      accuracy                           0.86        14
+                     macro avg       0.68      0.71      0.70        14
+                  weighted avg       0.75      0.86      0.79        14
 
 
 --- Confusion Matrix ---
-shape: (4, 5)
-┌──────────────────────────┬─────────────────────────┬───────────────────────┬────────────────────────┬─────────────────────────┐
-│ Actual                   ┆ Pred:                   ┆ Pred: HEALTH_QUESTION ┆ Pred: JOURNEY_RESPONSE ┆ Pred: REPORTING_AIRTIME │
-│ ---                      ┆ ASKING_TO_DELETE_DATA   ┆ ---                   ┆ ---                    ┆ _NOT_RE…                │
-│ str                      ┆ ---                     ┆ i64                   ┆ i64                    ┆ ---                     │
-│                          ┆ i64                     ┆                       ┆                        ┆ i64                     │
-╞══════════════════════════╪═════════════════════════╪═══════════════════════╪════════════════════════╪═════════════════════════╡
-│ Actual:                  ┆ 1                       ┆ 0                     ┆ 0                      ┆ 0                       │
-│ ASKING_TO_DELETE_DATA    ┆                         ┆                       ┆                        ┆                         │
-│ Actual: HEALTH_QUESTION  ┆ 0                       ┆ 2                     ┆ 0                      ┆ 0                       │
-│ Actual: JOURNEY_RESPONSE ┆ 0                       ┆ 0                     ┆ 4                      ┆ 0                       │
-│ Actual:                  ┆ 0                       ┆ 0                     ┆ 0                      ┆ 1                       │
-│ REPORTING_AIRTIME_NOT_…  ┆                         ┆                       ┆                        ┆                         │
-└──────────────────────────┴─────────────────────────┴───────────────────────┴────────────────────────┴─────────────────────────┘
+shape: (7, 8)
+┌───────────────────────┬──────────────────────┬──────────────────────┬────────────────┬─────────────────┬──────────────────┬──────────────────────┬──────────────────────┐
+│ Actual                ┆ Pred: ASKING_TO_DELE ┆ Pred: ASKING_TO_STOP ┆ Pred: CHITCHAT ┆ Pred:           ┆ Pred:            ┆ Pred:                ┆ Pred: REPORTING_AIRT │
+│ ---                   ┆ TE_DATA              ┆ _MESSAGES            ┆ ---            ┆ HEALTH_QUESTION ┆ JOURNEY_RESPONSE ┆ QUESTION_ABOUT_STUDY ┆ IME_NOT_RE…          │
+│ str                   ┆ ---                  ┆ ---                  ┆ i64            ┆ ---             ┆ ---              ┆ ---                  ┆ ---                  │
+│                       ┆ i64                  ┆ i64                  ┆                ┆ i64             ┆ i64              ┆ i64                  ┆ i64                  │
+╞═══════════════════════╪══════════════════════╪══════════════════════╪════════════════╪═════════════════╪══════════════════╪══════════════════════╪══════════════════════╡
+│ Actual:               ┆ 1                    ┆ 0                    ┆ 0              ┆ 0               ┆ 0                ┆ 0                    ┆ 0                    │
+│ ASKING_TO_DELETE_DATA ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
+│ Actual: ASKING_TO_STO ┆ 0                    ┆ 1                    ┆ 0              ┆ 0               ┆ 0                ┆ 0                    ┆ 0                    │
+│ P_MESSAGE…            ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
+│ Actual: CHITCHAT      ┆ 0                    ┆ 0                    ┆ 0              ┆ 0               ┆ 1                ┆ 0                    ┆ 0                    │
+│ Actual:               ┆ 0                    ┆ 0                    ┆ 0              ┆ 2               ┆ 0                ┆ 0                    ┆ 0                    │
+│ HEALTH_QUESTION       ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
+│ Actual:               ┆ 0                    ┆ 0                    ┆ 0              ┆ 0               ┆ 7                ┆ 0                    ┆ 0                    │
+│ JOURNEY_RESPONSE      ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
+│ Actual:               ┆ 0                    ┆ 0                    ┆ 0              ┆ 0               ┆ 1                ┆ 0                    ┆ 0                    │
+│ QUESTION_ABOUT_STUDY  ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
+│ Actual: REPORTING_AIR ┆ 0                    ┆ 0                    ┆ 0              ┆ 0               ┆ 0                ┆ 0                    ┆ 1                    │
+│ TIME_NOT_…            ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
+└───────────────────────┴──────────────────────┴──────────────────────┴────────────────┴─────────────────┴──────────────────┴──────────────────────┴──────────────────────┘
 ============================================================
 
 
@@ -72,11 +108,11 @@ shape: (4, 5)
             PERFORMANCE SUMMARY REPORT
 ==================================================
 
-📊 Onboarding Performance (4 turns):
-  - Intent Accuracy: 100.00%
-  - Extraction Accuracy: 100.00%
+📊 Onboarding Performance (7 turns):
+  - Intent Accuracy: 85.71%
+  - Extraction Accuracy: 71.43%
   - Avg. Question Consistency: 1.00
-  - Avg. Response Appropriateness: 1.00
+  - Avg. Response Appropriateness: 0.86
 
 ==================================================
 
@@ -85,6 +121,16 @@ shape: (4, 5)
           DETAILED TURN-BY-TURN REPORT
 ==================================================
 
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: province ---
+  Initial Intent: [❌] FAILED
+       Details: Expected: 'QUESTION_ABOUT_STUDY', Got: 'JOURNEY_RESPONSE'
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [❌] FAILED
+       Details: Expected: 'north west', Got: 'skipped - system'
+  [ score: 1.00 ] Question Consistency
+  [ score: 0.00 ] Response Appropriateness
+       Reason: The score is 0.00 because the output failed to specify a province, which was the main requirement of the input question. Instead, it provided irrelevant details about living on a farm and a directional location without addressing the core query.
+
 --- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: area_type ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
@@ -93,6 +139,13 @@ shape: (4, 5)
   [ score: 1.00 ] Response Appropriateness
 
 --- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: relationship_status ---
+  Initial Intent: [✅] PASSED
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [✅] PASSED
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: education_level ---
   Initial Intent: [✅] PASSED
   Follow-up Intent: [✅] PASSED
   Extraction Accuracy: [✅] PASSED
@@ -113,6 +166,15 @@ shape: (4, 5)
   [ score: 1.00 ] Question Consistency
   [ score: 1.00 ] Response Appropriateness
 
+--- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: phone_ownership ---
+  Initial Intent: [❌] FAILED
+       Details: Expected: 'CHITCHAT', Got: 'JOURNEY_RESPONSE'
+  Follow-up Intent: [✅] PASSED
+  Extraction Accuracy: [❌] FAILED
+       Details: Expected: 'no', Got: 'skipped - system'
+  [ score: 1.00 ] Question Consistency
+  [ score: 1.00 ] Response Appropriateness
+
 
 ============================================================
            INTENT CLASSIFICATION SUMMARY REPORT
@@ -122,30 +184,40 @@ shape: (4, 5)
                                 precision    recall  f1-score   support
 
          ASKING_TO_DELETE_DATA       1.00      1.00      1.00         1
+       ASKING_TO_STOP_MESSAGES       1.00      1.00      1.00         1
+                      CHITCHAT       0.00      0.00      0.00         1
                HEALTH_QUESTION       1.00      1.00      1.00         2
-              JOURNEY_RESPONSE       1.00      1.00      1.00         4
+              JOURNEY_RESPONSE       0.78      1.00      0.88         7
+          QUESTION_ABOUT_STUDY       0.00      0.00      0.00         1
 REPORTING_AIRTIME_NOT_RECEIVED       1.00      1.00      1.00         1
 
-                      accuracy                           1.00         8
-                     macro avg       1.00      1.00      1.00         8
-                  weighted avg       1.00      1.00      1.00         8
+                      accuracy                           0.86        14
+                     macro avg       0.68      0.71      0.70        14
+                  weighted avg       0.75      0.86      0.79        14
 
 
 --- Confusion Matrix ---
-shape: (4, 5)
-┌──────────────────────────┬─────────────────────────┬───────────────────────┬────────────────────────┬─────────────────────────┐
-│ Actual                   ┆ Pred:                   ┆ Pred: HEALTH_QUESTION ┆ Pred: JOURNEY_RESPONSE ┆ Pred: REPORTING_AIRTIME │
-│ ---                      ┆ ASKING_TO_DELETE_DATA   ┆ ---                   ┆ ---                    ┆ _NOT_RE…                │
-│ str                      ┆ ---                     ┆ i64                   ┆ i64                    ┆ ---                     │
-│                          ┆ i64                     ┆                       ┆                        ┆ i64                     │
-╞══════════════════════════╪═════════════════════════╪═══════════════════════╪════════════════════════╪═════════════════════════╡
-│ Actual:                  ┆ 1                       ┆ 0                     ┆ 0                      ┆ 0                       │
-│ ASKING_TO_DELETE_DATA    ┆                         ┆                       ┆                        ┆                         │
-│ Actual: HEALTH_QUESTION  ┆ 0                       ┆ 2                     ┆ 0                      ┆ 0                       │
-│ Actual: JOURNEY_RESPONSE ┆ 0                       ┆ 0                     ┆ 4                      ┆ 0                       │
-│ Actual:                  ┆ 0                       ┆ 0                     ┆ 0                      ┆ 1                       │
-│ REPORTING_AIRTIME_NOT_…  ┆                         ┆                       ┆                        ┆                         │
-└──────────────────────────┴─────────────────────────┴───────────────────────┴────────────────────────┴─────────────────────────┘
+shape: (7, 8)
+┌───────────────────────┬──────────────────────┬──────────────────────┬────────────────┬─────────────────┬──────────────────┬──────────────────────┬──────────────────────┐
+│ Actual                ┆ Pred: ASKING_TO_DELE ┆ Pred: ASKING_TO_STOP ┆ Pred: CHITCHAT ┆ Pred:           ┆ Pred:            ┆ Pred:                ┆ Pred: REPORTING_AIRT │
+│ ---                   ┆ TE_DATA              ┆ _MESSAGES            ┆ ---            ┆ HEALTH_QUESTION ┆ JOURNEY_RESPONSE ┆ QUESTION_ABOUT_STUDY ┆ IME_NOT_RE…          │
+│ str                   ┆ ---                  ┆ ---                  ┆ i64            ┆ ---             ┆ ---              ┆ ---                  ┆ ---                  │
+│                       ┆ i64                  ┆ i64                  ┆                ┆ i64             ┆ i64              ┆ i64                  ┆ i64                  │
+╞═══════════════════════╪══════════════════════╪══════════════════════╪════════════════╪═════════════════╪══════════════════╪══════════════════════╪══════════════════════╡
+│ Actual:               ┆ 1                    ┆ 0                    ┆ 0              ┆ 0               ┆ 0                ┆ 0                    ┆ 0                    │
+│ ASKING_TO_DELETE_DATA ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
+│ Actual: ASKING_TO_STO ┆ 0                    ┆ 1                    ┆ 0              ┆ 0               ┆ 0                ┆ 0                    ┆ 0                    │
+│ P_MESSAGE…            ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
+│ Actual: CHITCHAT      ┆ 0                    ┆ 0                    ┆ 0              ┆ 0               ┆ 1                ┆ 0                    ┆ 0                    │
+│ Actual:               ┆ 0                    ┆ 0                    ┆ 0              ┆ 2               ┆ 0                ┆ 0                    ┆ 0                    │
+│ HEALTH_QUESTION       ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
+│ Actual:               ┆ 0                    ┆ 0                    ┆ 0              ┆ 0               ┆ 7                ┆ 0                    ┆ 0                    │
+│ JOURNEY_RESPONSE      ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
+│ Actual:               ┆ 0                    ┆ 0                    ┆ 0              ┆ 0               ┆ 1                ┆ 0                    ┆ 0                    │
+│ QUESTION_ABOUT_STUDY  ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
+│ Actual: REPORTING_AIR ┆ 0                    ┆ 0                    ┆ 0              ┆ 0               ┆ 0                ┆ 0                    ┆ 1                    │
+│ TIME_NOT_…            ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
+└───────────────────────┴──────────────────────┴──────────────────────┴────────────────┴─────────────────┴──────────────────┴──────────────────────┴──────────────────────┘
 ============================================================
 
 
@@ -153,10 +225,10 @@ shape: (4, 5)
             PERFORMANCE SUMMARY REPORT
 ==================================================
 
-📊 Onboarding Performance (4 turns):
-  - Intent Accuracy: 100.00%
-  - Extraction Accuracy: 100.00%
+📊 Onboarding Performance (7 turns):
+  - Intent Accuracy: 85.71%
+  - Extraction Accuracy: 71.43%
   - Avg. Question Consistency: 1.00
-  - Avg. Response Appropriateness: 1.00
+  - Avg. Response Appropriateness: 0.86
 
 ==================================================

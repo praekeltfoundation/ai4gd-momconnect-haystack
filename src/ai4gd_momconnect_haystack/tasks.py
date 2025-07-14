@@ -110,36 +110,20 @@ def extract_onboarding_data_from_response(
     user_response: str, user_context: dict
 ) -> dict:
     """
-    Extracts data from a user's response to an onboarding question.
+    Extracts data from a user's response to an onboarding question
+    and returns ONLY the new data dictionary.
     """
     logger.info("Running data extraction pipeline...")
     extracted_data = pipelines.run_onboarding_data_extraction_pipeline(
         user_response, user_context
     )
 
-    print(f"[Extracted Data]:\n{json.dumps(extracted_data, indent=2)}\n")
-
     if extracted_data:
-        # Store extracted data:
-        onboarding_data_to_collect = [
-            "province",
-            "area_type",
-            "relationship_status",
-            "education_level",
-            "hunger_days",
-            "num_children",
-            "phone_ownership",
-        ]
-        for k, v in extracted_data.items():
-            logger.info(f"Extracted {k}: {v}")
-            if k in onboarding_data_to_collect:
-                user_context[k] = v
-                logger.info(f"Updated user_context for {k}: {v}")
-            else:
-                user_context.setdefault("other", {})[k] = v
-    else:
-        logger.warning("Data extraction pipeline did not produce a result.")
-    return user_context
+        print(f"[Extracted Data]:\n{json.dumps(extracted_data, indent=2)}\n")
+        return extracted_data  # Return only the new dictionary of updates.
+
+    logger.warning("Data extraction pipeline did not produce a result.")
+    return {}
 
 
 async def get_assessment_question(

@@ -310,24 +310,50 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             if final_user_response is None:
                 continue
 
-            user_context = extract_onboarding_data_from_response(
+            user_context_updates = extract_onboarding_data_from_response(
                 final_user_response, user_context
             )
+            if user_context_updates:
+                onboarding_data_to_collect = [
+                    q.collects for q in all_onboarding_questions if q.collects
+                ]
+
+                for key, value in user_context_updates.items():
+                    if key in onboarding_data_to_collect:
+                        user_context[key] = value
+                        logger.info(f"Updated user_context for {key}: {value}")
+                    else:
+                        # Safely add to the 'other' dictionary
+                        user_context.setdefault("other", {})[key] = value
+                        logger.info(f"Updated user_context for other.{key}: {value}")
 
             if user_context == previous_context:
                 consecutive_failures += 1
                 logger.warning(f"Turn failed to update context. Consecutive failures: {consecutive_failures}")
             else:
-                consecutive_failures = 0 # Progress was made, reset the counter
+                consecutive_failures = 0
 
-            # --- If failures exceed threshold, force-skip the current question ---
             if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
                 logger.error(f"Max consecutive failures reached. Force-skipping question #{question_number}.")
                 
-                # Find which field to update by looking up the question's configuration
                 question_to_skip = next((q for q in all_onboarding_questions if q.question_number == question_number), None)
                 if question_to_skip and question_to_skip.collects:
-                    user_context[question_to_skip.collects] = "Skipped - System"
+                    field_to_update = question_to_skip.collects
+                    
+                    logger.info(f"Creating turn for system-skipped field: {field_to_update}")
+                    onboarding_turns.append(
+                        {
+                            "question_name": field_to_update,
+                            "llm_utterance": contextualized_question,
+                            "user_utterance": user_response,
+                            "follow_up_utterance": final_user_response,
+                            "llm_extracted_user_response": "Skipped - System",
+                            "llm_initial_predicted_intent": initial_predicted_intent,
+                            "llm_final_predicted_intent": final_predicted_intent,
+                        }
+                    )
+                    
+                    user_context[field_to_update] = "Skipped - System"
                 
                 consecutive_failures = 0
                 continue
