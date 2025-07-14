@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_next_onboarding_question(
-    user_context: dict, chat_history: list[ChatMessage],
+    user_context: dict,
     append_valid_responses: bool = False
 ) -> dict | None:
     """
@@ -53,17 +53,12 @@ def get_next_onboarding_question(
     # Determine first/last question flags
     is_first_question = len(remaining_questions_list) == len(all_onboarding_questions)
     is_last_question = len(remaining_questions_list) == 1
-    print(f"Is first question: {is_first_question}")
-    print(f"Is last question: {is_last_question}")
-    print(f"Onboarding questions: {len(all_onboarding_questions)}")
-    print(f"Remaining questions: {len(remaining_questions_list)}")
 
     # LLM decides the next question
     logger.info("Running next question selection pipeline...")
     next_question_result = pipelines.run_next_onboarding_question_pipeline(
         user_context,
         [q.model_dump() for q in remaining_questions_list],
-        chat_history,
         is_first_question=is_first_question,
         is_last_question=is_last_question,
     )
@@ -112,14 +107,14 @@ def get_next_onboarding_question(
 
 
 def extract_onboarding_data_from_response(
-    user_response: str, user_context: dict, chat_history: list[ChatMessage]
+    user_response: str, user_context: dict
 ) -> dict:
     """
     Extracts data from a user's response to an onboarding question.
     """
     logger.info("Running data extraction pipeline...")
     extracted_data = pipelines.run_onboarding_data_extraction_pipeline(
-        user_response, user_context, chat_history
+        user_response, user_context
     )
 
     print(f"[Extracted Data]:\n{json.dumps(extracted_data, indent=2)}\n")

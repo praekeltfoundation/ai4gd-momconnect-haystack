@@ -43,6 +43,7 @@ from ai4gd_momconnect_haystack.tasks import (
 from ai4gd_momconnect_haystack.utilities import (
     assessment_map_to_their_pre,
     assessment_end_flow_map,
+    all_onboarding_questions,
     generate_scenario_id,
     load_json_and_validate,
     save_json_file,
@@ -185,6 +186,11 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
     chat_history: list[ChatMessage] = []
     onboarding_turns = []
 
+    # --- NEW: Add retry logic variables ---
+    MAX_CONSECUTIVE_FAILURES = 2
+    consecutive_failures = 0
+    # --- End of new variables ---
+
     sim_onboarding = "onboarding" in gt_lookup_by_flow
     sim_dma = False
     sim_kab = False
@@ -221,7 +227,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             print("-" * 20)
             logger.info(f"Onboarding Question Attempt: {attempt + 1}")
 
-            result = get_next_onboarding_question(user_context, chat_history)
+            result = get_next_onboarding_question(user_context)
 
             if not result:
                 logger.info("Onboarding flow complete.")
@@ -229,13 +235,14 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
             contextualized_question = result["contextualized_question"]
             question_number = result["question_number"]
+            previous_context = user_context.copy()
             chat_history.append(
                 ChatMessage.from_assistant(text=contextualized_question)
             )
 
             print("-" * 20)
             print(f"Question #: {question_number}")
-
+            print(f"Question: {contextualized_question}")
             # Simulate User Response & Data Extraction
 
             has_deflected = False
@@ -258,8 +265,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     break
 
                 print(f"User_response: {user_response}")
-
-                print(f"Use_response: {user_response}")
                 chat_history.append(ChatMessage.from_user(text=user_response))
 
                 # Classify user's intent and act accordingly
@@ -305,10 +310,27 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             if final_user_response is None:
                 continue
 
-            previous_context = user_context.copy()
             user_context = extract_onboarding_data_from_response(
-                final_user_response, user_context, chat_history
+                final_user_response, user_context
             )
+
+            if user_context == previous_context:
+                consecutive_failures += 1
+                logger.warning(f"Turn failed to update context. Consecutive failures: {consecutive_failures}")
+            else:
+                consecutive_failures = 0 # Progress was made, reset the counter
+
+            # --- If failures exceed threshold, force-skip the current question ---
+            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                logger.error(f"Max consecutive failures reached. Force-skipping question #{question_number}.")
+                
+                # Find which field to update by looking up the question's configuration
+                question_to_skip = next((q for q in all_onboarding_questions if q.question_number == question_number), None)
+                if question_to_skip and question_to_skip.collects:
+                    user_context[question_to_skip.collects] = "Skipped - System"
+                
+                consecutive_failures = 0
+                continue
 
             # Identify what changed in user_context
             diff_keys = [
@@ -435,7 +457,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             )
 
             print(f"Question #: {question_number}")
-            # print(f"Question: {contextualized_question}")
             has_deflected = False
             final_user_response = None
             initial_predicted_intent = None
@@ -763,7 +784,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 await save_assessment_end_message(user_id, flow_id, next_message_nr, "")
             print(f"Task: {task}")
             print(f"Question #: {next_message_nr}")
-            print(f"Question: {next_message}")
             user_response, gt_turn = await _get_user_response(
                 gt_lookup={},
                 flow_id=flow_id.value,
@@ -880,7 +900,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
                 print("-" * 20)
                 print(f"Question #: {question_number}")
-                # print(f"Question: {contextualized_question}")
                 has_deflected = False
                 final_user_response = None
                 initial_predicted_intent = None
@@ -1211,7 +1230,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     )
                 print(f"Task: {task}")
                 print(f"Question #: {next_message_nr}")
-                print(f"Question: {next_message}")
                 user_response, gt_turn = await _get_user_response(
                     gt_lookup={},
                     flow_id=flow_id.value,
@@ -1315,7 +1333,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
             print("-" * 20)
             print(f"Question title: {question_identifier}")
-            # print(f"Question: {contextualized_question}")
             has_deflected = False
             final_user_response = None
             initial_predicted_intent = None

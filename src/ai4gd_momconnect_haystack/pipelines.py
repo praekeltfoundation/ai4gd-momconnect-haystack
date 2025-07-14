@@ -640,7 +640,6 @@ def create_faq_answering_pipeline() -> Pipeline | None:
 def run_next_onboarding_question_pipeline(
     user_context: dict[str, Any],
     remaining_questions: list[dict],
-    chat_history: list[ChatMessage],
     is_first_question=False,
     is_last_question=False,
 ) -> dict[str, Any] | None:
@@ -650,7 +649,6 @@ def run_next_onboarding_question_pipeline(
     Args:
         user_context: Previously collected user data.
         remaining_questions: List of remaining questions to choose from.
-        chat_history: List of chat history messages.
 
     Returns:
         Dictionary containing the chosen question number and contextualized question.
@@ -662,7 +660,7 @@ def run_next_onboarding_question_pipeline(
         )
     else:
         try:
-            chat_template = chat_history + [
+            chat_template = [
                 ChatMessage.from_system(NEXT_ONBOARDING_QUESTION_PROMPT)
             ]
             result = pipeline.run(
@@ -727,7 +725,6 @@ def run_next_onboarding_question_pipeline(
 def run_onboarding_data_extraction_pipeline(
     user_response: str,
     user_context: dict[str, Any],
-    chat_history: list[ChatMessage],
 ) -> dict[str, Any]:
     """
     Run the onboarding data extraction pipeline and return extracted data.
@@ -735,7 +732,6 @@ def run_onboarding_data_extraction_pipeline(
     Args:
         user_response: User's latest message.
         user_context: Previously collected user data.
-        chat_history: List of chat history messages.
 
     Returns:
         Dictionary containing extracted data points.
@@ -746,7 +742,7 @@ def run_onboarding_data_extraction_pipeline(
         return {}
 
     try:
-        chat_template = chat_history + [
+        chat_template = [
             ChatMessage.from_system(ONBOARDING_DATA_EXTRACTION_PROMPT)
         ]
         result = pipeline.run(
