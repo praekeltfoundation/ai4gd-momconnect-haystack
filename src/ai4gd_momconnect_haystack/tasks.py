@@ -35,7 +35,8 @@ logger = logging.getLogger(__name__)
 
 
 def get_next_onboarding_question(
-    user_context: dict, chat_history: list[ChatMessage]
+    user_context: dict, chat_history: list[ChatMessage],
+    append_valid_responses: bool = False
 ) -> dict | None:
     """
     Gets the next contextualized onboarding question.
@@ -49,12 +50,22 @@ def get_next_onboarding_question(
         logger.info("All onboarding questions answered. Onboarding complete.")
         return None
 
+    # Determine first/last question flags
+    is_first_question = len(remaining_questions_list) == len(all_onboarding_questions)
+    is_last_question = len(remaining_questions_list) == 1
+    print(f"Is first question: {is_first_question}")
+    print(f"Is last question: {is_last_question}")
+    print(f"Onboarding questions: {len(all_onboarding_questions)}")
+    print(f"Remaining questions: {len(remaining_questions_list)}")
+
     # LLM decides the next question
     logger.info("Running next question selection pipeline...")
     next_question_result = pipelines.run_next_onboarding_question_pipeline(
         user_context,
         [q.model_dump() for q in remaining_questions_list],
         chat_history,
+        is_first_question=is_first_question,
+        is_last_question=is_last_question,
     )
     if not next_question_result:
         logger.error(
@@ -87,7 +98,7 @@ def get_next_onboarding_question(
 
     # Append valid responses to the final question, when applicable
     valid_responses = current_step_data.valid_responses
-    if valid_responses and current_step_data.collects:
+    if append_valid_responses and valid_responses and current_step_data.collects:
         final_question_text = prepare_valid_responses_to_display_to_onboarding_user(
             contextualized_question, current_step_data.collects, valid_responses
         )

@@ -641,6 +641,8 @@ def run_next_onboarding_question_pipeline(
     user_context: dict[str, Any],
     remaining_questions: list[dict],
     chat_history: list[ChatMessage],
+    is_first_question=False,
+    is_last_question=False,
 ) -> dict[str, Any] | None:
     """
     Run the next onboarding question selection pipeline and return the chosen question.
@@ -670,6 +672,8 @@ def run_next_onboarding_question_pipeline(
                         "template_variables": {
                             "user_context": user_context,
                             "remaining_questions": remaining_questions,
+                            "is_first_question": is_first_question,
+                            "is_last_question": is_last_question,
                         },
                     }
                 }
