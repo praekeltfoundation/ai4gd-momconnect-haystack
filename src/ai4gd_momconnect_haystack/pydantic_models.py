@@ -1,13 +1,13 @@
 # models.py
 
 from typing import Any, TypeVar
+
 from pydantic import BaseModel, Field, model_validator
 
 from .enums import (
     AssessmentType,
     HistoryType,
 )
-
 
 # A generic model type
 T = TypeVar("T", bound=BaseModel)
@@ -144,6 +144,7 @@ class OnboardingResponse(BaseModel):
     user_context: dict[str, Any]
     intent: str | None
     intent_related_response: str | None
+    results_to_save: list[str]
 
 
 class AssessmentRequest(BaseModel):
