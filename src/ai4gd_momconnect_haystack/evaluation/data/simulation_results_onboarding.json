@@ -4,9 +4,19 @@
     "flow_type": "onboarding",
     "turns": [
       {
+        "question_name": "province",
+        "question_number": null,
+        "llm_utterance": "Which province do you live in?",
+        "user_utterance": "how long will this take?",
+        "follow_up_utterance": "how long will this take?",
+        "user_response": "Skipped - System",
+        "llm_initial_predicted_intent": "JOURNEY_RESPONSE",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      },
+      {
         "question_name": "area_type",
         "question_number": null,
-        "llm_utterance": "What kind of area do you live in? \ud83c\udfd8\ufe0f\n\na. City\nb. Township or suburb\nc. Town\nd. Farm or smallholding\ne. Village\nf. Rural area",
+        "llm_utterance": "What kind of area do you live in? For example, city, township, town, farm, village, or rural area.",
         "user_utterance": "My baby has a rash, what should I do?",
         "follow_up_utterance": "I live on a farm.",
         "user_response": "Farm or smallholding",
@@ -14,29 +24,9 @@
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       },
       {
-        "question_name": "province",
-        "question_number": null,
-        "llm_utterance": "Which province are you currently living in? \ud83c\udfde\ufe0f\n\na. Eastern Cape\nb. Free State\nc. Gauteng\nd. KwaZulu-Natal\ne. Limpopo\nf. Mpumalanga\ng. Northern Cape\nh. North West\ni. Western Cape",
-        "user_utterance": "how long will this take?",
-        "follow_up_utterance": "I live on a farm out in the North West.",
-        "user_response": "North West",
-        "llm_initial_predicted_intent": "CHITCHAT",
-        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
-      },
-      {
-        "question_name": "num_children",
-        "question_number": null,
-        "llm_utterance": "How many children do you have? Count all your children of any age. \ud83d\udc76\ud83c\udffd",
-        "user_utterance": "when wil i get my R5 airtime?",
-        "follow_up_utterance": "I have one little one already.",
-        "user_response": "1",
-        "llm_initial_predicted_intent": "REPORTING_AIRTIME_NOT_RECEIVED",
-        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
-      },
-      {
         "question_name": "relationship_status",
         "question_number": null,
-        "llm_utterance": "What's your current relationship status? \ud83d\udc64\n\na. Single\nb. Relationship\nc. Married",
+        "llm_utterance": "What's your current relationship status? \ud83d\udc64",
         "user_utterance": "my feet r swollen, is dat bad?",
         "follow_up_utterance": "I am single.",
         "user_response": "Single",
@@ -46,7 +36,7 @@
       {
         "question_name": "education_level",
         "question_number": null,
-        "llm_utterance": "What's the highest level of education you've completed? \ud83d\udcda\n\na. No school\nb. Some primary\nc. Finished primary\nd. Some high school\ne. Finished high school\nf. More than high school\ng. Don't know",
+        "llm_utterance": "What's your highest level of education? \ud83d\udcda",
         "user_utterance": "Leave me alone",
         "follow_up_utterance": "I only finished Grade 9 at school.",
         "user_response": "Some high school",
@@ -64,12 +54,22 @@
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       },
       {
+        "question_name": "num_children",
+        "question_number": null,
+        "llm_utterance": "How many children do you have? Count all your children of any age. \ud83d\udc76\ud83c\udffd",
+        "user_utterance": "when wil i get my R5 airtime?",
+        "follow_up_utterance": "I have one little one already.",
+        "user_response": "1",
+        "llm_initial_predicted_intent": "REPORTING_AIRTIME_NOT_RECEIVED",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      },
+      {
         "question_name": "phone_ownership",
         "question_number": null,
         "llm_utterance": "Do you own the phone you're using right now? \ud83d\udcf1",
         "user_utterance": "ok cool",
-        "follow_up_utterance": "No, I don't own this phone.",
-        "user_response": "No",
+        "follow_up_utterance": "ok cool",
+        "user_response": "Skipped - System",
         "llm_initial_predicted_intent": "JOURNEY_RESPONSE",
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       }

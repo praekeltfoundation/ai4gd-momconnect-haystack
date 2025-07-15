@@ -44,7 +44,7 @@ from ai4gd_momconnect_haystack.pydantic_models import (
 )
 from ai4gd_momconnect_haystack.tasks import (
     extract_anc_data_from_response,
-    extract_onboarding_data_from_response,
+    process_onboarding_step,
     get_anc_survey_question,
     get_assessment_question,
     get_next_onboarding_question,
@@ -140,17 +140,14 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         # Also initialize the chat history with the persona in a system message
         chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
     if intent == "JOURNEY_RESPONSE" and user_input:
-        user_context = extract_onboarding_data_from_response(
-            user_response=user_input,
-            user_context=request.user_context,
-            chat_history=chat_history,
+        user_context, question = process_onboarding_step(
+            user_input=user_input, current_context=request.user_context
         )
     else:
         # If there is no response to the question, the context stays the same
         user_context = request.user_context
-    question = get_next_onboarding_question(
-        user_context=user_context, chat_history=chat_history
-    )
+        question = get_next_onboarding_question(user_context=user_context)
+
     question_text = ""
     if question:
         question_text = question.get("contextualized_question", "")

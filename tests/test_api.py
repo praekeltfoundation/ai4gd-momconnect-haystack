@@ -83,10 +83,6 @@ async def test_onboarding_chitchat():
                 "contextualized_question": "Which province are you currently living in? 🏡"
             },
         ) as _,
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.extract_onboarding_data_from_response",
-            return_value={},
-        ) as extract_onboarding_data_from_response,
     ):
         client = TestClient(app)
         response = client.post(
@@ -119,8 +115,6 @@ async def test_onboarding_chitchat():
             saved_messages[2].text == "Which province are you currently living in? 🏡"
         )
 
-        extract_onboarding_data_from_response.assert_not_called()
-
 
 @pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
@@ -147,9 +141,6 @@ async def test_onboarding_first_question():
         mock.patch(
             "ai4gd_momconnect_haystack.api.handle_user_message"
         ) as handle_user_message,
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.extract_onboarding_data_from_response"
-        ) as extract_onboarding_data_from_response,
         mock.patch(
             "ai4gd_momconnect_haystack.api.get_next_onboarding_question",
             return_value={
@@ -199,7 +190,6 @@ async def test_onboarding_first_question():
 
         # These functions should not be called for the initial message
         handle_user_message.assert_not_called()
-        extract_onboarding_data_from_response.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -225,15 +215,14 @@ async def test_onboarding():
             return_value=("JOURNEY_RESPONSE", ""),
         ) as handle_user_message,
         mock.patch(
-            "ai4gd_momconnect_haystack.api.extract_onboarding_data_from_response",
-            return_value={"area_type": "City"},
-        ) as extract_onboarding_data_from_response,
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.get_next_onboarding_question",
-            return_value={
-                "contextualized_question": "Which province are you currently living in? 🏡"
-            },
-        ) as get_next_onboarding_question,
+            "ai4gd_momconnect_haystack.api.process_onboarding_step",
+            return_value=(
+                {"area_type": "City"},
+                {
+                    "contextualized_question": "Which province are you currently living in? 🏡"
+                },
+            ),
+        ) as mock_process_step,
     ):
         client = TestClient(app)
         response = client.post(
@@ -267,8 +256,7 @@ async def test_onboarding():
         )
 
         handle_user_message.assert_called_once()
-        extract_onboarding_data_from_response.assert_called_once()
-        get_next_onboarding_question.assert_called_once()
+        mock_process_step.assert_called_once_with(user_input="city", current_context={})
 
 
 @pytest.mark.asyncio

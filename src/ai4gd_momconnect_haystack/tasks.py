@@ -1,8 +1,6 @@
 import json
 import logging
 
-from haystack.dataclasses import ChatMessage
-
 
 from ai4gd_momconnect_haystack.crud import (
     get_assessment_history,
@@ -35,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_next_onboarding_question(
-    user_context: dict, chat_history: list[ChatMessage]
+    user_context: dict, append_valid_responses: bool = False
 ) -> dict | None:
     """
     Gets the next contextualized onboarding question.
@@ -49,12 +47,17 @@ def get_next_onboarding_question(
         logger.info("All onboarding questions answered. Onboarding complete.")
         return None
 
+    # Determine first/last question flags
+    is_first_question = len(remaining_questions_list) == len(all_onboarding_questions)
+    is_last_question = len(remaining_questions_list) == 1
+
     # LLM decides the next question
     logger.info("Running next question selection pipeline...")
     next_question_result = pipelines.run_next_onboarding_question_pipeline(
         user_context,
         [q.model_dump() for q in remaining_questions_list],
-        chat_history,
+        is_first_question=is_first_question,
+        is_last_question=is_last_question,
     )
     if not next_question_result:
         logger.error(
@@ -87,7 +90,7 @@ def get_next_onboarding_question(
 
     # Append valid responses to the final question, when applicable
     valid_responses = current_step_data.valid_responses
-    if valid_responses and current_step_data.collects:
+    if append_valid_responses and valid_responses and current_step_data.collects:
         final_question_text = prepare_valid_responses_to_display_to_onboarding_user(
             contextualized_question, current_step_data.collects, valid_responses
         )
@@ -101,39 +104,64 @@ def get_next_onboarding_question(
 
 
 def extract_onboarding_data_from_response(
-    user_response: str, user_context: dict, chat_history: list[ChatMessage]
+    user_response: str, user_context: dict
 ) -> dict:
     """
-    Extracts data from a user's response to an onboarding question.
+    Extracts data from a user's response to an onboarding question
+    and returns ONLY the new data dictionary.
     """
     logger.info("Running data extraction pipeline...")
     extracted_data = pipelines.run_onboarding_data_extraction_pipeline(
-        user_response, user_context, chat_history
+        user_response, user_context
     )
 
-    print(f"[Extracted Data]:\n{json.dumps(extracted_data, indent=2)}\n")
-
     if extracted_data:
-        # Store extracted data:
+        print(f"[Extracted Data]:\n{json.dumps(extracted_data, indent=2)}\n")
+        return extracted_data  # Return only the new dictionary of updates.
+
+    logger.warning("Data extraction pipeline did not produce a result.")
+    return {}
+
+
+def update_context_from_onboarding_response(
+    user_input: str, current_context: dict
+) -> dict:
+    """
+    Takes user input, extracts data, and returns the fully updated context.
+    This is the core business logic for an onboarding turn.
+    """
+    updated_context = current_context.copy()
+
+    updates = extract_onboarding_data_from_response(
+        user_response=user_input, user_context=current_context
+    )
+
+    if updates:
         onboarding_data_to_collect = [
-            "province",
-            "area_type",
-            "relationship_status",
-            "education_level",
-            "hunger_days",
-            "num_children",
-            "phone_ownership",
+            q.collects for q in all_onboarding_questions if q.collects
         ]
-        for k, v in extracted_data.items():
-            logger.info(f"Extracted {k}: {v}")
-            if k in onboarding_data_to_collect:
-                user_context[k] = v
-                logger.info(f"Updated user_context for {k}: {v}")
+        for key, value in updates.items():
+            if key in onboarding_data_to_collect:
+                updated_context[key] = value
             else:
-                user_context.setdefault("other", {})[k] = v
-    else:
-        logger.warning("Data extraction pipeline did not produce a result.")
-    return user_context
+                updated_context.setdefault("other", {})[key] = value
+
+    return updated_context
+
+
+def process_onboarding_step(
+    user_input: str, current_context: dict
+) -> tuple[dict, dict | None]:
+    """
+    Processes a single step of the onboarding flow for the API.
+    """
+    updated_context = update_context_from_onboarding_response(
+        user_input, current_context
+    )
+
+    next_question = get_next_onboarding_question(user_context=updated_context)
+
+    return updated_context, next_question
 
 
 async def get_assessment_question(
