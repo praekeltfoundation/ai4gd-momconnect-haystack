@@ -182,6 +182,8 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
         await delete_assessment_history_for_user(request.user_id, request.flow_id)
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
 
+    processed_answer = None
+
     if intent == "JOURNEY_RESPONSE" and request.user_input:
         answer = validate_assessment_answer(
             user_response=request.user_input,
@@ -189,6 +191,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
             current_flow_id=request.flow_id.value,
         )
         if answer["processed_user_response"]:
+            processed_answer = answer["processed_user_response"]
             score = score_assessment_question(
                 answer["processed_user_response"],
                 request.question_number,
@@ -231,6 +234,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
         next_question=next_question_number,
         intent=intent,
         intent_related_response=intent_related_response,
+        processed_answer=processed_answer,
     )
 
 

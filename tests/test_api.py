@@ -306,6 +306,7 @@ async def test_assessment_chitchat(
         "next_question": 1,
         "intent": "CHITCHAT",
         "intent_related_response": "User is chitchatting",
+        "processed_answer": None,
     }
 
     handle_user_message.assert_called_once_with("How are you feeling?", "Hello!")
@@ -365,6 +366,7 @@ async def test_assessment_initial_message(
         "next_question": 1,
         "intent": "JOURNEY_RESPONSE",
         "intent_related_response": "",
+        "processed_answer": None,
     }
 
     handle_user_message.assert_not_called()
@@ -446,6 +448,7 @@ async def test_assessment_valid_journey_response(
         "next_question": 2,
         "intent": "JOURNEY_RESPONSE",
         "intent_related_response": "",
+        "processed_answer": "very confident",
     }
 
     # Assert that the core logic functions were called with the correct arguments
