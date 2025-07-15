@@ -846,6 +846,7 @@ async def test_anc_survey():
             "survey_complete": False,
             "intent": "JOURNEY_RESPONSE",
             "intent_related_response": None,
+            "results_to_save": ["visit_status"],
         }
         get_or_create_chat_history.assert_awaited_once_with(
             user_id="TestUser", history_type="anc"
@@ -914,6 +915,7 @@ async def test_anc_survey_first_question():
             "survey_complete": False,
             "intent": "JOURNEY_RESPONSE",
             "intent_related_response": "",
+            "results_to_save": [],
         }
 
         # Assert that the history deletion was then called
@@ -994,6 +996,7 @@ async def test_anc_survey_chitchat():
             "survey_complete": False,
             "intent": "CHITCHAT",
             "intent_related_response": "User is chitchatting",
+            "results_to_save": [],
         }
 
         get_or_create_chat_history.assert_awaited_once_with(
