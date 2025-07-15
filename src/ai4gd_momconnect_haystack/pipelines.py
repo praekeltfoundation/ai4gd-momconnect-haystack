@@ -660,9 +660,7 @@ def run_next_onboarding_question_pipeline(
         )
     else:
         try:
-            chat_template = [
-                ChatMessage.from_system(NEXT_ONBOARDING_QUESTION_PROMPT)
-            ]
+            chat_template = [ChatMessage.from_system(NEXT_ONBOARDING_QUESTION_PROMPT)]
             result = pipeline.run(
                 {
                     "prompt_builder": {
@@ -742,9 +740,7 @@ def run_onboarding_data_extraction_pipeline(
         return {}
 
     try:
-        chat_template = [
-            ChatMessage.from_system(ONBOARDING_DATA_EXTRACTION_PROMPT)
-        ]
+        chat_template = [ChatMessage.from_system(ONBOARDING_DATA_EXTRACTION_PROMPT)]
         result = pipeline.run(
             {
                 "prompt_builder": {

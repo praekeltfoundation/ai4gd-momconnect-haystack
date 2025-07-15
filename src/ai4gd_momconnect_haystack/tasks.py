@@ -1,8 +1,6 @@
 import json
 import logging
 
-from haystack.dataclasses import ChatMessage
-
 
 from ai4gd_momconnect_haystack.crud import (
     get_assessment_history,
@@ -35,8 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_next_onboarding_question(
-    user_context: dict,
-    append_valid_responses: bool = False
+    user_context: dict, append_valid_responses: bool = False
 ) -> dict | None:
     """
     Gets the next contextualized onboarding question.
@@ -124,6 +121,47 @@ def extract_onboarding_data_from_response(
 
     logger.warning("Data extraction pipeline did not produce a result.")
     return {}
+
+
+def update_context_from_onboarding_response(
+    user_input: str, current_context: dict
+) -> dict:
+    """
+    Takes user input, extracts data, and returns the fully updated context.
+    This is the core business logic for an onboarding turn.
+    """
+    updated_context = current_context.copy()
+
+    updates = extract_onboarding_data_from_response(
+        user_response=user_input, user_context=current_context
+    )
+
+    if updates:
+        onboarding_data_to_collect = [
+            q.collects for q in all_onboarding_questions if q.collects
+        ]
+        for key, value in updates.items():
+            if key in onboarding_data_to_collect:
+                updated_context[key] = value
+            else:
+                updated_context.setdefault("other", {})[key] = value
+
+    return updated_context
+
+
+def process_onboarding_step(
+    user_input: str, current_context: dict
+) -> tuple[dict, dict | None]:
+    """
+    Processes a single step of the onboarding flow for the API.
+    """
+    updated_context = update_context_from_onboarding_response(
+        user_input, current_context
+    )
+
+    next_question = get_next_onboarding_question(user_context=updated_context)
+
+    return updated_context, next_question
 
 
 async def get_assessment_question(

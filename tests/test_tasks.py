@@ -315,7 +315,7 @@ def test_get_next_onboarding_question_no_more_questions(pipelines_mock, doc_stor
     # Mock the function to return an empty list of remaining questions
     doc_store_mock.get_remaining_onboarding_questions.return_value = []
 
-    result = get_next_onboarding_question(user_context={}, chat_history=[])
+    result = get_next_onboarding_question(user_context={})
     assert result is None
 
 
@@ -346,11 +346,11 @@ def test_extract_onboarding_data_from_response_updates_context(
     expected_context = {
         "province": "Gauteng",
         "education_level": "More than high school",
-        "other": {"some_other_info": "extra detail"},
+        "some_other_info": "extra detail",
     }
 
     result_context = extract_onboarding_data_from_response(
-        user_response="some response", user_context=user_context, chat_history=[]
+        user_response="some response", user_context=user_context
     )
 
     assert result_context == expected_context

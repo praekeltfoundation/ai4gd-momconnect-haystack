@@ -34,7 +34,7 @@ from ai4gd_momconnect_haystack.sqlalchemy_models import (
 )
 from ai4gd_momconnect_haystack.tasks import (
     extract_anc_data_from_response,
-    extract_onboarding_data_from_response,
+    update_context_from_onboarding_response,
     get_anc_survey_question,
     get_assessment_question,
     get_next_onboarding_question,
@@ -307,40 +307,39 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     if not gt_scenario:
                         current_prompt = f"Thanks. To continue, please answer:\n> {contextualized_question}"
 
-            if final_user_response is None:
-                continue
-
-            user_context_updates = extract_onboarding_data_from_response(
-                final_user_response, user_context
-            )
-            if user_context_updates:
-                onboarding_data_to_collect = [
-                    q.collects for q in all_onboarding_questions if q.collects
-                ]
-
-                for key, value in user_context_updates.items():
-                    if key in onboarding_data_to_collect:
-                        user_context[key] = value
-                        logger.info(f"Updated user_context for {key}: {value}")
-                    else:
-                        # Safely add to the 'other' dictionary
-                        user_context.setdefault("other", {})[key] = value
-                        logger.info(f"Updated user_context for other.{key}: {value}")
+            if final_user_response:
+                user_context = update_context_from_onboarding_response(
+                    user_input=final_user_response,
+                    current_context=user_context,
+                )
 
             if user_context == previous_context:
                 consecutive_failures += 1
-                logger.warning(f"Turn failed to update context. Consecutive failures: {consecutive_failures}")
+                logger.warning(
+                    f"Turn failed to update context. Consecutive failures: {consecutive_failures}"
+                )
             else:
                 consecutive_failures = 0
 
             if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                logger.error(f"Max consecutive failures reached. Force-skipping question #{question_number}.")
-                
-                question_to_skip = next((q for q in all_onboarding_questions if q.question_number == question_number), None)
+                logger.error(
+                    f"Max consecutive failures reached. Force-skipping question #{question_number}."
+                )
+
+                question_to_skip = next(
+                    (
+                        q
+                        for q in all_onboarding_questions
+                        if q.question_number == question_number
+                    ),
+                    None,
+                )
                 if question_to_skip and question_to_skip.collects:
                     field_to_update = question_to_skip.collects
-                    
-                    logger.info(f"Creating turn for system-skipped field: {field_to_update}")
+
+                    logger.info(
+                        f"Creating turn for system-skipped field: {field_to_update}"
+                    )
                     onboarding_turns.append(
                         {
                             "question_name": field_to_update,
@@ -352,9 +351,9 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                             "llm_final_predicted_intent": final_predicted_intent,
                         }
                     )
-                    
+
                     user_context[field_to_update] = "Skipped - System"
-                
+
                 consecutive_failures = 0
                 continue
 
