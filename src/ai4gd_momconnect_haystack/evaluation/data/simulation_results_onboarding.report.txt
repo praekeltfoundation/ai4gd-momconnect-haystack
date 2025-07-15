@@ -12,7 +12,7 @@
        Details: Expected: 'north west', Got: 'skipped - system'
   [ score: 1.00 ] Question Consistency
   [ score: 0.00 ] Response Appropriateness
-       Reason: The score is 0.00 because the output failed to specify a province, which was the main requirement of the input question. Instead, it provided irrelevant details about living on a farm and a directional location without addressing the core query.
+       Reason: The score is 0.00 because the output failed to specify a province, which was the main requirement of the input question. Instead, it provided irrelevant details about living on a farm and a directional location, neither of which addressed the question directly.
 
 --- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: area_type ---
   Initial Intent: [✅] PASSED
@@ -81,26 +81,27 @@ REPORTING_AIRTIME_NOT_RECEIVED       1.00      1.00      1.00         1
 
 --- Confusion Matrix ---
 shape: (7, 8)
-┌───────────────────────┬──────────────────────┬──────────────────────┬────────────────┬─────────────────┬──────────────────┬──────────────────────┬──────────────────────┐
-│ Actual                ┆ Pred: ASKING_TO_DELE ┆ Pred: ASKING_TO_STOP ┆ Pred: CHITCHAT ┆ Pred:           ┆ Pred:            ┆ Pred:                ┆ Pred: REPORTING_AIRT │
-│ ---                   ┆ TE_DATA              ┆ _MESSAGES            ┆ ---            ┆ HEALTH_QUESTION ┆ JOURNEY_RESPONSE ┆ QUESTION_ABOUT_STUDY ┆ IME_NOT_RE…          │
-│ str                   ┆ ---                  ┆ ---                  ┆ i64            ┆ ---             ┆ ---              ┆ ---                  ┆ ---                  │
-│                       ┆ i64                  ┆ i64                  ┆                ┆ i64             ┆ i64              ┆ i64                  ┆ i64                  │
-╞═══════════════════════╪══════════════════════╪══════════════════════╪════════════════╪═════════════════╪══════════════════╪══════════════════════╪══════════════════════╡
-│ Actual:               ┆ 1                    ┆ 0                    ┆ 0              ┆ 0               ┆ 0                ┆ 0                    ┆ 0                    │
-│ ASKING_TO_DELETE_DATA ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
-│ Actual: ASKING_TO_STO ┆ 0                    ┆ 1                    ┆ 0              ┆ 0               ┆ 0                ┆ 0                    ┆ 0                    │
-│ P_MESSAGE…            ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
-│ Actual: CHITCHAT      ┆ 0                    ┆ 0                    ┆ 0              ┆ 0               ┆ 1                ┆ 0                    ┆ 0                    │
-│ Actual:               ┆ 0                    ┆ 0                    ┆ 0              ┆ 2               ┆ 0                ┆ 0                    ┆ 0                    │
-│ HEALTH_QUESTION       ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
-│ Actual:               ┆ 0                    ┆ 0                    ┆ 0              ┆ 0               ┆ 7                ┆ 0                    ┆ 0                    │
-│ JOURNEY_RESPONSE      ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
-│ Actual:               ┆ 0                    ┆ 0                    ┆ 0              ┆ 0               ┆ 1                ┆ 0                    ┆ 0                    │
-│ QUESTION_ABOUT_STUDY  ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
-│ Actual: REPORTING_AIR ┆ 0                    ┆ 0                    ┆ 0              ┆ 0               ┆ 0                ┆ 0                    ┆ 1                    │
-│ TIME_NOT_…            ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
-└───────────────────────┴──────────────────────┴──────────────────────┴────────────────┴─────────────────┴──────────────────┴──────────────────────┴──────────────────────┘
+┌──────────────────┬─────────────────┬─────────────────┬────────────────┬─────────────────┬─────────────────┬─────────────────┬─────────────────┐
+│ Actual           ┆ Pred: ASKING_TO ┆ Pred: ASKING_TO ┆ Pred: CHITCHAT ┆ Pred:           ┆ Pred: JOURNEY_R ┆ Pred: QUESTION_ ┆ Pred: REPORTING │
+│ ---              ┆ _DELETE_DATA    ┆ _STOP_MESSAGES  ┆ ---            ┆ HEALTH_QUESTION ┆ ESPONSE         ┆ ABOUT_STUDY     ┆ _AIRTIME_NOT_RE │
+│ str              ┆ ---             ┆ ---             ┆ i64            ┆ ---             ┆ ---             ┆ ---             ┆ …               │
+│                  ┆ i64             ┆ i64             ┆                ┆ i64             ┆ i64             ┆ i64             ┆ ---             │
+│                  ┆                 ┆                 ┆                ┆                 ┆                 ┆                 ┆ i64             │
+╞══════════════════╪═════════════════╪═════════════════╪════════════════╪═════════════════╪═════════════════╪═════════════════╪═════════════════╡
+│ Actual: ASKING_T ┆ 1               ┆ 0               ┆ 0              ┆ 0               ┆ 0               ┆ 0               ┆ 0               │
+│ O_DELETE_DATA    ┆                 ┆                 ┆                ┆                 ┆                 ┆                 ┆                 │
+│ Actual: ASKING_T ┆ 0               ┆ 1               ┆ 0              ┆ 0               ┆ 0               ┆ 0               ┆ 0               │
+│ O_STOP_MESSAGE…  ┆                 ┆                 ┆                ┆                 ┆                 ┆                 ┆                 │
+│ Actual: CHITCHAT ┆ 0               ┆ 0               ┆ 0              ┆ 0               ┆ 1               ┆ 0               ┆ 0               │
+│ Actual:          ┆ 0               ┆ 0               ┆ 0              ┆ 2               ┆ 0               ┆ 0               ┆ 0               │
+│ HEALTH_QUESTION  ┆                 ┆                 ┆                ┆                 ┆                 ┆                 ┆                 │
+│ Actual:          ┆ 0               ┆ 0               ┆ 0              ┆ 0               ┆ 7               ┆ 0               ┆ 0               │
+│ JOURNEY_RESPONSE ┆                 ┆                 ┆                ┆                 ┆                 ┆                 ┆                 │
+│ Actual: QUESTION ┆ 0               ┆ 0               ┆ 0              ┆ 0               ┆ 1               ┆ 0               ┆ 0               │
+│ _ABOUT_STUDY     ┆                 ┆                 ┆                ┆                 ┆                 ┆                 ┆                 │
+│ Actual: REPORTIN ┆ 0               ┆ 0               ┆ 0              ┆ 0               ┆ 0               ┆ 0               ┆ 1               │
+│ G_AIRTIME_NOT_…  ┆                 ┆                 ┆                ┆                 ┆                 ┆                 ┆                 │
+└──────────────────┴─────────────────┴─────────────────┴────────────────┴─────────────────┴─────────────────┴─────────────────┴─────────────────┘
 ============================================================
 
 
@@ -129,7 +130,7 @@ shape: (7, 8)
        Details: Expected: 'north west', Got: 'skipped - system'
   [ score: 1.00 ] Question Consistency
   [ score: 0.00 ] Response Appropriateness
-       Reason: The score is 0.00 because the output failed to specify a province, which was the main requirement of the input question. Instead, it provided irrelevant details about living on a farm and a directional location without addressing the core query.
+       Reason: The score is 0.00 because the output failed to specify a province, which was the main requirement of the input question. Instead, it provided irrelevant details about living on a farm and a directional location, neither of which addressed the question directly.
 
 --- Turn: onboarding_user_123_250616-0635 (onboarding) | ID: area_type ---
   Initial Intent: [✅] PASSED
@@ -198,26 +199,27 @@ REPORTING_AIRTIME_NOT_RECEIVED       1.00      1.00      1.00         1
 
 --- Confusion Matrix ---
 shape: (7, 8)
-┌───────────────────────┬──────────────────────┬──────────────────────┬────────────────┬─────────────────┬──────────────────┬──────────────────────┬──────────────────────┐
-│ Actual                ┆ Pred: ASKING_TO_DELE ┆ Pred: ASKING_TO_STOP ┆ Pred: CHITCHAT ┆ Pred:           ┆ Pred:            ┆ Pred:                ┆ Pred: REPORTING_AIRT │
-│ ---                   ┆ TE_DATA              ┆ _MESSAGES            ┆ ---            ┆ HEALTH_QUESTION ┆ JOURNEY_RESPONSE ┆ QUESTION_ABOUT_STUDY ┆ IME_NOT_RE…          │
-│ str                   ┆ ---                  ┆ ---                  ┆ i64            ┆ ---             ┆ ---              ┆ ---                  ┆ ---                  │
-│                       ┆ i64                  ┆ i64                  ┆                ┆ i64             ┆ i64              ┆ i64                  ┆ i64                  │
-╞═══════════════════════╪══════════════════════╪══════════════════════╪════════════════╪═════════════════╪══════════════════╪══════════════════════╪══════════════════════╡
-│ Actual:               ┆ 1                    ┆ 0                    ┆ 0              ┆ 0               ┆ 0                ┆ 0                    ┆ 0                    │
-│ ASKING_TO_DELETE_DATA ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
-│ Actual: ASKING_TO_STO ┆ 0                    ┆ 1                    ┆ 0              ┆ 0               ┆ 0                ┆ 0                    ┆ 0                    │
-│ P_MESSAGE…            ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
-│ Actual: CHITCHAT      ┆ 0                    ┆ 0                    ┆ 0              ┆ 0               ┆ 1                ┆ 0                    ┆ 0                    │
-│ Actual:               ┆ 0                    ┆ 0                    ┆ 0              ┆ 2               ┆ 0                ┆ 0                    ┆ 0                    │
-│ HEALTH_QUESTION       ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
-│ Actual:               ┆ 0                    ┆ 0                    ┆ 0              ┆ 0               ┆ 7                ┆ 0                    ┆ 0                    │
-│ JOURNEY_RESPONSE      ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
-│ Actual:               ┆ 0                    ┆ 0                    ┆ 0              ┆ 0               ┆ 1                ┆ 0                    ┆ 0                    │
-│ QUESTION_ABOUT_STUDY  ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
-│ Actual: REPORTING_AIR ┆ 0                    ┆ 0                    ┆ 0              ┆ 0               ┆ 0                ┆ 0                    ┆ 1                    │
-│ TIME_NOT_…            ┆                      ┆                      ┆                ┆                 ┆                  ┆                      ┆                      │
-└───────────────────────┴──────────────────────┴──────────────────────┴────────────────┴─────────────────┴──────────────────┴──────────────────────┴──────────────────────┘
+┌──────────────────┬─────────────────┬─────────────────┬────────────────┬─────────────────┬─────────────────┬─────────────────┬─────────────────┐
+│ Actual           ┆ Pred: ASKING_TO ┆ Pred: ASKING_TO ┆ Pred: CHITCHAT ┆ Pred:           ┆ Pred: JOURNEY_R ┆ Pred: QUESTION_ ┆ Pred: REPORTING │
+│ ---              ┆ _DELETE_DATA    ┆ _STOP_MESSAGES  ┆ ---            ┆ HEALTH_QUESTION ┆ ESPONSE         ┆ ABOUT_STUDY     ┆ _AIRTIME_NOT_RE │
+│ str              ┆ ---             ┆ ---             ┆ i64            ┆ ---             ┆ ---             ┆ ---             ┆ …               │
+│                  ┆ i64             ┆ i64             ┆                ┆ i64             ┆ i64             ┆ i64             ┆ ---             │
+│                  ┆                 ┆                 ┆                ┆                 ┆                 ┆                 ┆ i64             │
+╞══════════════════╪═════════════════╪═════════════════╪════════════════╪═════════════════╪═════════════════╪═════════════════╪═════════════════╡
+│ Actual: ASKING_T ┆ 1               ┆ 0               ┆ 0              ┆ 0               ┆ 0               ┆ 0               ┆ 0               │
+│ O_DELETE_DATA    ┆                 ┆                 ┆                ┆                 ┆                 ┆                 ┆                 │
+│ Actual: ASKING_T ┆ 0               ┆ 1               ┆ 0              ┆ 0               ┆ 0               ┆ 0               ┆ 0               │
+│ O_STOP_MESSAGE…  ┆                 ┆                 ┆                ┆                 ┆                 ┆                 ┆                 │
+│ Actual: CHITCHAT ┆ 0               ┆ 0               ┆ 0              ┆ 0               ┆ 1               ┆ 0               ┆ 0               │
+│ Actual:          ┆ 0               ┆ 0               ┆ 0              ┆ 2               ┆ 0               ┆ 0               ┆ 0               │
+│ HEALTH_QUESTION  ┆                 ┆                 ┆                ┆                 ┆                 ┆                 ┆                 │
+│ Actual:          ┆ 0               ┆ 0               ┆ 0              ┆ 0               ┆ 7               ┆ 0               ┆ 0               │
+│ JOURNEY_RESPONSE ┆                 ┆                 ┆                ┆                 ┆                 ┆                 ┆                 │
+│ Actual: QUESTION ┆ 0               ┆ 0               ┆ 0              ┆ 0               ┆ 1               ┆ 0               ┆ 0               │
+│ _ABOUT_STUDY     ┆                 ┆                 ┆                ┆                 ┆                 ┆                 ┆                 │
+│ Actual: REPORTIN ┆ 0               ┆ 0               ┆ 0              ┆ 0               ┆ 0               ┆ 0               ┆ 1               │
+│ G_AIRTIME_NOT_…  ┆                 ┆                 ┆                ┆                 ┆                 ┆                 ┆                 │
+└──────────────────┴─────────────────┴─────────────────┴────────────────┴─────────────────┴─────────────────┴─────────────────┴─────────────────┘
 ============================================================
 
 

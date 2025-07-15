@@ -16,7 +16,7 @@
       {
         "question_name": "area_type",
         "question_number": null,
-        "llm_utterance": "What kind of area do you live in? For example, city, township, or rural area.",
+        "llm_utterance": "What kind of area do you live in? For example, city, township, town, farm, village, or rural area.",
         "user_utterance": "My baby has a rash, what should I do?",
         "follow_up_utterance": "I live on a farm.",
         "user_response": "Farm or smallholding",
@@ -54,16 +54,6 @@
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       },
       {
-        "question_name": "phone_ownership",
-        "question_number": null,
-        "llm_utterance": "Do you own the phone you're using right now? \ud83d\udcf1",
-        "user_utterance": "ok cool",
-        "follow_up_utterance": "ok cool",
-        "user_response": "Skipped - System",
-        "llm_initial_predicted_intent": "JOURNEY_RESPONSE",
-        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
-      },
-      {
         "question_name": "num_children",
         "question_number": null,
         "llm_utterance": "How many children do you have? Count all your children of any age. \ud83d\udc76\ud83c\udffd",
@@ -71,6 +61,16 @@
         "follow_up_utterance": "I have one little one already.",
         "user_response": "1",
         "llm_initial_predicted_intent": "REPORTING_AIRTIME_NOT_RECEIVED",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      },
+      {
+        "question_name": "phone_ownership",
+        "question_number": null,
+        "llm_utterance": "Do you own the phone you're using right now? \ud83d\udcf1",
+        "user_utterance": "ok cool",
+        "follow_up_utterance": "ok cool",
+        "user_response": "Skipped - System",
+        "llm_initial_predicted_intent": "JOURNEY_RESPONSE",
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       }
     ]
