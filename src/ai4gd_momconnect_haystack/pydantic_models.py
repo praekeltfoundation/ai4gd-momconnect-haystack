@@ -161,6 +161,7 @@ class AssessmentResponse(BaseModel):
     next_question: int
     intent: str | None
     intent_related_response: str | None
+    processed_answer: str | None
 
 
 class AssessmentEndRequest(BaseModel):
