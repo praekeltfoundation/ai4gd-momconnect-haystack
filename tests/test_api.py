@@ -1,7 +1,7 @@
 import os
-import pytest
 from unittest import mock
 
+import pytest
 from fastapi.testclient import TestClient
 from haystack.dataclasses import ChatMessage
 from sentry_sdk import get_client as get_sentry_client
@@ -13,7 +13,6 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentResult,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import AssessmentEndMessagingHistory
-
 
 SERVICE_PERSONA_TEXT = "Test Persona"
 
@@ -98,6 +97,7 @@ async def test_onboarding_chitchat():
             "user_context": {},
             "intent": "CHITCHAT",
             "intent_related_response": "User is chitchatting",
+            "results_to_save": [],
         }
 
         get_or_create_chat_history.assert_awaited_once_with(
@@ -161,6 +161,7 @@ async def test_onboarding_first_question():
             "user_context": {},
             "intent": "JOURNEY_RESPONSE",
             "intent_related_response": "",
+            "results_to_save": [],
         }
 
         # Assert that history creation was attempted
@@ -236,6 +237,7 @@ async def test_onboarding():
             "user_context": {"area_type": "City"},
             "intent": "JOURNEY_RESPONSE",
             "intent_related_response": "",
+            "results_to_save": ["area_type"],
         }
 
         get_or_create_chat_history.assert_awaited_once_with(

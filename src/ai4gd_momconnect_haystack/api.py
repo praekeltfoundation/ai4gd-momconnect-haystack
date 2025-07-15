@@ -126,6 +126,8 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         user_id=user_id, history_type=HistoryType.onboarding
     )
 
+    previous_context = request.user_context.copy()
+
     if user_input:
         last_question = chat_history[-1].text if chat_history else ""
         chat_history.append(ChatMessage.from_user(text=user_input))
@@ -158,11 +160,15 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         history_type=HistoryType.onboarding,
     )
 
+    # Identify what changed in user_context
+    diff_keys = [k for k in user_context if user_context[k] != previous_context.get(k)]
+
     return OnboardingResponse(
         question=question_text,
         user_context=user_context,
         intent=intent,
         intent_related_response=intent_related_response,
+        results_to_save=diff_keys,
     )
 
 

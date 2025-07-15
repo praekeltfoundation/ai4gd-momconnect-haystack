@@ -26,6 +26,19 @@ The following environment variables control the application configuration:
 
 `SENTRY_DSN` - (optional) if supplied, then we configure to send any errors to the provided DSN
 
+## Database Migrations
+We use [alembic](https://alembic.sqlalchemy.org/en/latest/) to manage DB schema changes.
+
+Database migrations need to be generated after making any changes to the sqlalchemy models.
+
+Migrations are run during the apps startup but can also be manually applied.
+
+To generate:
+`uv run alembic revision --autogenerate -m "<description of schema changes>"`
+
+To apply manually:
+`uv run alembic upgrade head`
+
 ## API
 
 ### Documentation
