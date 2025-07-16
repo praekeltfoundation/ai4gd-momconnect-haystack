@@ -311,27 +311,86 @@ JSON Response:
     """
 
 INTENT_DETECTION_PROMPT = """
-You are an AI assitant performing intent classification of user responses in a maternal health chatbot.
+You are an expert at classifying user messages within a structured survey conversation. Your task is to analyze the user's response in the context of the last question they were asked and determine their true intent.
+
+First, think step-by-step in a `<reasoning>` block. Analyze if the user is directly answering the question, asking their own question, raising a new concern, or just making a conversational comment.
+
+Second, based on your reasoning, provide the final classification in a `<json>` block.
+
+Here are the possible intents:
+- 'JOURNEY_RESPONSE': The user is directly attempting to answer the question asked.
+- 'QUESTION_ABOUT_STUDY': The user is asking a question about the survey process, why a question is being asked, or who is asking it.
+- 'HEALTH_QUESTION': The user is ignoring the survey question and asking a new, unsolicited question about their health or their baby's health.
+- 'CHITCHAT': The user provides a low-information, conversational filler response that does not answer the question (e.g., "ok", "thanks", "hello").
+- 'ASKING_TO_STOP_MESSAGES': The user explicitly asks to stop receiving messages.
+- 'ASKING_TO_DELETE_DATA': The user explicitly asks to have their data deleted.
+- 'REPORTING_AIRTIME_NOT_RECEIVED': The user is reporting they have not received their airtime incentive.
+
+---
+**Example 1: User asks about the process**
+Last question that was sent to the user: "How confident are you in discussing your maternal health concerns with your healthcare provider?"
+User's response: "how long will this take"
+
+<reasoning>
+The user was asked about their confidence level. Their response, "how long will this take", does not address confidence. It is a meta-question about the duration of the survey itself. This perfectly matches the QUESTION_ABOUT_STUDY intent.
+</reasoning>
+<json>
+{
+    "intent": "QUESTION_ABOUT_STUDY"
+}
+</json>
+
+---
+**Example 2: User gives a simple conversational reply**
+Last question that was sent to the user: "Do you own the phone you're using right now? 📱"
+User's response: "ok cool"
+
+<reasoning>
+The user was asked a "Yes/No" question. Their response, "ok cool," is a conversational acknowledgment but is not an answer. It contains no information related to phone ownership. This is simple chitchat. Therefore, the intent is CHITCHAT.
+</reasoning>
+<json>
+{
+    "intent": "CHITCHAT"
+}
+</json>
+
+---
+**Example 3: User asks an unrelated health question**
+Last question that was sent to the user: "Have you taken your iron supplements today?"
+User's response: "my baby has a bad rash, what can I do?"
+
+<reasoning>
+The user was asked about iron supplements. Their response completely ignores this and asks a new, specific question about a health concern ("a bad rash"). This is a clear example of a HEALTH_QUESTION intent.
+</reasoning>
+<json>
+{
+    "intent": "HEALTH_QUESTION"
+}
+</json>
+
+---
+**Example 4: User gives a direct answer**
+Last question that was sent to the user: "What's your highest level of education? 📚"
+User's response: "I only finished Grade 9 at school."
+
+<reasoning>
+The user was asked about their education. Their response directly answers the question by stating the grade they finished. This is a direct response to the survey question. Therefore, the intent is JOURNEY_RESPONSE.
+</reasoning>
+<json>
+{
+    "intent": "JOURNEY_RESPONSE"
+}
+</json>
+---
+
+**New Task:**
 
 Last question that was sent to the user:
 "{{ last_question }}"
 
 User's response:
 "{{ user_response }}"
-
-Please classify the user's response, in light of the last question sent to the user, into one of these intents:
-- 'JOURNEY_RESPONSE': The user is directly answering, attempting to answer, or skipping the question asked.
-- 'QUESTION_ABOUT_STUDY': The user is asking a question about the research study itself (e.g., "who are you?", "why are you asking this?").
-- 'HEALTH_QUESTION': The user is asking a new question related to health, pregnancy, or their wellbeing, instead of answering the question.
-- 'ASKING_TO_STOP_MESSAGES': The user explicitly expresses a desire to stop receiving messages.
-- 'ASKING_TO_DELETE_DATA': The user explicitly expresses a desire to leave the study and have their data deleted.
-- 'REPORTING_AIRTIME_NOT_RECEIVED': The user is reporting that they have not received their airtime incentive.
-- 'CHITCHAT': The user is making a conversational comment that is not an answer, question or request.
-
-You MUST respond with a valid JSON object containing exactly one key: "intent".
-
-JSON Response:
-    """
+"""
 
 FAQ_PROMPT = """
 You are a helpful assistant for a maternal health chatbot. Answer the user's question based ONLY on the provided context information.

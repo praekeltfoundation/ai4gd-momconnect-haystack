@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from functools import cache
 from typing import Any
 
@@ -585,14 +586,10 @@ def create_intent_detection_pipeline() -> Pipeline | None:
         return None
     pipeline = Pipeline()
 
-    json_validator = JsonSchemaValidator(json_schema=INTENT_DETECTION_SCHEMA)
-
     pipeline.add_component("prompt_builder", ChatPromptBuilder())
     pipeline.add_component("llm", llm_generator)
-    pipeline.add_component("json_validator", json_validator)
 
     pipeline.connect("prompt_builder.prompt", "llm.messages")
-    pipeline.connect("llm.replies", "json_validator.messages")
 
     logger.info("Created Intent Detection Pipeline with JSON Schema validation.")
     return pipeline
@@ -1157,7 +1154,7 @@ def run_intent_detection_pipeline(
     last_question: str, user_response: str
 ) -> dict[str, Any] | None:
     """
-    Runs the intent detection pipeline.
+    Runs the intent detection pipeline and safely parses the JSON from the LLM response.
 
     Args:
         last_question: Previous message sent to the user, to which they are responding.
@@ -1183,10 +1180,19 @@ def run_intent_detection_pipeline(
                 },
             }
         )
-        validated_message = result["json_validator"]["validated"][0]
-        intent_data = json.loads(validated_message.text)
-        logger.info(f"LLM classified intent as: {intent_data}")
-        return intent_data
+        llm_reply = result["llm"]["replies"][0].text
+
+        # Use regex to find the content between <json> and </json> tags
+        match = re.search(r"<json>(.*?)</json>", llm_reply, re.DOTALL | re.IGNORECASE)
+
+        if match:
+            # .group(1) captures the content *inside* the tags
+            json_string = match.group(1).strip()
+            intent_data = json.loads(json_string)
+            logger.info(f"LLM classified intent as: {intent_data}")
+            return intent_data
+        else:
+            logger.warning("Could not find <json> tags in the LLM's reply.")
 
     except (KeyError, IndexError):
         logger.warning(
