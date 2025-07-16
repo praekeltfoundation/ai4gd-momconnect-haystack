@@ -133,6 +133,31 @@ ASSESSMENT_RESPONSE_VALIDATOR_PROMPT = """
 You are an AI assistant validating a user's response to an assessment question in a chatbot for new mothers in South Africa.
 Your task is to analyze the user's response and determine if it maps to one of the allowed responses provided below.
 
+You must follow these mapping rules:
+
+1.  **Map by Index:** If the user responds with a letter (e.g., "a", "B", "c."), map it to the corresponding option in the list. "a" is the first option, "b" is the second, "c" is the third, and so on.
+
+2.  **Map by Meaning:** If the user's response contains text that clearly and unambiguously matches the meaning of one of the allowed responses (e.g., "strongly agree", "not sure"), map it to that response. This should be case-insensitive.
+
+3.  **Handle Nonsense:** If the user's response is ambiguous, doesn't match any option, or is conversational filler (e.g., "maybe", "ok thanks"), you MUST classify it as "nonsense".
+
+--- EXAMPLES OF YOUR LOGIC ---
+
+# Example 1: Mapping by Index
+- If the Allowed Responses are `["Yes", "No", "Not Applicable"]`
+- And the User Response is `"b"`
+- Your JSON Response must be: `{"validated_response": "No"}`
+
+# Example 2: Mapping by Meaning
+- If the Allowed Responses are `["I strongly disagree", "I disagree", "I'm not sure"]`
+- And the User Response is `"not sure"`
+- Your JSON Response must be: `{"validated_response": "I'm not sure"}`
+
+# Example 3: Handling Nonsense
+- If the Allowed Responses are `["I strongly disagree", "I disagree", "I'm not sure"]`
+- And the User Response is `"I guess not"`
+- Your JSON Response must be: `{"validated_response": "nonsense"}`
+
 Allowed Responses:
 {{ valid_responses_for_prompt }}
 
@@ -143,6 +168,77 @@ You MUST respond with a valid JSON object. The JSON should contain a single key,
 
 - If the user's response clearly and unambiguously corresponds to one of the "Allowed Responses" (or a numerical/alphabetical index of an "Allowed Response", if there are indices present in the list above), the value of "validated_response" should be the exact text of that corresponding allowed response.
 - If the user's response is ambiguous, does not map to any of the allowed responses, or is nonsense/gibberish, you MUST set the value of "validated_response" to "nonsense".
+
+JSON Response:
+    """
+
+ASSESSMENT_DATA_EXTRACTION_PROMPT = """
+You are an AI assistant helping to extract a user's answer from their response to an assessment question into a structured format.
+
+Your task is to analyze the user's response in light of the previous survey question/message and its expected responses. You must determine which of the expected responses the user's response maps to in meaning and intent.
+
+Follow these rules:
+1.  Map responses based on meaning and intent, not just exact string matching.
+2.  The value for "validated_response" MUST be the exact text of the matched expected response.
+3.  The validated_response MUST NOT include the letter or number prefix (e.g., 'a. ', 'b. '). It must contain ONLY the text of the option itself.
+4.  You MUST respond with a valid JSON object with a single key, "validated_response".
+
+Here are some examples of how to perform this task:
+---
+**Example 1 (Handling Lettered Lists):**
+
+Previous survey question/message:
+"How confident are you in making health decisions?
+a. Very confident
+b. Somewhat confident
+c. Not confident"
+
+User's latest response:
+- "a"
+JSON Response:
+{
+ "validated_response": "Very confident"
+}
+---
+**Example 2 (Handling Full Text Response):**
+
+Previous survey question/message:
+"How confident are you in making health decisions?
+a. Very confident
+b. Somewhat confident
+c. Not confident"
+
+User's latest response:
+- "Very confident"
+
+JSON Response:
+{
+ "validated_response": "Very confident"
+}
+---
+**Example 3 (Handling Partial Text):**
+
+Previous survey question/message:
+"Overall, how was your experience? Please choose one:
+- Excellent
+- Good
+- Poor"
+
+User's latest response:
+- "it was excellent"
+JSON Response:
+{
+ "validated_response": "Excellent"
+}
+---
+
+**Now, perform the same task for the following new input:**
+
+Previous survey question/message:
+"{{ previous_service_message }}"
+
+User's latest response:
+- "{{ user_response }}"
 
 JSON Response:
     """
@@ -325,6 +421,7 @@ Here are the possible intents:
 - 'ASKING_TO_STOP_MESSAGES': The user explicitly asks to stop receiving messages.
 - 'ASKING_TO_DELETE_DATA': The user explicitly asks to have their data deleted.
 - 'REPORTING_AIRTIME_NOT_RECEIVED': The user is reporting they have not received their airtime incentive.
+- 'SKIP_QUESTION': The user indicates they do not want to answer by using words like 'skip', 'pass', 'next', or saying they don't want to answer. This includes common misspellings.
 
 ---
 **Example 1: User asks about the process**
@@ -382,7 +479,19 @@ The user was asked about their education. Their response directly answers the qu
 }
 </json>
 ---
+**Example 5: User makes a typo when skipping**
+Last question that was sent to the user: "Almost done! Do you feel that you can do things to improve your health?"
+User's response: "skipp"
 
+<reasoning>
+The user's response "skipp" is a clear misspelling of "skip". This indicates a desire to skip the question. Therefore, the intent is SKIP_QUESTION.
+</reasoning>
+<json>
+{
+    "intent": "SKIP_QUESTION"
+}
+</json>
+---
 **New Task:**
 
 Last question that was sent to the user:

@@ -37,6 +37,7 @@ from ai4gd_momconnect_haystack.tasks import (
     update_context_from_onboarding_response,
     get_anc_survey_question,
     get_assessment_question,
+    extract_assessment_data_from_response,
     get_next_onboarding_question,
     handle_user_message,
 )
@@ -517,6 +518,11 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     if not has_deflected:
                         final_predicted_intent = initial_predicted_intent
                     break
+                elif intent == "SKIP_QUESTION":
+                    logger.info(f"User skipped question {question_number}.")
+                    final_user_response = "Skip"
+                    final_predicted_intent = initial_predicted_intent
+                    break
                 else:
                     # If a question about the study or about health was asked, print the
                     # response that would be sent to users
@@ -545,9 +551,18 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             if final_user_response is None:
                 continue
 
-            result = validate_assessment_answer(
-                final_user_response, question_number, flow_id.value
-            )
+            if final_predicted_intent != "SKIP_QUESTION":  
+                result = extract_assessment_data_from_response(
+                    user_response=final_user_response,
+                    flow_id=flow_id.value,
+                    question_number=question_number,
+                )
+            else:
+                processed_user_response = "Skip"
+                result = {
+                    "processed_user_response": processed_user_response,
+                    "next_question_number": question_number + 1,
+                }
             if not result:
                 logger.warning(
                     f"Response validation failed for question {question_number}."
@@ -983,8 +998,10 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 if final_user_response is None:
                     continue
 
-                result = validate_assessment_answer(
-                    final_user_response, question_number, flow_id.value
+                result = extract_assessment_data_from_response(
+                    user_response=final_user_response,
+                    flow_id=flow_id.value,
+                    question_number=question_number,
                 )
                 if not result:
                     logger.warning(

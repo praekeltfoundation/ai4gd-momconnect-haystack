@@ -337,8 +337,16 @@ def prepare_valid_responses_to_display_to_assessment_user(
     flow_id: str, question_number: int, question: str, question_data: AssessmentQuestion
 ) -> str:
     if question_data.valid_responses_and_scores:
-        if flow_id in ["dma-assessment", "attitude-assessment"]:
-            options = "\n\n" + "\n".join(get_likert_scale_with_numeric_index())
+        if "dma" in flow_id or "attitude" in flow_id:
+            options = "\n\n" + "\n".join(
+                prepend_valid_responses_with_alphabetical_index(
+                    [
+                        item.response
+                        for item in question_data.valid_responses_and_scores
+                        if item.response != "Skip"
+                    ]
+                )
+            )
             question = f"{question}{options}"
         elif flow_id == "behaviour-pre-assessment":
             if question_number == 3:

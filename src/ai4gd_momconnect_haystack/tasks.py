@@ -265,6 +265,53 @@ async def get_assessment_question(
     }
 
 
+def extract_assessment_data_from_response(
+    user_response: str,
+    flow_id: str,
+    question_number: int,
+) -> dict: # Changed return type
+    """
+    Extracts data from a user's response to an assessment question and
+    returns a dictionary with the processed response and next question number.
+    """
+    logger.info("Running assessment data extraction pipeline...")
+
+    # 1. Get the question data for the current step
+    question_list = assessment_flow_map.get(flow_id)
+    if not question_list:
+        logger.error(f"Invalid flow_id: '{flow_id}'. No questions found.")
+        return {"processed_user_response": None, "next_question_number": question_number}
+
+    try:
+        question_data = [q for q in question_list if q.question_number == question_number][-1]
+    except IndexError:
+        logger.error(f"Could not find question data for question_number {question_number} in flow {flow_id}.")
+        return {"processed_user_response": None, "next_question_number": question_number}
+
+    # 2. Re-create the full message that was sent to the user
+    previous_message = prepare_valid_responses_to_display_to_assessment_user(
+        flow_id, question_number, question_data.content, question_data
+    )
+    
+    # 3. Get the clean list of valid responses for the final schema check
+    valid_responses = [item.response for item in question_data.valid_responses_and_scores if item.response != "Skip"]
+
+    # 4. Call the new, reliable extraction pipeline
+    extracted_data = pipelines.run_assessment_data_extraction_pipeline(
+        user_response=user_response,
+        previous_message=previous_message,
+        valid_responses=valid_responses,
+    )
+
+    # 5. Return a dictionary that matches the old function's structure
+    if extracted_data:
+        print(f"[Extracted Assessment Data]:\n{json.dumps(extracted_data, indent=2)}\n")
+        return {"processed_user_response": extracted_data, "next_question_number": question_number + 1}
+    else:
+        logger.warning("Assessment data extraction pipeline did not produce a result.")
+        return {"processed_user_response": None, "next_question_number": question_number}
+
+
 async def get_anc_survey_question(user_id: str, user_context: dict) -> dict | None:
     """
     Gets the next contextualized ANC survey question by first determining the

@@ -18,6 +18,7 @@ from .pipeline_prompts import (
     ANC_SURVEY_CONTEXTUALIZATION_PROMPT,
     ASSESSMENT_CONTEXTUALIZATION_PROMPT,
     ASSESSMENT_END_RESPONSE_VALIDATOR_PROMPT,
+    ASSESSMENT_DATA_EXTRACTION_PROMPT,
     ASSESSMENT_RESPONSE_VALIDATOR_PROMPT,
     CLINIC_VISIT_DATA_EXTRACTION_PROMPT,
     FAQ_PROMPT,
@@ -487,6 +488,36 @@ def create_assessment_response_validator_pipeline() -> Pipeline | None:
     return pipeline
 
 
+def create_assessment_data_extraction_pipeline() -> Pipeline | None:
+    """
+
+    Creates a pipeline to extract structured data for an assessment.
+    NOTE: This is a copy of create_clinic_visit_data_extraction_pipeline.
+    """
+    llm_generator = get_llm_generator()
+    if not llm_generator:
+        logger.error(
+            "LLM Generator is not available. Cannot create Assessment Data Extraction Pipeline."
+        )
+        return None
+
+    pipeline = Pipeline()
+
+    json_validator = JsonSchemaValidator()
+
+    pipeline.add_component("prompt_builder", ChatPromptBuilder())
+    pipeline.add_component("llm", llm_generator)
+    pipeline.add_component("json_validator", json_validator)
+
+    pipeline.connect("prompt_builder.prompt", "llm.messages")
+    pipeline.connect("llm.replies", "json_validator.messages")
+
+    logger.info(
+        "Created Assessment Data Extraction Pipeline with JSON Schema validation."
+    )
+    return pipeline
+
+
 @cache
 def create_assessment_end_response_validator_pipeline() -> Pipeline | None:
     """
@@ -845,6 +876,72 @@ def run_assessment_contextualization_pipeline(
         logger.error(
             "Unexpected error in assessment_contextualization_pipeline execution: %s", e
         )
+
+    return None
+
+
+def run_assessment_data_extraction_pipeline(
+    user_response: str,
+    previous_message: str,
+    valid_responses: list[str],
+) -> str | None:
+    """
+    Run the assessment data extraction pipeline.
+    """
+    pipeline = create_assessment_data_extraction_pipeline()
+    if not pipeline:
+        logger.warning("Failed to create Assessment Data Extraction pipeline.")
+        return None
+
+    chat_template = [ChatMessage.from_system(ASSESSMENT_DATA_EXTRACTION_PROMPT)]
+    valid_responses_schema = {
+        "type": "object",
+        "properties": {
+            "validated_response": {
+                "type": "string",
+                "enum": valid_responses + ["nonsense"],
+            }
+        },
+        "required": ["validated_response"],
+    }
+
+    result = {} # Initialize result to an empty dict
+    try:
+        result = pipeline.run(
+            {
+                "prompt_builder": {
+                    "template": chat_template,
+                    "template_variables": {
+                        "user_response": user_response,
+                        "previous_service_message": previous_message,
+                    },
+                },
+                "json_validator": {"json_schema": valid_responses_schema},
+            }
+        )
+
+        validated_message = result["json_validator"]["validated"][0]
+        validated_json = json.loads(validated_message.text)
+        validated_response = validated_json["validated_response"]
+
+        if validated_response != "nonsense":
+            return validated_response
+        else:
+            logger.warning(
+                "User response '%s' was validated as 'nonsense'.", user_response
+            )
+            return None
+    except (KeyError, IndexError) as e:
+        logger.warning(
+            f"Validation failed due to missing key: {e}. The raw pipeline result was: {result}"
+        )
+    except json.JSONDecodeError as e:
+        llm_reply = result.get("llm", {}).get("replies", [None])[0]
+        logger.warning(
+            f"Validation failed due to invalid JSON: {e}. The raw LLM reply was: {llm_reply}"
+        )
+    except Exception as e:
+        logger.warning(f"An unexpected error occurred in the pipeline: {e}. The raw pipeline result was: {result}")
 
     return None
 

@@ -16,7 +16,6 @@ from ai4gd_momconnect_haystack.assessment_logic import (
     get_content_from_message_data,
     response_is_required_for,
     score_assessment_question,
-    validate_assessment_answer,
     validate_assessment_end_response,
 )
 from ai4gd_momconnect_haystack.crud import (
@@ -47,6 +46,7 @@ from ai4gd_momconnect_haystack.tasks import (
     process_onboarding_step,
     get_anc_survey_question,
     get_assessment_question,
+    extract_assessment_data_from_response,
     get_next_onboarding_question,
     handle_user_message,
 )
@@ -183,34 +183,39 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
 
     processed_answer = None
+    # Default to repeating the current question if something goes wrong
+    next_question_number = request.question_number
 
     if intent == "JOURNEY_RESPONSE" and request.user_input:
-        answer = validate_assessment_answer(
+        answer = await extract_assessment_data_from_response(
             user_response=request.user_input,
+            flow_id=request.flow_id.value,
             question_number=request.question_number,
-            current_flow_id=request.flow_id.value,
         )
-        if answer["processed_user_response"]:
-            processed_answer = answer["processed_user_response"]
-            score = score_assessment_question(
-                answer["processed_user_response"],
-                request.question_number,
-                request.flow_id,
-            )
-            await save_assessment_question(
-                user_id=request.user_id,
-                assessment_type=request.flow_id,
-                question_number=request.question_number,
-                question=None,
-                user_response=answer["processed_user_response"],
-                score=score,
-            )
-            await calculate_and_store_assessment_result(
-                request.user_id, request.flow_id
-            )
+        processed_answer = answer["processed_user_response"]
         next_question_number = answer["next_question_number"]
-    else:
-        next_question_number = request.question_number
+    elif intent == "SKIP_QUESTION":
+        logger.info(f"User skipped question {request.question_number}. Advancing.")
+        processed_answer = "Skip"
+        next_question_number = request.question_number + 1
+        
+    if processed_answer:
+        score = score_assessment_question(
+            answer["processed_user_response"],
+            request.question_number,
+            request.flow_id,
+        )
+        await save_assessment_question(
+            user_id=request.user_id,
+            assessment_type=request.flow_id,
+            question_number=request.question_number,
+            question=None,
+            user_response=processed_answer,
+            score=score,
+        )
+        await calculate_and_store_assessment_result(
+            request.user_id, request.flow_id
+        )
 
     question = await get_assessment_question(
         user_id=request.user_id,
