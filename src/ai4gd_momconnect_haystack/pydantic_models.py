@@ -190,3 +190,4 @@ class SurveyResponse(BaseModel):
     survey_complete: bool
     intent: str | None
     intent_related_response: str | None
+    results_to_save: list[str]

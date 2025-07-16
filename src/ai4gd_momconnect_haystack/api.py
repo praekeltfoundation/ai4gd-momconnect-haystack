@@ -387,6 +387,8 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
         user_id=user_id, history_type=request.survey_id
     )
 
+    previous_context = request.user_context.copy()
+
     last_question = ""
     last_step_title = ""
     if chat_history:
@@ -447,10 +449,15 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
     await save_chat_history(
         user_id=request.user_id, messages=chat_history, history_type=request.survey_id
     )
+
+    # Identify what changed in user_context
+    diff_keys = [k for k in user_context if user_context[k] != previous_context.get(k)]
+
     return SurveyResponse(
         question=question,
         user_context=user_context,
         survey_complete=survey_complete,
         intent=intent,
         intent_related_response=intent_related_response,
+        results_to_save=diff_keys,
     )
