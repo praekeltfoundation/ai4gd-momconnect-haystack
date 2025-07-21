@@ -421,6 +421,11 @@ def setup_document_store(startup: bool = False) -> WeaviateDocumentStore:
     # If the document store is empty, ingest the content
     if startup or initial_doc_count == 0:
         logger.info("Document store is empty. Proceeding with ingestion.")
+        #if initial_doc_count > 0:
+        #    all_docs = document_store.filter_documents()
+        #    doc_ids = [doc.id for doc in all_docs]
+        #    document_store.delete_documents(doc_ids)
+        #    logger.info(f"Deleted {len(doc_ids)} old documents.")
         indexing_pipe = create_embedding_pipeline(document_store)
         logger.info("--- Ingesting Onboarding Content ---")
         ingest_onboarding_content(indexing_pipe, ONBOARDING_FLOW, "onboarding")

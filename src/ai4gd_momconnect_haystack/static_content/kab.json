@@ -32,11 +32,11 @@
         {
             "question_number": 3,
             "question_name": "tetanus_vaccine_doses_received",
-            "content": "*So far in this pregnancy, how many doses of the tetanus vaccine (Tdap) have you received?* 🫃🏽",
+            "content": "*Did you know that you should get a tetanus vaccine during your pregnancy?* 💜",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
-                { "response": "0", "score": 0 },
-                { "response": "1", "score": 1 },
+                { "response": "no", "score": 0 },
+                { "response": "yes", "score": 1 },
                 { "response": "Skip", "score": 0 }
             ]
         },

@@ -256,9 +256,13 @@ async def get_assessment_question(
     question_data = [q for q in question_list if q.question_number == question_number][
         -1
     ]
-    contextualized_question = prepare_valid_responses_to_display_to_assessment_user(
-        flow_id_to_use, question_number, contextualized_question, question_data
-    )
+
+    # For KAB Behaviour assessments, the user provides free-text input without seeing options.
+    # For DMA, KAB Knowledge, and KAB Attitude, we display the options.
+    if "behaviour" not in flow_id.value:
+        contextualized_question = prepare_valid_responses_to_display_to_assessment_user(
+            flow_id_to_use, question_number, contextualized_question, question_data
+        )
 
     return {
         "contextualized_question": contextualized_question,
@@ -288,20 +292,36 @@ def extract_assessment_data_from_response(
         logger.error(f"Could not find question data for question_number {question_number} in flow {flow_id}.")
         return {"processed_user_response": None, "next_question_number": question_number}
 
-    # 2. Re-create the full message that was sent to the user
-    previous_message = prepare_valid_responses_to_display_to_assessment_user(
-        flow_id, question_number, question_data.content, question_data
-    )
-    
-    # 3. Get the clean list of valid responses for the final schema check
-    valid_responses = [item.response for item in question_data.valid_responses_and_scores if item.response != "Skip"]
+    # 2. Get the clean list of valid responses for the final schema check
+    valid_responses = [
+        item.response
+        for item in question_data.valid_responses_and_scores
+        if item.response != "Skip"
+    ]
 
-    # 4. Call the new, reliable extraction pipeline
-    extracted_data = pipelines.run_assessment_data_extraction_pipeline(
-        user_response=user_response,
-        previous_message=previous_message,
-        valid_responses=valid_responses,
-    )
+    # 3. Re-create the full message that was sent to the user
+    extracted_data = None
+    if "behaviour" in flow_id:
+        # For KAB-B, use a pipeline that maps free text to unseen valid responses,
+        # similar to the ANC survey. The user only sees the question content.
+        # We reuse the clinic visit extraction pipeline as it's designed for this.
+        extracted_data = pipelines.run_behaviour_data_extraction_pipeline(
+            user_response=user_response,
+            previous_service_message=question_data.content,
+            valid_responses=valid_responses,
+        )
+    else:
+        # For DMA, KAB-K, KAB-A, the user sees the options.
+        # Re-create the full message sent to the user (question + options)
+        previous_message = prepare_valid_responses_to_display_to_assessment_user(
+            flow_id, question_number, question_data.content, question_data
+        )
+        # 4. Call the new, reliable extraction pipeline
+        extracted_data = pipelines.run_assessment_data_extraction_pipeline(
+            user_response=user_response,
+            previous_message=previous_message,
+            valid_responses=valid_responses,
+        )
 
     # 5. Return a dictionary that matches the old function's structure
     if extracted_data:

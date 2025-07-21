@@ -17,6 +17,7 @@ from ai4gd_momconnect_haystack.assessment_logic import (
     response_is_required_for,
     score_assessment_question,
     validate_assessment_end_response,
+    validate_assessment_answer,
 )
 from ai4gd_momconnect_haystack.crud import (
     calculate_and_store_assessment_result,

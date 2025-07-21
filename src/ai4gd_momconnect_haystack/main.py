@@ -18,6 +18,7 @@ from ai4gd_momconnect_haystack.assessment_logic import (
     validate_assessment_answer,
     validate_assessment_end_response,
 )
+from ai4gd_momconnect_haystack.doc_store import setup_document_store
 from ai4gd_momconnect_haystack.crud import (
     calculate_and_store_assessment_result,
     get_assessment_end_messaging_history,
@@ -552,10 +553,10 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 continue
 
             if final_predicted_intent != "SKIP_QUESTION":  
-                result = extract_assessment_data_from_response(
+                result = validate_assessment_answer(
                     user_response=final_user_response,
-                    flow_id=flow_id.value,
                     question_number=question_number,
+                    current_flow_id=flow_id.value,
                 )
             else:
                 processed_user_response = "Skip"
@@ -997,12 +998,28 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
                 if final_user_response is None:
                     continue
-
-                result = extract_assessment_data_from_response(
-                    user_response=final_user_response,
-                    flow_id=flow_id.value,
-                    question_number=question_number,
-                )
+                
+                if final_predicted_intent != "SKIP_QUESTION":  
+                    if "behaviour" in flow_id.value:
+                        # Use the new method for Behaviour assessments
+                        result = extract_assessment_data_from_response(
+                            user_response=final_user_response,
+                            flow_id=flow_id.value,
+                            question_number=question_number,
+                        )
+                    else:
+                        print("Using: validate_assessment_answer instead of extract_assessment_data_from_response")
+                        result = validate_assessment_answer(
+                            user_response=final_user_response,
+                            question_number=question_number,
+                            current_flow_id=flow_id.value,
+                        )
+                else:
+                    processed_user_response = "Skip"
+                    result = {
+                        "processed_user_response": processed_user_response,
+                        "next_question_number": question_number + 1,
+                    }
                 if not result:
                     logger.warning(
                         f"Response validation failed for question {question_number}."
@@ -1545,6 +1562,11 @@ async def async_main(
     await init_db()
     logging.info("Database initialized.")
     logging.info("Starting interactive simulation...")
+
+    # # Call the setup function here
+    # logging.info("Setting up document store...")
+    # setup_document_store(startup=True)
+    # logging.info("Document store setup complete.")
 
     # 1. Run the simulation to get the raw output directly in memory.
     if is_automated:
