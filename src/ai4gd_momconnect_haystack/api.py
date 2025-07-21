@@ -188,11 +188,18 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
     next_question_number = request.question_number
 
     if intent == "JOURNEY_RESPONSE" and request.user_input:
-        answer = await extract_assessment_data_from_response(
-            user_response=request.user_input,
-            flow_id=request.flow_id.value,
-            question_number=request.question_number,
-        )
+        if "behaviour" in request.flow_id.value:
+            answer = await extract_assessment_data_from_response(
+                user_response=request.user_input,
+                flow_id=request.flow_id.value,
+                question_number=request.question_number,
+            )
+        else:
+            answer = validate_assessment_answer(
+                user_response=request.user_input,
+                question_number=request.question_number,
+                current_flow_id=request.flow_id.value,
+            )
         processed_answer = answer["processed_user_response"]
         next_question_number = answer["next_question_number"]
     elif intent == "SKIP_QUESTION":
