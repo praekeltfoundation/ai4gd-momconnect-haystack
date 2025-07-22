@@ -104,7 +104,7 @@ def get_next_onboarding_question(
 
 
 def extract_onboarding_data_from_response(
-    user_response: str, user_context: dict
+    user_response: str, user_context: dict, current_question: str,
 ) -> dict:
     """
     Extracts data from a user's response to an onboarding question
@@ -112,7 +112,7 @@ def extract_onboarding_data_from_response(
     """
     logger.info("Running data extraction pipeline...")
     extracted_data = pipelines.run_onboarding_data_extraction_pipeline(
-        user_response, user_context
+        user_response, user_context, current_question,
     )
 
     if extracted_data:
@@ -124,7 +124,7 @@ def extract_onboarding_data_from_response(
 
 
 def update_context_from_onboarding_response(
-    user_input: str, current_context: dict
+    user_input: str, current_context: dict, current_question: str
 ) -> dict:
     """
     Takes user input, extracts data, and returns the fully updated context.
@@ -133,7 +133,7 @@ def update_context_from_onboarding_response(
     updated_context = current_context.copy()
 
     updates = extract_onboarding_data_from_response(
-        user_response=user_input, user_context=current_context
+        user_response=user_input, user_context=current_context, current_question=current_question,
     )
 
     if updates:

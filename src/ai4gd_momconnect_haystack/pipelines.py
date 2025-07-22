@@ -780,6 +780,7 @@ def run_next_onboarding_question_pipeline(
 def run_onboarding_data_extraction_pipeline(
     user_response: str,
     user_context: dict[str, Any],
+    current_question: str,
 ) -> dict[str, Any]:
     """
     Run the onboarding data extraction pipeline and return extracted data.
@@ -805,6 +806,7 @@ def run_onboarding_data_extraction_pipeline(
                     "template_variables": {
                         "user_response": user_response,
                         "user_context": user_context,
+                        "current_question": current_question, 
                     },
                 }
             }

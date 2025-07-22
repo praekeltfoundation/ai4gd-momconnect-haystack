@@ -142,7 +142,7 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
     if intent == "JOURNEY_RESPONSE" and user_input:
         user_context, question = process_onboarding_step(
-            user_input=user_input, current_context=request.user_context
+            user_input=user_input, current_context=request.user_context, current_question=last_question, 
         )
     else:
         # If there is no response to the question, the context stays the same

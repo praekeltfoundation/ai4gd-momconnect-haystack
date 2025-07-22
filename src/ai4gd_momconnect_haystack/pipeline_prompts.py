@@ -68,39 +68,31 @@ JSON Response:
 """
 
 ONBOARDING_DATA_EXTRACTION_PROMPT = """
-You are an AI assistant that extracts structured data from a user's message. You must follow these rules strictly.
+You are an AI assistant that extracts structured data from a user's message.
 
-**CRITICAL RULES: Follow these without exception.**
-1.  Your ONLY task is to extract information **EXCLUSIVELY** from the "User's latest message".
-2.  **DO NOT re-extract data** that is already present in the "User Context".
-3.  **DO NOT invent or hallucinate data.** If the user's message does not contain information for a field (e.g., they say "ok cool" or "how long does this take?"), DO NOT extract anything for that field. If no new data can be extracted, return an empty JSON object: `{}`.
-4.  The `additionalProperties` (or 'other') field is **ONLY for valuable, unsolicited health information** (e.g., "my feet are swollen," "my baby has a rash"). It is **NOT** a place to dump conversational filler like "ok cool" or "thanks".
+The user was just asked the following question:
+"{{ current_question }}"
+
+Your task is to analyze the "User's latest message" below and extract the answer to that question.
+
+**CRITICAL RULES:**
+1.  Focus ONLY on extracting the answer to the "current_question".
+2.  Do not extract information that is already present in the "User Context".
+3.  If the user's message does not answer the question, return an empty JSON object: `{}`.
+4.  Map conversational language (e.g., "KZN", "I'm on my own", "nah") to the correct formal value.
 
 ---
-**User Context (Already Collected Data):**
+**User Context:**
 {% for key, value in user_context.items() %}
 - {{ key }}: {{ value }}
 {% endfor %}
-
 ---
-**User's latest message (Extract from this ONLY):**
+**User's latest message:**
 "{{ user_response }}"
+
 ---
-
-Now, use the 'extract_onboarding_data' tool to extract data from the "User's latest message" by following the critical rules above and the detailed guidelines below:
-
-- The extracted data **MUST** adhere strictly to the corresponding property's enums.
-- Only include a field if you are highly confident that the user's input maps to an allowed 'enum' value.
-- For properties with numeric ranges like 'hunger_days', you MUST map the user's input to the correct enum category. Do not just look for an exact string match. As examples:
-    - If the user says "3", you should extract: {"hunger_days": "3-4 days"}
-    - If the user says "one day", you should extract: {"hunger_days": "1-2 days"}
-    - If the user says "6", you should extract: {"hunger_days": "5-7 days"}
-    - If the user says "I haven't been hungry", you should extract: {"hunger_days": "0 days"}
-- For 'num_children', if the user indicates they have any number of children greater than 3 (e.g. 4, 5, 6...), you MUST extract: {"num_children": "More than 3"}. Otherwise, map to the corresponding number.
-- Regarding the 'education_level', follow the mapping carefully: grades 1-7 correspond to primary school, and grades 8-12 are high school. For example, **"Grade 9" should be mapped to "Some high school"**, not "Finished high school".
-- For the open-ended `additionalProperties`, extract any extra information mentioned that fits the criteria in CRITICAL RULE #4.
+JSON Response:
 """
-
 ASSESSMENT_CONTEXTUALIZATION_PROMPT = """
 You are an assistant helping to personalize assessment questions on a maternal health chatbot service.
 

@@ -313,6 +313,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 user_context = update_context_from_onboarding_response(
                     user_input=final_user_response,
                     current_context=user_context,
+                    current_question=contextualized_question,
                 )
 
             if user_context == previous_context:
