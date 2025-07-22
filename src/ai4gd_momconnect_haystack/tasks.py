@@ -156,13 +156,15 @@ def update_context_from_onboarding_response(
 
 
 def process_onboarding_step(
-    user_input: str, current_context: dict, current_question: str 
+    user_input: str, current_context: dict, current_question: str
 ) -> tuple[dict, dict | None]:
     """
     Processes a single step of the onboarding flow for the API.
     """
     updated_context = update_context_from_onboarding_response(
-        user_input, current_context, current_question,
+        user_input,
+        current_context,
+        current_question,
     )
 
     next_question = get_next_onboarding_question(user_context=updated_context)

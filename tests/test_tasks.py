@@ -208,7 +208,7 @@ async def test_get_assessment_question():
             user_context={},
         )
         assert result == {
-            "contextualized_question": "mock_question\n\n1. I strongly agree\n2. I agree\n3. I'm not sure\n4. I disagree\n5. I strongly disagree",
+            "contextualized_question": "mock_question\n\na. I strongly disagree\nb. I disagree\nc. I'm not sure\nd. I agree\ne. I strongly agree",
         }
 
         mock_run_pipeline.assert_called_once()
@@ -236,7 +236,7 @@ async def test_get_last_assessment_question():
             user_context={},
         )
         assert result == {
-            "contextualized_question": "mock_question\n\n1. I strongly agree\n2. I agree\n3. I'm not sure\n4. I disagree\n5. I strongly disagree",
+            "contextualized_question": "mock_question\n\na. I strongly disagree\nb. I disagree\nc. I'm not sure\nd. I agree\ne. I strongly agree",
         }
 
         # This call should fail before the pipeline is even created or run,
@@ -350,7 +350,9 @@ def test_extract_onboarding_data_from_response_updates_context(
     }
 
     result_context = extract_onboarding_data_from_response(
-        user_response="some response", user_context=user_context
+        user_response="some response",
+        user_context=user_context,
+        current_question="Some question text",
     )
 
     assert result_context == expected_context
