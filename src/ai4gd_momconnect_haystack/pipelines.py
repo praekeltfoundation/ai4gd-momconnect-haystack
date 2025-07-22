@@ -417,6 +417,7 @@ def create_onboarding_data_extraction_pipeline() -> Pipeline | None:
     logger.info("Created Onboarding Data Extraction Pipeline with Tools.")
     return pipeline
 
+
 def create_assessment_contextualization_pipeline() -> Pipeline | None:
     """
     Creates a pipeline to fetch an assessment question based on flow_id and question_number,
@@ -806,7 +807,7 @@ def run_onboarding_data_extraction_pipeline(
                     "template_variables": {
                         "user_response": user_response,
                         "user_context": user_context,
-                        "current_question": current_question, 
+                        "current_question": current_question,
                     },
                 }
             }
@@ -936,7 +937,7 @@ def run_assessment_data_extraction_pipeline(
         "required": ["validated_response"],
     }
 
-    result = {} # Initialize result to an empty dict
+    result = {}  # Initialize result to an empty dict
     try:
         result = pipeline.run(
             {
@@ -972,7 +973,9 @@ def run_assessment_data_extraction_pipeline(
             f"Validation failed due to invalid JSON: {e}. The raw LLM reply was: {llm_reply}"
         )
     except Exception as e:
-        logger.warning(f"An unexpected error occurred in the pipeline: {e}. The raw pipeline result was: {result}")
+        logger.warning(
+            f"An unexpected error occurred in the pipeline: {e}. The raw pipeline result was: {result}"
+        )
 
     return None
 

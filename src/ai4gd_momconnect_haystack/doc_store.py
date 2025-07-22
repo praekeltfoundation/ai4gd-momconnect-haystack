@@ -421,7 +421,7 @@ def setup_document_store(startup: bool = False) -> WeaviateDocumentStore:
     # If the document store is empty, ingest the content
     if startup or initial_doc_count == 0:
         logger.info("Document store is empty. Proceeding with ingestion.")
-        #if initial_doc_count > 0:
+        # if initial_doc_count > 0:
         #    all_docs = document_store.filter_documents()
         #    doc_ids = [doc.id for doc in all_docs]
         #    document_store.delete_documents(doc_ids)

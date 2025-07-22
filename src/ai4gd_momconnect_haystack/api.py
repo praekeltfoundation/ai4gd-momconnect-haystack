@@ -142,7 +142,9 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
     if intent == "JOURNEY_RESPONSE" and user_input:
         user_context, question = process_onboarding_step(
-            user_input=user_input, current_context=request.user_context, current_question=last_question, 
+            user_input=user_input,
+            current_context=request.user_context,
+            current_question=last_question,
         )
     else:
         # If there is no response to the question, the context stays the same
@@ -189,7 +191,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
 
     if intent == "JOURNEY_RESPONSE" and request.user_input:
         if "behaviour" in request.flow_id.value:
-            answer = await extract_assessment_data_from_response(
+            answer = extract_assessment_data_from_response(
                 user_response=request.user_input,
                 flow_id=request.flow_id.value,
                 question_number=request.question_number,
@@ -206,7 +208,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
         logger.info(f"User skipped question {request.question_number}. Advancing.")
         processed_answer = "Skip"
         next_question_number = request.question_number + 1
-        
+
     if processed_answer:
         score = score_assessment_question(
             answer["processed_user_response"],
@@ -221,9 +223,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
             user_response=processed_answer,
             score=score,
         )
-        await calculate_and_store_assessment_result(
-            request.user_id, request.flow_id
-        )
+        await calculate_and_store_assessment_result(request.user_id, request.flow_id)
 
     question = await get_assessment_question(
         user_id=request.user_id,

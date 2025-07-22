@@ -18,7 +18,6 @@ from ai4gd_momconnect_haystack.assessment_logic import (
     validate_assessment_answer,
     validate_assessment_end_response,
 )
-from ai4gd_momconnect_haystack.doc_store import setup_document_store
 from ai4gd_momconnect_haystack.crud import (
     calculate_and_store_assessment_result,
     get_assessment_end_messaging_history,
@@ -553,7 +552,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             if final_user_response is None:
                 continue
 
-            if final_predicted_intent != "SKIP_QUESTION":  
+            if final_predicted_intent != "SKIP_QUESTION":
                 result = validate_assessment_answer(
                     user_response=final_user_response,
                     question_number=question_number,
@@ -999,8 +998,8 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
                 if final_user_response is None:
                     continue
-                
-                if final_predicted_intent != "SKIP_QUESTION":  
+
+                if final_predicted_intent != "SKIP_QUESTION":
                     if "behaviour" in flow_id.value:
                         # Use the new method for Behaviour assessments
                         result = extract_assessment_data_from_response(
@@ -1009,7 +1008,9 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                             question_number=question_number,
                         )
                     else:
-                        print("Using: validate_assessment_answer instead of extract_assessment_data_from_response")
+                        print(
+                            "Using: validate_assessment_answer instead of extract_assessment_data_from_response"
+                        )
                         result = validate_assessment_answer(
                             user_response=final_user_response,
                             question_number=question_number,
