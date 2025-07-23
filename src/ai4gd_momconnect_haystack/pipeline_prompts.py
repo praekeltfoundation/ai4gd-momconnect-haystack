@@ -68,39 +68,31 @@ JSON Response:
 """
 
 ONBOARDING_DATA_EXTRACTION_PROMPT = """
-You are an AI assistant that extracts structured data from a user's message. You must follow these rules strictly.
+You are an AI assistant that extracts structured data from a user's message.
 
-**CRITICAL RULES: Follow these without exception.**
-1.  Your ONLY task is to extract information **EXCLUSIVELY** from the "User's latest message".
-2.  **DO NOT re-extract data** that is already present in the "User Context".
-3.  **DO NOT invent or hallucinate data.** If the user's message does not contain information for a field (e.g., they say "ok cool" or "how long does this take?"), DO NOT extract anything for that field. If no new data can be extracted, return an empty JSON object: `{}`.
-4.  The `additionalProperties` (or 'other') field is **ONLY for valuable, unsolicited health information** (e.g., "my feet are swollen," "my baby has a rash"). It is **NOT** a place to dump conversational filler like "ok cool" or "thanks".
+The user was just asked the following question:
+"{{ current_question }}"
+
+Your task is to analyze the "User's latest message" below and extract the answer to that question.
+
+**CRITICAL RULES:**
+1.  Focus ONLY on extracting the answer to the "current_question".
+2.  Do not extract information that is already present in the "User Context".
+3.  If the user's message does not answer the question, return an empty JSON object: `{}`.
+4.  Map conversational language (e.g., "KZN", "I'm on my own", "nah") to the correct formal value.
 
 ---
-**User Context (Already Collected Data):**
+**User Context:**
 {% for key, value in user_context.items() %}
 - {{ key }}: {{ value }}
 {% endfor %}
-
 ---
-**User's latest message (Extract from this ONLY):**
+**User's latest message:**
 "{{ user_response }}"
+
 ---
-
-Now, use the 'extract_onboarding_data' tool to extract data from the "User's latest message" by following the critical rules above and the detailed guidelines below:
-
-- The extracted data **MUST** adhere strictly to the corresponding property's enums.
-- Only include a field if you are highly confident that the user's input maps to an allowed 'enum' value.
-- For properties with numeric ranges like 'hunger_days', you MUST map the user's input to the correct enum category. Do not just look for an exact string match. As examples:
-    - If the user says "3", you should extract: {"hunger_days": "3-4 days"}
-    - If the user says "one day", you should extract: {"hunger_days": "1-2 days"}
-    - If the user says "6", you should extract: {"hunger_days": "5-7 days"}
-    - If the user says "I haven't been hungry", you should extract: {"hunger_days": "0 days"}
-- For 'num_children', if the user indicates they have any number of children greater than 3 (e.g. 4, 5, 6...), you MUST extract: {"num_children": "More than 3"}. Otherwise, map to the corresponding number.
-- Regarding the 'education_level', follow the mapping carefully: grades 1-7 correspond to primary school, and grades 8-12 are high school. For example, **"Grade 9" should be mapped to "Some high school"**, not "Finished high school".
-- For the open-ended `additionalProperties`, extract any extra information mentioned that fits the criteria in CRITICAL RULE #4.
+JSON Response:
 """
-
 ASSESSMENT_CONTEXTUALIZATION_PROMPT = """
 You are an assistant helping to personalize assessment questions on a maternal health chatbot service.
 
@@ -133,6 +125,31 @@ ASSESSMENT_RESPONSE_VALIDATOR_PROMPT = """
 You are an AI assistant validating a user's response to an assessment question in a chatbot for new mothers in South Africa.
 Your task is to analyze the user's response and determine if it maps to one of the allowed responses provided below.
 
+You must follow these mapping rules:
+
+1.  **Map by Index:** If the user responds with a letter (e.g., "a", "B", "c."), map it to the corresponding option in the list. "a" is the first option, "b" is the second, "c" is the third, and so on.
+
+2.  **Map by Meaning:** If the user's response contains text that clearly and unambiguously matches the meaning of one of the allowed responses (e.g., "strongly agree", "not sure"), map it to that response. This should be case-insensitive.
+
+3.  **Handle Nonsense:** If the user's response is ambiguous, doesn't match any option, or is conversational filler (e.g., "maybe", "ok thanks"), you MUST classify it as "nonsense".
+
+--- EXAMPLES OF YOUR LOGIC ---
+
+# Example 1: Mapping by Index
+- If the Allowed Responses are `["Yes", "No", "Not Applicable"]`
+- And the User Response is `"b"`
+- Your JSON Response must be: `{"validated_response": "No"}`
+
+# Example 2: Mapping by Meaning
+- If the Allowed Responses are `["I strongly disagree", "I disagree", "I'm not sure"]`
+- And the User Response is `"not sure"`
+- Your JSON Response must be: `{"validated_response": "I'm not sure"}`
+
+# Example 3: Handling Nonsense
+- If the Allowed Responses are `["I strongly disagree", "I disagree", "I'm not sure"]`
+- And the User Response is `"I guess not"`
+- Your JSON Response must be: `{"validated_response": "nonsense"}`
+
 Allowed Responses:
 {{ valid_responses_for_prompt }}
 
@@ -143,6 +160,77 @@ You MUST respond with a valid JSON object. The JSON should contain a single key,
 
 - If the user's response clearly and unambiguously corresponds to one of the "Allowed Responses" (or a numerical/alphabetical index of an "Allowed Response", if there are indices present in the list above), the value of "validated_response" should be the exact text of that corresponding allowed response.
 - If the user's response is ambiguous, does not map to any of the allowed responses, or is nonsense/gibberish, you MUST set the value of "validated_response" to "nonsense".
+
+JSON Response:
+    """
+
+ASSESSMENT_DATA_EXTRACTION_PROMPT = """
+You are an AI assistant helping to extract a user's answer from their response to an assessment question into a structured format.
+
+Your task is to analyze the user's response in light of the previous survey question/message and its expected responses. You must determine which of the expected responses the user's response maps to in meaning and intent.
+
+Follow these rules:
+1.  Map responses based on meaning and intent, not just exact string matching.
+2.  The value for "validated_response" MUST be the exact text of the matched expected response.
+3.  The validated_response MUST NOT include the letter or number prefix (e.g., 'a. ', 'b. '). It must contain ONLY the text of the option itself.
+4.  You MUST respond with a valid JSON object with a single key, "validated_response".
+
+Here are some examples of how to perform this task:
+---
+**Example 1 (Handling Lettered Lists):**
+
+Previous survey question/message:
+"How confident are you in making health decisions?
+a. Very confident
+b. Somewhat confident
+c. Not confident"
+
+User's latest response:
+- "a"
+JSON Response:
+{
+ "validated_response": "Very confident"
+}
+---
+**Example 2 (Handling Full Text Response):**
+
+Previous survey question/message:
+"How confident are you in making health decisions?
+a. Very confident
+b. Somewhat confident
+c. Not confident"
+
+User's latest response:
+- "Very confident"
+
+JSON Response:
+{
+ "validated_response": "Very confident"
+}
+---
+**Example 3 (Handling Partial Text):**
+
+Previous survey question/message:
+"Overall, how was your experience? Please choose one:
+- Excellent
+- Good
+- Poor"
+
+User's latest response:
+- "it was excellent"
+JSON Response:
+{
+ "validated_response": "Excellent"
+}
+---
+
+**Now, perform the same task for the following new input:**
+
+Previous survey question/message:
+"{{ previous_service_message }}"
+
+User's latest response:
+- "{{ user_response }}"
 
 JSON Response:
     """
@@ -164,6 +252,72 @@ You MUST respond with a valid JSON object. The JSON should contain a single key,
 
 JSON Response:
     """
+
+
+BEHAVIOUR_DATA_EXTRACTION_PROMPT = """
+You are an AI assistant extracting a user's answer to a health behaviour question.
+Your task is to analyze the user's free-text response and map it to the **exact** string from the list of expected responses for that question.
+
+Follow these critical rules:
+1.  Your output for "validated_response" MUST be one of the exact strings from the expected responses list.
+2.  **Numerical Questions:**
+    * Map written numbers or numbers with extra words (e.g., "seven", "2 times") to the correct number string (e.g., "7", "2").
+    * If the user says "none" or "zero", map it to the corresponding "0" or "0 - None" option.
+    * If the user gives a number higher than the available options, map it to the "More than X" option if one exists.
+3.  **Yes/No Questions:**
+    * Map all affirmative phrases (e.g., "yebo", "yeah", "I have") to "Yes".
+    * Map all negative phrases (e.g., "nope", "not at all") to "No".
+4.  If the user's response is ambiguous or doesn't fit, you MUST return "nonsense".
+5.  You MUST respond with a valid JSON object with a single key, "validated_response".
+
+---
+**Example 1 (Numerical Question - Clinic Visits):**
+Previous survey question/message: "So far in this pregnancy, how many times have you gone to the clinic for a pregnancy check-up? 🫃🏽"
+User's latest response: "I've been 9 times"
+JSON Response:
+{
+ "validated_response": "More than 7"
+}
+---
+**Example 2 (Numerical Question - Clinic Visits):**
+Previous survey question/message: "So far in this pregnancy, how many times have you gone to the clinic for a pregnancy check-up? 🫃🏽"
+User's latest response: "none so far"
+JSON Response:
+{
+ "validated_response": "0 - None"
+}
+---
+**Example 3 (Yes/No Question):**
+Previous survey question/message: "In this pregnancy, have you made any changes to your diet based on information from the health worker? 🫃🏽"
+User's latest response: "Yebo, I have."
+JSON Response:
+{
+ "validated_response": "Yes"
+}
+---
+**Example 4 (Yes/No Question - Tetanus Vaccine Knowledge):**
+Previous survey question/message: "Did you know that you should get a tetanus vaccine during your pregnancy? 💜"
+User's latest response: "I did not know that"
+JSON Response:
+{
+ "validated_response": "no"
+}
+---
+**Example 5 (Yes/No Question - Alcohol/Smoking):**
+Previous survey question/message: "Since becoming pregnant, have you drunk any alcohol or smoked at all? 🫃🏽"
+User's latest response: "not at all"
+JSON Response:
+{
+ "validated_response": "No"
+}
+---
+
+**New Task:**
+Previous survey question/message: "{{ previous_service_message }}"
+User's latest response: "{{ user_response }}"
+JSON Response:
+"""
+
 
 ANC_SURVEY_CONTEXTUALIZATION_PROMPT = """
 Your task is to take the next survey question and contextualize it for the user, WITHOUT changing the core meaning of the question or introducing ambiguity.
@@ -325,6 +479,7 @@ Here are the possible intents:
 - 'ASKING_TO_STOP_MESSAGES': The user explicitly asks to stop receiving messages.
 - 'ASKING_TO_DELETE_DATA': The user explicitly asks to have their data deleted.
 - 'REPORTING_AIRTIME_NOT_RECEIVED': The user is reporting they have not received their airtime incentive.
+- 'SKIP_QUESTION': The user indicates they do not want to answer by using words like 'skip', 'pass', 'next', or saying they don't want to answer. This includes common misspellings.
 
 ---
 **Example 1: User asks about the process**
@@ -382,7 +537,19 @@ The user was asked about their education. Their response directly answers the qu
 }
 </json>
 ---
+**Example 5: User makes a typo when skipping**
+Last question that was sent to the user: "Almost done! Do you feel that you can do things to improve your health?"
+User's response: "skipp"
 
+<reasoning>
+The user's response "skipp" is a clear misspelling of "skip". This indicates a desire to skip the question. Therefore, the intent is SKIP_QUESTION.
+</reasoning>
+<json>
+{
+    "intent": "SKIP_QUESTION"
+}
+</json>
+---
 **New Task:**
 
 Last question that was sent to the user:

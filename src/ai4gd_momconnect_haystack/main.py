@@ -37,6 +37,7 @@ from ai4gd_momconnect_haystack.tasks import (
     update_context_from_onboarding_response,
     get_anc_survey_question,
     get_assessment_question,
+    extract_assessment_data_from_response,
     get_next_onboarding_question,
     handle_user_message,
 )
@@ -311,6 +312,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 user_context = update_context_from_onboarding_response(
                     user_input=final_user_response,
                     current_context=user_context,
+                    current_question=contextualized_question,
                 )
 
             if user_context == previous_context:
@@ -517,6 +519,11 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     if not has_deflected:
                         final_predicted_intent = initial_predicted_intent
                     break
+                elif intent == "SKIP_QUESTION":
+                    logger.info(f"User skipped question {question_number}.")
+                    final_user_response = "Skip"
+                    final_predicted_intent = initial_predicted_intent
+                    break
                 else:
                     # If a question about the study or about health was asked, print the
                     # response that would be sent to users
@@ -545,9 +552,18 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             if final_user_response is None:
                 continue
 
-            result = validate_assessment_answer(
-                final_user_response, question_number, flow_id.value
-            )
+            if final_predicted_intent != "SKIP_QUESTION":
+                result = validate_assessment_answer(
+                    user_response=final_user_response,
+                    question_number=question_number,
+                    current_flow_id=flow_id.value,
+                )
+            else:
+                processed_user_response = "Skip"
+                result = {
+                    "processed_user_response": processed_user_response,
+                    "next_question_number": question_number + 1,
+                }
             if not result:
                 logger.warning(
                     f"Response validation failed for question {question_number}."
@@ -983,9 +999,29 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 if final_user_response is None:
                     continue
 
-                result = validate_assessment_answer(
-                    final_user_response, question_number, flow_id.value
-                )
+                if final_predicted_intent != "SKIP_QUESTION":
+                    if "behaviour" in flow_id.value:
+                        # Use the new method for Behaviour assessments
+                        result = extract_assessment_data_from_response(
+                            user_response=final_user_response,
+                            flow_id=flow_id.value,
+                            question_number=question_number,
+                        )
+                    else:
+                        print(
+                            "Using: validate_assessment_answer instead of extract_assessment_data_from_response"
+                        )
+                        result = validate_assessment_answer(
+                            user_response=final_user_response,
+                            question_number=question_number,
+                            current_flow_id=flow_id.value,
+                        )
+                else:
+                    processed_user_response = "Skip"
+                    result = {
+                        "processed_user_response": processed_user_response,
+                        "next_question_number": question_number + 1,
+                    }
                 if not result:
                     logger.warning(
                         f"Response validation failed for question {question_number}."
@@ -1528,6 +1564,11 @@ async def async_main(
     await init_db()
     logging.info("Database initialized.")
     logging.info("Starting interactive simulation...")
+
+    # # Call the setup function here
+    # logging.info("Setting up document store...")
+    # setup_document_store(startup=True)
+    # logging.info("Document store setup complete.")
 
     # 1. Run the simulation to get the raw output directly in memory.
     if is_automated:

@@ -24,16 +24,6 @@
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       },
       {
-        "question_name": "education_level",
-        "question_number": null,
-        "llm_utterance": "What's your highest level of education? For example, did you finish primary or high school?",
-        "user_utterance": "Leave me alone",
-        "follow_up_utterance": "I only finished Grade 9 at school.",
-        "user_response": "Some high school",
-        "llm_initial_predicted_intent": "ASKING_TO_STOP_MESSAGES",
-        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
-      },
-      {
         "question_name": "relationship_status",
         "question_number": null,
         "llm_utterance": "What's your current relationship status? \ud83d\udc64",
@@ -44,13 +34,13 @@
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       },
       {
-        "question_name": "hunger_days",
+        "question_name": "education_level",
         "question_number": null,
-        "llm_utterance": "In the last week, how many days did you miss a meal because there wasn't money for food? \ud83c\udf5e",
-        "user_utterance": "Can you please erase everything you have on me?",
-        "follow_up_utterance": "I sometimes go without food, maybe 3-4 days.",
-        "user_response": "3-4 days",
-        "llm_initial_predicted_intent": "ASKING_TO_DELETE_DATA",
+        "llm_utterance": "What's your highest level of education? \ud83d\udcda",
+        "user_utterance": "Leave me alone",
+        "follow_up_utterance": "I only finished Grade 9 at school.",
+        "user_response": "Some high school",
+        "llm_initial_predicted_intent": "ASKING_TO_STOP_MESSAGES",
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       },
       {
@@ -60,7 +50,17 @@
         "user_utterance": "when wil i get my R5 airtime?",
         "follow_up_utterance": "I have one little one already.",
         "user_response": "1",
-        "llm_initial_predicted_intent": "HEALTH_QUESTION",
+        "llm_initial_predicted_intent": "REPORTING_AIRTIME_NOT_RECEIVED",
+        "llm_final_predicted_intent": "JOURNEY_RESPONSE"
+      },
+      {
+        "question_name": "hunger_days",
+        "question_number": null,
+        "llm_utterance": "In the last week, how many days did you miss a meal because there wasn't money for food? \ud83c\udf5e",
+        "user_utterance": "Can you please erase everything you have on me?",
+        "follow_up_utterance": "I sometimes go without food, maybe 3-4 days.",
+        "user_response": "3-4 days",
+        "llm_initial_predicted_intent": "ASKING_TO_DELETE_DATA",
         "llm_final_predicted_intent": "JOURNEY_RESPONSE"
       },
       {

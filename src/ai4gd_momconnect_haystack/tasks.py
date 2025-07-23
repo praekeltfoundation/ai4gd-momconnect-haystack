@@ -104,7 +104,9 @@ def get_next_onboarding_question(
 
 
 def extract_onboarding_data_from_response(
-    user_response: str, user_context: dict
+    user_response: str,
+    user_context: dict,
+    current_question: str,
 ) -> dict:
     """
     Extracts data from a user's response to an onboarding question
@@ -112,7 +114,9 @@ def extract_onboarding_data_from_response(
     """
     logger.info("Running data extraction pipeline...")
     extracted_data = pipelines.run_onboarding_data_extraction_pipeline(
-        user_response, user_context
+        user_response,
+        user_context,
+        current_question,
     )
 
     if extracted_data:
@@ -124,7 +128,7 @@ def extract_onboarding_data_from_response(
 
 
 def update_context_from_onboarding_response(
-    user_input: str, current_context: dict
+    user_input: str, current_context: dict, current_question: str
 ) -> dict:
     """
     Takes user input, extracts data, and returns the fully updated context.
@@ -133,7 +137,9 @@ def update_context_from_onboarding_response(
     updated_context = current_context.copy()
 
     updates = extract_onboarding_data_from_response(
-        user_response=user_input, user_context=current_context
+        user_response=user_input,
+        user_context=current_context,
+        current_question=current_question,
     )
 
     if updates:
@@ -150,13 +156,15 @@ def update_context_from_onboarding_response(
 
 
 def process_onboarding_step(
-    user_input: str, current_context: dict
+    user_input: str, current_context: dict, current_question: str
 ) -> tuple[dict, dict | None]:
     """
     Processes a single step of the onboarding flow for the API.
     """
     updated_context = update_context_from_onboarding_response(
-        user_input, current_context
+        user_input,
+        current_context,
+        current_question,
     )
 
     next_question = get_next_onboarding_question(user_context=updated_context)
@@ -256,13 +264,98 @@ async def get_assessment_question(
     question_data = [q for q in question_list if q.question_number == question_number][
         -1
     ]
-    contextualized_question = prepare_valid_responses_to_display_to_assessment_user(
-        flow_id_to_use, question_number, contextualized_question, question_data
-    )
+
+    # For KAB Behaviour assessments, the user provides free-text input without seeing options.
+    # For DMA, KAB Knowledge, and KAB Attitude, we display the options.
+    if "behaviour" not in flow_id.value:
+        contextualized_question = prepare_valid_responses_to_display_to_assessment_user(
+            flow_id_to_use, question_number, contextualized_question, question_data
+        )
 
     return {
         "contextualized_question": contextualized_question,
     }
+
+
+def extract_assessment_data_from_response(
+    user_response: str,
+    flow_id: str,
+    question_number: int,
+) -> dict:  # Changed return type
+    """
+    Extracts data from a user's response to an assessment question and
+    returns a dictionary with the processed response and next question number.
+    """
+    logger.info("Running assessment data extraction pipeline...")
+
+    # 1. Get the question data for the current step
+    question_list = assessment_flow_map.get(flow_id)
+    if not question_list:
+        logger.error(f"Invalid flow_id: '{flow_id}'. No questions found.")
+        return {
+            "processed_user_response": None,
+            "next_question_number": question_number,
+        }
+
+    try:
+        question_data = [
+            q for q in question_list if q.question_number == question_number
+        ][-1]
+    except IndexError:
+        logger.error(
+            f"Could not find question data for question_number {question_number} in flow {flow_id}."
+        )
+        return {
+            "processed_user_response": None,
+            "next_question_number": question_number,
+        }
+
+    # 2. Get the clean list of valid responses for the final schema check
+    valid_responses = []
+    if question_data.valid_responses_and_scores:
+        valid_responses = [
+            item.response
+            for item in question_data.valid_responses_and_scores
+            if item.response != "Skip"
+        ]
+
+    # 3. Re-create the full message that was sent to the user
+    extracted_data = None
+    if "behaviour" in flow_id:
+        # For KAB-B, use a pipeline that maps free text to unseen valid responses,
+        # similar to the ANC survey. The user only sees the question content.
+        # We reuse the clinic visit extraction pipeline as it's designed for this.
+        extracted_data = pipelines.run_behaviour_data_extraction_pipeline(
+            user_response=user_response,
+            previous_service_message=question_data.content or "",
+            valid_responses=valid_responses,
+        )
+    else:
+        # For DMA, KAB-K, KAB-A, the user sees the options.
+        # Re-create the full message sent to the user (question + options)
+        previous_message = prepare_valid_responses_to_display_to_assessment_user(
+            flow_id, question_number, question_data.content or "", question_data
+        )
+        # 4. Call the new, reliable extraction pipeline
+        extracted_data = pipelines.run_assessment_data_extraction_pipeline(
+            user_response=user_response,
+            previous_message=previous_message,
+            valid_responses=valid_responses,
+        )
+
+    # 5. Return a dictionary that matches the old function's structure
+    if extracted_data:
+        print(f"[Extracted Assessment Data]:\n{json.dumps(extracted_data, indent=2)}\n")
+        return {
+            "processed_user_response": extracted_data,
+            "next_question_number": question_number + 1,
+        }
+    else:
+        logger.warning("Assessment data extraction pipeline did not produce a result.")
+        return {
+            "processed_user_response": None,
+            "next_question_number": question_number,
+        }
 
 
 async def get_anc_survey_question(user_id: str, user_context: dict) -> dict | None:

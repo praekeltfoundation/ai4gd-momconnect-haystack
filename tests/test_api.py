@@ -256,7 +256,11 @@ async def test_onboarding():
         )
 
         handle_user_message.assert_called_once()
-        mock_process_step.assert_called_once_with(user_input="city", current_context={})
+        mock_process_step.assert_called_once_with(
+            user_input="city",
+            current_context={},
+            current_question="Welcome!",
+        )
 
 
 @pytest.mark.asyncio

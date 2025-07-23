@@ -18,7 +18,9 @@ from .pipeline_prompts import (
     ANC_SURVEY_CONTEXTUALIZATION_PROMPT,
     ASSESSMENT_CONTEXTUALIZATION_PROMPT,
     ASSESSMENT_END_RESPONSE_VALIDATOR_PROMPT,
+    ASSESSMENT_DATA_EXTRACTION_PROMPT,
     ASSESSMENT_RESPONSE_VALIDATOR_PROMPT,
+    BEHAVIOUR_DATA_EXTRACTION_PROMPT,
     CLINIC_VISIT_DATA_EXTRACTION_PROMPT,
     FAQ_PROMPT,
     INTENT_DETECTION_PROMPT,
@@ -416,7 +418,6 @@ def create_onboarding_data_extraction_pipeline() -> Pipeline | None:
     return pipeline
 
 
-@cache
 def create_assessment_contextualization_pipeline() -> Pipeline | None:
     """
     Creates a pipeline to fetch an assessment question based on flow_id and question_number,
@@ -483,6 +484,66 @@ def create_assessment_response_validator_pipeline() -> Pipeline | None:
 
     logger.info(
         "Created Assessment Response Validation Pipeline with JSON Schema validation."
+    )
+    return pipeline
+
+
+def create_assessment_data_extraction_pipeline() -> Pipeline | None:
+    """
+
+    Creates a pipeline to extract structured data for an assessment.
+    NOTE: This is a copy of create_clinic_visit_data_extraction_pipeline.
+    """
+    llm_generator = get_llm_generator()
+    if not llm_generator:
+        logger.error(
+            "LLM Generator is not available. Cannot create Assessment Data Extraction Pipeline."
+        )
+        return None
+
+    pipeline = Pipeline()
+
+    json_validator = JsonSchemaValidator()
+
+    pipeline.add_component("prompt_builder", ChatPromptBuilder())
+    pipeline.add_component("llm", llm_generator)
+    pipeline.add_component("json_validator", json_validator)
+
+    pipeline.connect("prompt_builder.prompt", "llm.messages")
+    pipeline.connect("llm.replies", "json_validator.messages")
+
+    logger.info(
+        "Created Assessment Data Extraction Pipeline with JSON Schema validation."
+    )
+    return pipeline
+
+
+@cache
+def create_behaviour_data_extraction_pipeline() -> Pipeline | None:
+    """
+    Creates a pipeline to extract structured data from a user's
+    response during the KAB Behaviour assessment.
+    """
+    llm_generator = get_llm_generator()
+    if not llm_generator:
+        logger.error(
+            "LLM Generator is not available. Cannot create Behaviour Data Extraction Pipeline."
+        )
+        return None
+
+    pipeline = Pipeline()
+
+    json_validator = JsonSchemaValidator()
+
+    pipeline.add_component("prompt_builder", ChatPromptBuilder())
+    pipeline.add_component("llm", llm_generator)
+    pipeline.add_component("json_validator", json_validator)
+
+    pipeline.connect("prompt_builder.prompt", "llm.messages")
+    pipeline.connect("llm.replies", "json_validator.messages")
+
+    logger.info(
+        "Created KAB Behaviour Data Extraction Pipeline with JSON Schema validation."
     )
     return pipeline
 
@@ -720,6 +781,7 @@ def run_next_onboarding_question_pipeline(
 def run_onboarding_data_extraction_pipeline(
     user_response: str,
     user_context: dict[str, Any],
+    current_question: str,
 ) -> dict[str, Any]:
     """
     Run the onboarding data extraction pipeline and return extracted data.
@@ -745,6 +807,7 @@ def run_onboarding_data_extraction_pipeline(
                     "template_variables": {
                         "user_response": user_response,
                         "user_context": user_context,
+                        "current_question": current_question,
                     },
                 }
             }
@@ -849,6 +912,74 @@ def run_assessment_contextualization_pipeline(
     return None
 
 
+def run_assessment_data_extraction_pipeline(
+    user_response: str,
+    previous_message: str,
+    valid_responses: list[str],
+) -> str | None:
+    """
+    Run the assessment data extraction pipeline.
+    """
+    pipeline = create_assessment_data_extraction_pipeline()
+    if not pipeline:
+        logger.warning("Failed to create Assessment Data Extraction pipeline.")
+        return None
+
+    chat_template = [ChatMessage.from_system(ASSESSMENT_DATA_EXTRACTION_PROMPT)]
+    valid_responses_schema = {
+        "type": "object",
+        "properties": {
+            "validated_response": {
+                "type": "string",
+                "enum": valid_responses + ["nonsense"],
+            }
+        },
+        "required": ["validated_response"],
+    }
+
+    result = {}  # Initialize result to an empty dict
+    try:
+        result = pipeline.run(
+            {
+                "prompt_builder": {
+                    "template": chat_template,
+                    "template_variables": {
+                        "user_response": user_response,
+                        "previous_service_message": previous_message,
+                    },
+                },
+                "json_validator": {"json_schema": valid_responses_schema},
+            }
+        )
+
+        validated_message = result["json_validator"]["validated"][0]
+        validated_json = json.loads(validated_message.text)
+        validated_response = validated_json["validated_response"]
+
+        if validated_response != "nonsense":
+            return validated_response
+        else:
+            logger.warning(
+                "User response '%s' was validated as 'nonsense'.", user_response
+            )
+            return None
+    except (KeyError, IndexError) as e:
+        logger.warning(
+            f"Validation failed due to missing key: {e}. The raw pipeline result was: {result}"
+        )
+    except json.JSONDecodeError as e:
+        llm_reply = result.get("llm", {}).get("replies", [None])[0]
+        logger.warning(
+            f"Validation failed due to invalid JSON: {e}. The raw LLM reply was: {llm_reply}"
+        )
+    except Exception as e:
+        logger.warning(
+            f"An unexpected error occurred in the pipeline: {e}. The raw pipeline result was: {result}"
+        )
+
+    return None
+
+
 def run_assessment_response_validator_pipeline(
     user_response: str,
     valid_responses: list[str],
@@ -923,6 +1054,72 @@ def run_assessment_response_validator_pipeline(
         )
     except Exception as e:
         logger.error("Error running assessment response validation pipeline: %s", e)
+
+    return None
+
+
+def run_behaviour_data_extraction_pipeline(
+    user_response: str,
+    previous_service_message: str,
+    valid_responses: list[str],
+) -> str | None:
+    """
+    Run the KAB Behaviour data extraction pipeline and return extracted data.
+    """
+    pipeline = create_behaviour_data_extraction_pipeline()
+    if not pipeline:
+        logger.warning("Failed to create Behaviour Data Extraction pipeline.")
+        return None
+
+    chat_template = [ChatMessage.from_system(BEHAVIOUR_DATA_EXTRACTION_PROMPT)]
+    valid_responses_schema = {
+        "type": "object",
+        "properties": {
+            "validated_response": {
+                "type": "string",
+                "description": "The validated response from the user.",
+                "enum": valid_responses + ["nonsense"],
+            }
+        },
+        "required": ["validated_response"],
+    }
+
+    try:
+        result = pipeline.run(
+            {
+                "prompt_builder": {
+                    "template": chat_template,
+                    "template_variables": {
+                        "user_response": user_response,
+                        "previous_service_message": previous_service_message,
+                    },
+                },
+                "json_validator": {"json_schema": valid_responses_schema},
+            }
+        )
+
+        validated_message = result["json_validator"]["validated"][0]
+        validated_json = json.loads(validated_message.text)
+        validated_response = validated_json["validated_response"]
+
+        if validated_response != "nonsense":
+            return validated_response
+        else:
+            logger.warning(
+                "User response '%s' was validated as 'nonsense'.", user_response
+            )
+            return None
+
+    except (KeyError, IndexError):
+        logger.warning(
+            "Behaviour data extraction failed. LLM output did not match schema for user response: '%s'. Result: %s",
+            user_response,
+            result,
+        )
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to decode JSON from LLM response: {e}")
+    except Exception as e:
+        logger.warning(f"Error running behaviour data extraction pipeline: {e}")
 
     return None
 

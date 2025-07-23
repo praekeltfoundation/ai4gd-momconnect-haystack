@@ -16,8 +16,8 @@ from ai4gd_momconnect_haystack.assessment_logic import (
     get_content_from_message_data,
     response_is_required_for,
     score_assessment_question,
-    validate_assessment_answer,
     validate_assessment_end_response,
+    validate_assessment_answer,
 )
 from ai4gd_momconnect_haystack.crud import (
     calculate_and_store_assessment_result,
@@ -47,6 +47,7 @@ from ai4gd_momconnect_haystack.tasks import (
     process_onboarding_step,
     get_anc_survey_question,
     get_assessment_question,
+    extract_assessment_data_from_response,
     get_next_onboarding_question,
     handle_user_message,
 )
@@ -141,7 +142,9 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
     if intent == "JOURNEY_RESPONSE" and user_input:
         user_context, question = process_onboarding_step(
-            user_input=user_input, current_context=request.user_context
+            user_input=user_input,
+            current_context=request.user_context,
+            current_question=last_question,
         )
     else:
         # If there is no response to the question, the context stays the same
@@ -183,34 +186,44 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
 
     processed_answer = None
+    # Default to repeating the current question if something goes wrong
+    next_question_number = request.question_number
 
     if intent == "JOURNEY_RESPONSE" and request.user_input:
-        answer = validate_assessment_answer(
-            user_response=request.user_input,
-            question_number=request.question_number,
-            current_flow_id=request.flow_id.value,
-        )
-        if answer["processed_user_response"]:
-            processed_answer = answer["processed_user_response"]
-            score = score_assessment_question(
-                answer["processed_user_response"],
-                request.question_number,
-                request.flow_id,
-            )
-            await save_assessment_question(
-                user_id=request.user_id,
-                assessment_type=request.flow_id,
+        if "behaviour" in request.flow_id.value:
+            answer = extract_assessment_data_from_response(
+                user_response=request.user_input,
+                flow_id=request.flow_id.value,
                 question_number=request.question_number,
-                question=None,
-                user_response=answer["processed_user_response"],
-                score=score,
             )
-            await calculate_and_store_assessment_result(
-                request.user_id, request.flow_id
+        else:
+            answer = validate_assessment_answer(
+                user_response=request.user_input,
+                question_number=request.question_number,
+                current_flow_id=request.flow_id.value,
             )
+        processed_answer = answer["processed_user_response"]
         next_question_number = answer["next_question_number"]
-    else:
-        next_question_number = request.question_number
+    elif intent == "SKIP_QUESTION":
+        logger.info(f"User skipped question {request.question_number}. Advancing.")
+        processed_answer = "Skip"
+        next_question_number = request.question_number + 1
+
+    if processed_answer:
+        score = score_assessment_question(
+            answer["processed_user_response"],
+            request.question_number,
+            request.flow_id,
+        )
+        await save_assessment_question(
+            user_id=request.user_id,
+            assessment_type=request.flow_id,
+            question_number=request.question_number,
+            question=None,
+            user_response=processed_answer,
+            score=score,
+        )
+        await calculate_and_store_assessment_result(request.user_id, request.flow_id)
 
     question = await get_assessment_question(
         user_id=request.user_id,
