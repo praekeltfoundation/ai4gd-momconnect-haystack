@@ -3,7 +3,7 @@
         {
             "question_number": 1,
             "question_name": "antenatal_care_visit_count",
-            "content": "*So far in this pregnancy, how many times have you gone to the clinic for a pregnancy check-up?* 🫃🏽",
+            "content": "Excellent 👍🏽\n\nIf you want to skip a question, just type and send `skip`.\n\n*So far in this pregnancy, how many times have you gone to the clinic for a pregnancy check-up?* 🫃🏽",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
                 { "response": "0 - None", "score": 0 },
@@ -69,7 +69,7 @@
         {
             "question_number": 1,
             "question_name": "first_pregnancy_checkup_timing",
-            "content": "*When do you think a pregnant woman should get her first pregnancy check-up?* 🤰🏽",
+            "content": "Great!\n\nRemember, you can skip any question - just type and send `skip`.\n\n*When do you think a pregnant woman should get her first pregnancy check-up?* 🤰🏽",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
                 { "response": "Before 14 weeks", "score": 0 },
@@ -84,7 +84,7 @@
         {
             "question_number": 2,
             "question_name": "emergency_symptom_recognition",
-            "content": "*During a pregnancy, which of these means you need to go to the hospital immediately?* 🤰🏽",
+            "content": "Thanks. What about this?\n\n*During a pregnancy, which of these means you need to go to the hospital immediately?* 🤰🏽",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
                 { "response": "Contractions stop", "score": 0 },
@@ -97,7 +97,7 @@
         {
             "question_number": 3,
             "question_name": "pregnancy_checkup_frequency",
-            "content": "*How many pregnancy check-ups should you go to during your pregnancy?* 🤰🏽",
+            "content": "And what about this one …\n\n*How many pregnancy check-ups should you go to during your pregnancy?* 🤰🏽",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
                 { "response": "1 to 4 check-ups", "score": 0 },
@@ -111,7 +111,7 @@
         {
             "question_number": 4,
             "question_name": "should_breastfeed_within_hour",
-            "content": "*Should a baby be breastfed within the first hour of birth?* 🤰🏽",
+            "content": "The next question is …\n\n*Should a baby be breastfed within the first hour of birth?* 🤰🏽",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
                 { "response": "Yes", "score": 1 },
@@ -123,12 +123,12 @@
         {
             "question_number": 5,
             "question_name": "vaccine_protection",
-            "content": "*Who does this vaccine protect?* 🤰🏽",
+            "content": "You should get the tetanus vaccine during your pregnancy.\n\n*Who does this vaccine protect?* 🤰🏽",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
-                { "response": "You", "score": 0 },
-                { "response": "Your baby only", "score": 0 },
-                { "response": "You and baby", "score": 1 },
+                { "response": "Pregnant woman only", "score": 0 },
+                { "response": "Baby only", "score": 0 },
+                { "response": "Mom and baby", "score": 1 },
                 { "response": "I don't know", "score": 0 },
                 { "response": "Skip", "score": 0 }
             ]
@@ -136,7 +136,7 @@
         {
             "question_number": 6,
             "question_name": "understands_iron_folic_acid_benefits",
-            "content": "*Are iron and folic acid supplements good for you and your unborn baby?* 🤰🏽",
+            "content": "Next one\n\n*Are iron and folic acid supplements good for you and your unborn baby?* 🤰🏽",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
                 { "response": "Yes", "score": 1 },
@@ -150,7 +150,7 @@
         {
             "question_number": 1,
             "question_name": "believes_in_checkup_importance",
-            "content": "Do you agree with this statement?\n\n*Pregnancy check-ups are a good way to check that you and your unborn baby are healthy.* 🫄🏽",
+            "content": "Fantastic!\n\nRemember, if you want to skip a question, just type and send `skip`.\n\nLet’s go! Do you agree with this statement?\n\n*Pregnancy check-ups are a good way to check that you and your unborn baby are healthy.* 🫄🏽",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
                 { "response": "I strongly agree", "score": 5 },

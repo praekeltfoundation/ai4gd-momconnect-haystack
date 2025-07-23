@@ -10,9 +10,9 @@
           "llm_utterance": "Hi mom!\n\nHope you’re doing well! 🌸\n\nHaving accurate information about your pregnancy is so important for your and baby’s health.\n\nDo you have a minute for a quick check-in to see if you have all the facts?",
           "user_utterance": "Why are you asking me this?",
           "intent": "QUESTION_ABOUT_STUDY",
-          "follow_up_utterance": "Get started",
+          "follow_up_utterance": "Yes, I do",
           "follow_up_intent": "JOURNEY_RESPONSE",
-          "user_response": "Get started"
+          "user_response": "Yes"
         },
         {
           "question_number": 1,
@@ -37,9 +37,9 @@
           "llm_utterance": "*So far in this pregnancy, how many doses of the tetanus vaccine (Tdap) have you received?*",
           "user_utterance": "Is it normal to have cramps at 20 weeks pregnant?",
           "intent": "HEALTH_QUESTION",
-          "follow_up_utterance": "1",
+          "follow_up_utterance": "Yes, it is normal",
           "follow_up_intent": "JOURNEY_RESPONSE",
-          "user_response": "1"
+          "user_response": "Yes"
         },
         {
           "question_number": 4,
