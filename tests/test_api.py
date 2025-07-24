@@ -749,7 +749,7 @@ async def test_anc_survey():
     """
     Tests a standard ANC survey turn after the intro is complete.
     """
-    # CORRECTED: Simulate a history that has passed the intro flow
+    # Simulate a history that has passed the intro flow
     initial_history = [
         ChatMessage.from_system(SERVICE_PERSONA_TEXT),
         ChatMessage.from_assistant("Intro", meta={"step_title": "intro"}),

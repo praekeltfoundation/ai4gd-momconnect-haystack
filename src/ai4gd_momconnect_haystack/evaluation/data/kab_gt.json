@@ -5,13 +5,13 @@
       "flow_type": "behaviour-pre-assessment",
       "description": "Assessment evaluation for Naledi, handling conversational answers to scaled questions.",
       "turns": [
+  
         {
           "question_name": "intro_message",
+          "question_number": 0,
           "llm_utterance": "Hi mom!\n\nHope you’re doing well! 🌸\n\nHaving accurate information about your pregnancy is so important for your and baby’s health.\n\nDo you have a minute for a quick check-in to see if you have all the facts?",
-          "user_utterance": "Why are you asking me this?",
-          "intent": "QUESTION_ABOUT_STUDY",
-          "follow_up_utterance": "Yes, I do",
-          "follow_up_intent": "JOURNEY_RESPONSE",
+          "user_utterance": "Yes",
+          "intent": "JOURNEY_RESPONSE",
           "user_response": "Yes"
         },
         {

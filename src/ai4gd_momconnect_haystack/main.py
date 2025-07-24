@@ -18,7 +18,7 @@ from ai4gd_momconnect_haystack.assessment_logic import (
     validate_assessment_answer,
     validate_assessment_end_response,
 )
-from .doc_store import INTRO_MESSAGES  # , setup_document_store
+from .doc_store import INTRO_MESSAGES  # setup_document_store
 from ai4gd_momconnect_haystack.crud import (
     calculate_and_store_assessment_result,
     get_assessment_end_messaging_history,
@@ -1678,82 +1678,89 @@ async def async_main(
     Runs the interactive simulation, orchestrates scoring on the in-memory
     results, and saves the final augmented report.
     """
-    logging.info("Initializing database...")
-    await init_db()
-    logging.info("Database initialized.")
-    logging.info("Starting interactive simulation...")
+    try:
+        logging.info("Initializing database...")
+        await init_db()
+        logging.info("Database initialized.")
+        logging.info("Starting interactive simulation...")
 
-    # Call the setup function here
-    # logging.info("Setting up document store...")
-    # setup_document_store(startup=True)
-    # logging.info("Document store setup complete.")
+        # Call the setup function here
+        # logging.info("Setting up document store...")
+        # setup_document_store(startup=True)
+        # logging.info("Document store setup complete.")
 
-    # 1. Run the simulation to get the raw output directly in memory.
-    if is_automated:
-        logging.info("Starting simulation in AUTOMATED mode...")
-        gt_data = read_json(GT_FILE_PATH)
-        gt_scenarios_from_json: list | None = gt_data.get("scenarios")
+        # 1. Run the simulation to get the raw output directly in memory.
+        if is_automated:
+            logging.info("Starting simulation in AUTOMATED mode...")
+            gt_data = read_json(GT_FILE_PATH)
+            gt_scenarios_from_json: list | None = gt_data.get("scenarios")
 
-        gt_scenarios = []
-        if gt_scenarios_from_json:
-            gt_scenarios = [s for s in gt_scenarios_from_json if s.get("enabled", True)]
-            # l_ = [s.get("selected_for_evaluation", True) for s in gt_scenarios_from_json]
+            gt_scenarios = []
+            if gt_scenarios_from_json:
+                gt_scenarios = [
+                    s for s in gt_scenarios_from_json if s.get("enabled", True)
+                ]
+                # l_ = [s.get("selected_for_evaluation", True) for s in gt_scenarios_from_json]
 
-        if not gt_scenarios:
+            if not gt_scenarios:
+                logging.critical(
+                    f"Failed to load ground truth file from {GT_FILE_PATH}. Exiting."
+                )
+                return None
+            raw_simulation_output = await run_simulation(gt_scenarios=gt_scenarios)
+        else:
+            logging.info("Starting simulation in INTERACTIVE mode...")
+            raw_simulation_output = await run_simulation(gt_scenarios=None)
+
+        print("_________ COMPLETED SIMULATION__________")
+
+        # 2. Validate the IN-MEMORY raw output directly using Pydantic.
+        try:
+            simulation_output = [
+                AssessmentRun.model_validate(run) for run in raw_simulation_output
+            ]
+            logging.info("Simulation output validated successfully.")
+        except ValidationError as e:
+            logging.critical(f"Simulation produced invalid output data:\n{e}")
+            return None
+
+        # 3. Load the doc stores which contain the assessment questions and rules.
+        doc_store_dma = load_json_and_validate(DOC_STORE_DMA_PATH, dict)
+        doc_store_kab = load_json_and_validate(DOC_STORE_KAB_PATH, dict)
+
+        if doc_store_dma is None or doc_store_kab is None:
             logging.critical(
-                f"Failed to load ground truth file from {GT_FILE_PATH}. Exiting."
+                "Could not load one or more required doc store files. Exiting."
             )
             return None
-        raw_simulation_output = await run_simulation(gt_scenarios=gt_scenarios)
-    else:
-        logging.info("Starting simulation in INTERACTIVE mode...")
-        raw_simulation_output = await run_simulation(gt_scenarios=None)
 
-    print("_________ COMPLETED SIMULATION__________")
+        # 4. Process each validated simulation run using the helper function.
+        final_augmented_output = [_process_run(run) for run in simulation_output]
 
-    # 2. Validate the IN-MEMORY raw output directly using Pydantic.
-    try:
-        simulation_output = [
-            AssessmentRun.model_validate(run) for run in raw_simulation_output
-        ]
-        logging.info("Simulation output validated successfully.")
-    except ValidationError as e:
-        logging.critical(f"Simulation produced invalid output data:\n{e}")
+        # 5. Save the final, augmented report.
+        if save_simulation and final_augmented_output:
+            # TODO: This section will be replaced with a database write operation.
+            # For now, it saves the output to a local JSON file for inspection.
+            file_extention = datetime.now().strftime("%y%m%d-%H%M")
+            SIMULATION_FILE_PATH = (
+                OUTPUT_PATH / f"simulation_run_results_{file_extention}.json"
+                if RESULT_FILE_PATH is None
+                else RESULT_FILE_PATH
+            )
+
+            save_json_file(
+                final_augmented_output,
+                SIMULATION_FILE_PATH,
+            )
+            logging.info(
+                f"Processing complete. Final output generated and save to {SIMULATION_FILE_PATH}"
+            )
+            return SIMULATION_FILE_PATH
         return None
-
-    # 3. Load the doc stores which contain the assessment questions and rules.
-    doc_store_dma = load_json_and_validate(DOC_STORE_DMA_PATH, dict)
-    doc_store_kab = load_json_and_validate(DOC_STORE_KAB_PATH, dict)
-
-    if doc_store_dma is None or doc_store_kab is None:
-        logging.critical(
-            "Could not load one or more required doc store files. Exiting."
-        )
-        return None
-
-    # 4. Process each validated simulation run using the helper function.
-    final_augmented_output = [_process_run(run) for run in simulation_output]
-
-    # 5. Save the final, augmented report.
-    if save_simulation and final_augmented_output:
-        # TODO: This section will be replaced with a database write operation.
-        # For now, it saves the output to a local JSON file for inspection.
-        file_extention = datetime.now().strftime("%y%m%d-%H%M")
-        SIMULATION_FILE_PATH = (
-            OUTPUT_PATH / f"simulation_run_results_{file_extention}.json"
-            if RESULT_FILE_PATH is None
-            else RESULT_FILE_PATH
-        )
-
-        save_json_file(
-            final_augmented_output,
-            SIMULATION_FILE_PATH,
-        )
-        logging.info(
-            f"Processing complete. Final output generated and save to {SIMULATION_FILE_PATH}"
-        )
-        return SIMULATION_FILE_PATH
-    return None
+    finally:
+        # This block will execute when the try block is exited.
+        # Add cleanup code here. For example, if you had a weaviate_client object:
+        logging.info("Simulation finished. Resources should be released.")
 
 
 def main() -> None:

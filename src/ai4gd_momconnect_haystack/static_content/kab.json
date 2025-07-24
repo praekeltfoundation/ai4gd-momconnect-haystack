@@ -35,8 +35,8 @@
             "content": "*Did you know that you should get a tetanus vaccine during your pregnancy?* 💜",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
-                { "response": "no", "score": 0 },
-                { "response": "yes", "score": 1 },
+                { "response": "No", "score": 0 },
+                { "response": "Yes", "score": 1 },
                 { "response": "Skip", "score": 0 }
             ]
         },

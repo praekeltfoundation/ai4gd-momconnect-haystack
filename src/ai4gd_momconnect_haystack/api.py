@@ -249,7 +249,7 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
 
 @app.post("/v1/assessment")
 async def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
-    # --- 1. HANDLE START OF A NEW FLOW (INTRO LOGIC) ---
+    # --- 1. HANDLE START OF A NEW FLOW with INTRO LOGIC ---
     if not request.user_input:
         await delete_assessment_history_for_user(request.user_id, request.flow_id)
 

@@ -10,7 +10,7 @@
       {
         "question_name": null,
         "question_number": 1,
-        "llm_utterance": "How much do you agree or disagree with this statement: *I feel like I can make decisions about my health.*\n\na. I strongly disagree\nb. I disagree\nc. I'm not sure\nd. I agree\ne. I strongly agree",
+        "llm_utterance": "To what extent do you feel capable of making decisions about your health?\n\na. I strongly disagree\nb. I disagree\nc. I'm not sure\nd. I agree\ne. I strongly agree",
         "user_utterance": "Is my information kept private?",
         "follow_up_utterance": "I strongly agree",
         "user_response": "I strongly agree",
@@ -54,7 +54,7 @@
       {
         "question_name": null,
         "question_number": 5,
-        "llm_utterance": "Do you feel that you can find information about your health from other places, not just a health worker?\n\na. I strongly disagree\nb. I disagree\nc. I'm not sure\nd. I agree\ne. I strongly agree",
+        "llm_utterance": "Do you feel that you can find information about your health from other places, not just from a health worker?\n\na. I strongly disagree\nb. I disagree\nc. I'm not sure\nd. I agree\ne. I strongly agree",
         "user_utterance": "Thank you so much",
         "follow_up_utterance": "I strongly agree",
         "user_response": "I strongly agree",

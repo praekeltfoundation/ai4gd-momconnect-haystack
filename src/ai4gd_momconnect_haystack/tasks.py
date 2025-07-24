@@ -244,8 +244,8 @@ async def get_assessment_question(
         return {}
 
     if question_number > len(question_list):
-        logger.error(
-            f"Question number '{question_number}' for flow '{flow_id.value}' does not exist."
+        logger.info(
+            f"Question number '{question_number}' for flow '{flow_id.value}' does not exist. End of flow."
         )
         return {}
 
@@ -525,9 +525,6 @@ def handle_user_message(
         logger.error(f"Intent detected: {intent}. No specific action defined.")
 
     return intent, response
-
-
-# In src/ai4gd_momconnect_haystack/tasks.py
 
 
 def handle_intro_response(user_input: str, flow_id: str) -> dict:

@@ -4,6 +4,14 @@
         "scenario_id": "anc-survey_user_123_250616-0635",
         "flow_type": "anc-survey",
         "turns": [
+                {
+          "question_name": "intro_message",
+          "question_number": 0,
+          "llm_utterance": "Hi mom!\n\nHope you’re doing well! 🌸\n\nHaving accurate information about your pregnancy is so important for your and baby’s health.\n\nDo you have a minute for a quick check-in to see if you have all the facts?",
+          "user_utterance": "Yes",
+          "intent": "JOURNEY_RESPONSE",
+          "user_response": "Yes"
+        },
         {
             "question_name": "start",
             "llm_utterance": "Hi mom 👋🏽\n\nDid you go to your *{{1}} pregnancy check-up* this week? 🏥",

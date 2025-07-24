@@ -5,6 +5,13 @@
       "flow_type": "onboarding",
       "description": "Onboarding evaluation for Naledi, an anxious 19-year-old from a farm in North West.",
           "turns": [
+         {
+          "question_number": 0,
+          "llm_utterance": "Hi Mama! Before we start, here are a few things to know:\n\nYou can answer *in your own words* — there’s no right or wrong!\nYou can *ask us questions about this study* any time.\nDon’t want to answer something? Just type and send the word *skip*.\n\nShall we begin? 😊",
+          "user_utterance": "Yes",
+          "intent": "JOURNEY_RESPONSE",
+          "user_response": "Yes"
+        },
         {
           "question_name": "province",
           "question_number": 1,

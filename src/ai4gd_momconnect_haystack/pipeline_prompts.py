@@ -93,6 +93,7 @@ Your task is to analyze the "User's latest message" below and extract the answer
 ---
 JSON Response:
 """
+
 ASSESSMENT_CONTEXTUALIZATION_PROMPT = """
 You are an assistant helping to personalize assessment questions on a maternal health chatbot service.
 
@@ -259,16 +260,17 @@ You are an AI assistant extracting a user's answer to a health behaviour questio
 Your task is to analyze the user's free-text response and map it to the **exact** string from the list of expected responses for that question.
 
 Follow these critical rules:
-1.  Your output for "validated_response" MUST be one of the exact strings from the expected responses list.
+1.  Your output for "validated_response" MUST be one of the exact strings from the expected responses list. The matching is CASE-SENSITIVE.
 2.  **Numerical Questions:**
     * Map written numbers or numbers with extra words (e.g., "seven", "2 times") to the correct number string (e.g., "7", "2").
-    * If the user says "none" or "zero", map it to the corresponding "0" or "0 - None" option.
+    * If the user says "none" or "zero", map it to the corresponding "0 - None" or "0" option.
     * If the user gives a number higher than the available options, map it to the "More than X" option if one exists.
 3.  **Yes/No Questions:**
-    * Map all affirmative phrases (e.g., "yebo", "yeah", "I have") to "Yes".
-    * Map all negative phrases (e.g., "nope", "not at all") to "No".
-4.  If the user's response is ambiguous or doesn't fit, you MUST return "nonsense".
-5.  You MUST respond with a valid JSON object with a single key, "validated_response".
+    * Map all affirmative phrases (e.g., "yebo", "yeah", "I have") to the exact affirmative string in the expected list (e.g., "yes" or "Yes").
+    * Map all negative phrases (e.g., "nope", "not at all") to the exact negative string in the expected list (e.g., "no" or "No").
+4.  **Skip:** If the user indicates they want to skip, map their response to "Skip".
+5.  If the user's response is ambiguous or doesn't fit any category, you MUST return "nonsense".
+6.  You MUST respond with a valid JSON object with a single key, "validated_response".
 
 ---
 **Example 1 (Numerical Question - Clinic Visits):**
@@ -279,33 +281,9 @@ JSON Response:
  "validated_response": "More than 7"
 }
 ---
-**Example 2 (Numerical Question - Clinic Visits):**
-Previous survey question/message: "So far in this pregnancy, how many times have you gone to the clinic for a pregnancy check-up? 🫃🏽"
-User's latest response: "none so far"
-JSON Response:
-{
- "validated_response": "0 - None"
-}
----
-**Example 3 (Yes/No Question):**
-Previous survey question/message: "In this pregnancy, have you made any changes to your diet based on information from the health worker? 🫃🏽"
-User's latest response: "Yebo, I have."
-JSON Response:
-{
- "validated_response": "Yes"
-}
----
-**Example 4 (Yes/No Question - Tetanus Vaccine Knowledge):**
+**Example 2 (Yes/No Question - Tetanus Vaccine Knowledge):**
 Previous survey question/message: "Did you know that you should get a tetanus vaccine during your pregnancy? 💜"
 User's latest response: "I did not know that"
-JSON Response:
-{
- "validated_response": "no"
-}
----
-**Example 5 (Yes/No Question - Alcohol/Smoking):**
-Previous survey question/message: "Since becoming pregnant, have you drunk any alcohol or smoked at all? 🫃🏽"
-User's latest response: "not at all"
 JSON Response:
 {
  "validated_response": "No"
