@@ -54,6 +54,13 @@ assessment_flow_map = {
     kab_b_post_flow_id: all_kab_b_post_questions,
 }
 
+FLOWS_WITH_INTRO = [
+    onboarding_flow_id,
+    kab_b_pre_flow_id,
+    kab_b_post_flow_id,
+    anc_survey_flow_id,
+]
+
 assessment_end_flow_map = {
     dma_pre_flow_id: dma_end_messaging_pre,
     kab_k_pre_flow_id: kab_k_end_messaging_pre,

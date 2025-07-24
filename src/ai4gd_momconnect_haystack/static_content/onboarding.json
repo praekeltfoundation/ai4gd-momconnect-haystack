@@ -20,7 +20,7 @@
         },
         {
             "question_number": 2,
-            "content": "What kind of area do you live in? 🏘️",
+            "content": "What kind of area do you live in? Rural? Urban? Something else? 🏘️",
             "content_type": "onboarding_message",
             "valid_responses": [
                 "City",
@@ -34,7 +34,7 @@
         },
         {
             "question_number": 3,
-            "content": "What's your current relationship status? 👤",
+            "content": "What’s your current relationship status? Are you single, married, or in a relationship? 👤",
             "content_type": "onboarding_message",
             "valid_responses": [
                 "Single",

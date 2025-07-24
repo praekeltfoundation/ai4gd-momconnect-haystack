@@ -23,6 +23,7 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentEndItem,
     AssessmentQuestion,
     OnboardingQuestion,
+    IntroductionMessage,
 )
 
 # --- Configurations ---
@@ -167,6 +168,14 @@ ANC_SURVEY_FLOW: list[ANCSurveyQuestion] = anc_survey_flow
 faq_data = load_content_json_and_validate(data_dir / "faqs.json", FAQ, "faqs")
 assert faq_data is not None, "Failed to load the FAQs."
 FAQ_DATA: list[FAQ] = faq_data
+
+intro_messages_flow = load_content_json_and_validate(
+    data_dir / "introduction_messages.json", IntroductionMessage, "static-messages"
+)
+assert intro_messages_flow is not None, "Failed to load the introduction messages."
+INTRO_MESSAGES_RAW: list[IntroductionMessage] = intro_messages_flow
+
+INTRO_MESSAGES = {item.id: item.content for item in INTRO_MESSAGES_RAW}
 
 
 # --- Core Functions ---

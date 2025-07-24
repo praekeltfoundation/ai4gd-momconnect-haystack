@@ -1092,6 +1092,7 @@ def run_behaviour_data_extraction_pipeline(
                     "template_variables": {
                         "user_response": user_response,
                         "previous_service_message": previous_service_message,
+                        "valid_responses": valid_responses,
                     },
                 },
                 "json_validator": {"json_schema": valid_responses_schema},

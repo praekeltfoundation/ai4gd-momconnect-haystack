@@ -2,7 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from os import environ
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Type
 
 import sentry_sdk
 from dotenv import load_dotenv
@@ -31,7 +31,10 @@ from ai4gd_momconnect_haystack.crud import (
     save_chat_history,
 )
 from ai4gd_momconnect_haystack.database import run_migrations
-from ai4gd_momconnect_haystack.doc_store import setup_document_store
+from ai4gd_momconnect_haystack.doc_store import (
+    setup_document_store,
+    INTRO_MESSAGES,
+)
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentEndRequest,
     AssessmentEndResponse,
@@ -50,10 +53,12 @@ from ai4gd_momconnect_haystack.tasks import (
     extract_assessment_data_from_response,
     get_next_onboarding_question,
     handle_user_message,
+    handle_intro_response,
 )
 from ai4gd_momconnect_haystack.utilities import (
     assessment_end_flow_map,
     load_json_and_validate,
+    FLOWS_WITH_INTRO,
 )
 
 from .enums import HistoryType
@@ -78,6 +83,29 @@ def setup_sentry():
 
 
 setup_sentry()
+
+
+async def _handle_consent_result(
+    result: dict,
+    response_model: Type[OnboardingResponse | AssessmentResponse | SurveyResponse],
+    base_response_args: dict,
+) -> OnboardingResponse | AssessmentResponse | SurveyResponse | None:
+    action = result.get("action")
+    if action == "PROCEED":
+        return None
+    response_args = base_response_args.copy()
+    response_args.update(
+        {
+            "question": result["message"],
+            "intent": result["intent"],
+            "intent_related_response": result["intent_related_response"],
+        }
+    )
+    if response_model is AssessmentResponse:
+        response_args["next_question"] = 0 if action != "ABORT" else None
+    elif response_model is SurveyResponse:
+        response_args["survey_complete"] = True if action == "ABORT" else False
+    return response_model(**response_args)
 
 
 @asynccontextmanager
@@ -123,24 +151,68 @@ def verify_token(authorization: Annotated[str, Header()]):
 async def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
     user_id = request.user_id
     user_input = request.user_input
+    flow_id = "onboarding"
     chat_history = await get_or_create_chat_history(
         user_id=user_id, history_type=HistoryType.onboarding
     )
 
     previous_context = request.user_context.copy()
 
-    if user_input:
-        last_question = chat_history[-1].text if chat_history else ""
+    # --- INTRO LOGIC ---
+    if not user_input:
+        if flow_id in FLOWS_WITH_INTRO:
+            await delete_chat_history_for_user(request.user_id, HistoryType.onboarding)
+            chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
+            intro_message = INTRO_MESSAGES["free_text_intro"]
+            chat_history.append(ChatMessage.from_assistant(text=intro_message))
+            await save_chat_history(
+                user_id=user_id,
+                messages=chat_history,
+                history_type=HistoryType.onboarding,
+            )
+            return OnboardingResponse(
+                question=intro_message,
+                user_context=request.user_context,
+                intent="SYSTEM_INTRO",
+                intent_related_response=None,
+                results_to_save=[],
+            )
+
+    is_intro_response = (
+        len(chat_history) == 2 and chat_history[0].role.value == "system"
+    )
+
+    if is_intro_response:
+        result = handle_intro_response(user_input=user_input, flow_id=flow_id)
+
+        response = await _handle_consent_result(
+            result=result,
+            response_model=OnboardingResponse,
+            base_response_args={
+                "user_context": request.user_context,
+                "results_to_save": [],
+            },
+        )
+        if response:
+            return response
+
+        chat_history.append(ChatMessage.from_user(text=user_input))
+
+    # --- REGULAR ONBOARDING LOGIC ---
+    last_question = ""
+    last_assistant_msg = next(
+        (msg for msg in reversed(chat_history) if msg.role.value == "assistant"), None
+    )
+    if last_assistant_msg:
+        last_question = last_assistant_msg.text
+
+    if not is_intro_response:
         chat_history.append(ChatMessage.from_user(text=user_input))
         intent, intent_related_response = handle_user_message(last_question, user_input)
     else:
-        # For the first message we initiate, we won't have a user input, so we should
-        # force the intent in this situation
-        await delete_chat_history_for_user(request.user_id, HistoryType.onboarding)
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
-        # Also initialize the chat history with the persona in a system message
-        chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
-    if intent == "JOURNEY_RESPONSE" and user_input:
+
+    if intent == "JOURNEY_RESPONSE":
         user_context, question = process_onboarding_step(
             user_input=user_input,
             current_context=request.user_context,
@@ -177,49 +249,86 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
 
 @app.post("/v1/assessment")
 async def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
+    # --- 1. HANDLE START OF A NEW FLOW with INTRO LOGIC ---
+    if not request.user_input:
+        await delete_assessment_history_for_user(request.user_id, request.flow_id)
+
+        if request.flow_id.value in FLOWS_WITH_INTRO:
+            intro_message = (
+                INTRO_MESSAGES["free_text_intro"]
+                if "behaviour" in request.flow_id.value
+                else INTRO_MESSAGES["multiple_choice_intro"]
+            )
+            return AssessmentResponse(
+                question=intro_message,
+                next_question=0,  # Use 0 to signal that the next turn is a consent response
+                intent="SYSTEM_INTRO",
+                intent_related_response=None,
+                processed_answer=None,
+            )
+
+    # --- 2. HANDLE THE USER'S RESPONSE TO THE INTRO ---
+    if request.question_number == 0:
+        result = handle_intro_response(
+            user_input=request.user_input, flow_id=request.flow_id.value
+        )
+
+        response = await _handle_consent_result(
+            result=result,
+            response_model=AssessmentResponse,
+            base_response_args={"processed_answer": None},
+        )
+        if response:
+            return response
+        # If 'response' is None, it means the user consented and we can proceed.
+
+    processed_answer = None
+    current_question_number = (
+        1 if request.question_number == 0 else request.question_number
+    )
+
     if request.user_input:
         intent, intent_related_response = handle_user_message(
             request.previous_question, request.user_input
         )
     else:
-        await delete_assessment_history_for_user(request.user_id, request.flow_id)
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
-
-    processed_answer = None
-    # Default to repeating the current question if something goes wrong
-    next_question_number = request.question_number
 
     if intent == "JOURNEY_RESPONSE" and request.user_input:
         if "behaviour" in request.flow_id.value:
             answer = extract_assessment_data_from_response(
                 user_response=request.user_input,
                 flow_id=request.flow_id.value,
-                question_number=request.question_number,
+                question_number=current_question_number,
             )
         else:
             answer = validate_assessment_answer(
                 user_response=request.user_input,
-                question_number=request.question_number,
+                question_number=current_question_number,
                 current_flow_id=request.flow_id.value,
             )
-        processed_answer = answer["processed_user_response"]
-        next_question_number = answer["next_question_number"]
+        processed_answer = answer.get("processed_user_response")
+        next_question_number = answer.get(
+            "next_question_number", current_question_number
+        )
     elif intent == "SKIP_QUESTION":
         logger.info(f"User skipped question {request.question_number}. Advancing.")
         processed_answer = "Skip"
         next_question_number = request.question_number + 1
+    else:
+        next_question_number = request.question_number
 
     if processed_answer:
         score = score_assessment_question(
-            answer["processed_user_response"],
-            request.question_number,
+            processed_answer,
+            current_question_number,
             request.flow_id,
         )
         await save_assessment_question(
             user_id=request.user_id,
             assessment_type=request.flow_id,
-            question_number=request.question_number,
-            question=None,
+            question_number=current_question_number,
+            question=request.previous_question,
             user_response=processed_answer,
             score=score,
         )
@@ -233,15 +342,17 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
     )
     contextualized_question = ""
     if question:
-        contextualized_question = question["contextualized_question"]
-        await save_assessment_question(
-            user_id=request.user_id,
-            assessment_type=request.flow_id,
-            question_number=next_question_number,
-            question=contextualized_question,
-            user_response=None,
-            score=None,
-        )
+        contextualized_question = question.get("contextualized_question", "")
+        if contextualized_question:
+            await save_assessment_question(
+                user_id=request.user_id,
+                assessment_type=request.flow_id,
+                question_number=next_question_number,
+                question=contextualized_question,
+                user_response=None,
+                score=None,
+            )
+
     return AssessmentResponse(
         question=contextualized_question,
         next_question=next_question_number,
@@ -396,74 +507,98 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
     """
     user_id = request.user_id
     user_input = request.user_input
+    flow_id = "anc-survey"
     chat_history = await get_or_create_chat_history(
         user_id=user_id, history_type=request.survey_id
     )
-
     previous_context = request.user_context.copy()
 
-    last_question = ""
-    last_step_title = ""
-    if chat_history:
-        assistant_chat_messages = [
-            cm for cm in chat_history if cm.role.value == "assistant"
-        ]
-        last_chat_message = (
-            assistant_chat_messages[-1] if assistant_chat_messages else None
+    # --- INTRO LOGIC ---
+    if not user_input:
+        if flow_id in FLOWS_WITH_INTRO:
+            await delete_chat_history_for_user(request.user_id, HistoryType.anc)
+            chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
+            intro_message = INTRO_MESSAGES["free_text_intro"]
+            chat_history.append(
+                ChatMessage.from_assistant(
+                    text=intro_message, meta={"step_title": "intro"}
+                )
+            )
+            await save_chat_history(
+                user_id=user_id, messages=chat_history, history_type=request.survey_id
+            )
+            return SurveyResponse(
+                question=intro_message,
+                user_context=request.user_context,
+                survey_complete=False,
+                intent="SYSTEM_INTRO",
+                intent_related_response=None,
+                results_to_save=[],
+            )
+
+    last_assistant_message = next(
+        (msg for msg in reversed(chat_history) if msg.role.value == "assistant"), None
+    )
+    is_intro_response = (
+        last_assistant_message
+        and last_assistant_message.meta.get("step_title") == "intro"
+    )
+
+    if is_intro_response:
+        result = handle_intro_response(user_input=user_input, flow_id=flow_id)
+        response = await _handle_consent_result(
+            result=result,
+            response_model=SurveyResponse,
+            base_response_args={
+                "user_context": request.user_context,
+                "results_to_save": [],
+                "survey_complete": False,
+            },
         )
-        if last_chat_message:
-            last_question = last_chat_message.text
-            last_step_title = last_chat_message.meta["step_title"]
-    if request.user_input:
+        if response:
+            return response
+        chat_history.append(ChatMessage.from_user(text=user_input))
+
+    # --- REGULAR SURVEY LOGIC ---
+    last_question, last_step_title = "", ""
+    if last_assistant_message:
+        last_question = last_assistant_message.text
+        last_step_title = last_assistant_message.meta.get("step_title", "")
+
+    if not is_intro_response:
+        chat_history.append(ChatMessage.from_user(text=user_input))
         intent, intent_related_response = handle_user_message(last_question, user_input)
     else:
-        await delete_chat_history_for_user(request.user_id, HistoryType.anc)
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
-        chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
+
     user_context = request.user_context
-    if intent == "JOURNEY_RESPONSE" and request.user_input:
-        # There's only one survey type, so we can assume anc until we add more
-        # First, extract data from the user's last response to update the context
-        previous_context_keys = list(user_context.keys())
+    if intent == "JOURNEY_RESPONSE" and not is_intro_response:
         user_context = extract_anc_data_from_response(
             user_response=request.user_input,
             user_context=request.user_context,
             step_title=last_step_title,
         )
-        for k, v in user_context.items():
-            if k not in previous_context_keys:
-                chat_history.append(ChatMessage.from_user(text=v))
-                await save_chat_history(
-                    user_id=request.user_id,
-                    messages=chat_history,
-                    history_type=request.survey_id,
-                )
-                # There can only be one extracted data point
-                break
-    # Then, get the next logical question based on the updated context
-    # await get_or_create_chat_history()
+
     question_result = await get_anc_survey_question(
         user_id=user_id, user_context=user_context
     )
-    question = ""
+
+    question, next_step = "", ""
     survey_complete = True
-    next_step = ""
     if question_result:
         question = question_result.get("contextualized_question", "")
         survey_complete = question_result.get("is_final_step", False)
         next_step = question_result.get("question_identifier", "")
-    # Add the new question or a completion message to the history
+
     if (not question) and survey_complete:
-        completion_message = "Thank you for completing the survey!"
-        question = completion_message
+        question = "Thank you for completing the survey!"
+
     chat_history.append(
         ChatMessage.from_assistant(text=question, meta={"step_title": next_step})
     )
     await save_chat_history(
         user_id=request.user_id, messages=chat_history, history_type=request.survey_id
     )
-
-    # Identify what changed in user_context
     diff_keys = [k for k in user_context if user_context[k] != previous_context.get(k)]
 
     return SurveyResponse(

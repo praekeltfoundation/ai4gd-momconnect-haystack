@@ -20,6 +20,7 @@ from ai4gd_momconnect_haystack.tasks import (
     extract_onboarding_data_from_response,
     get_assessment_question,
     get_next_onboarding_question,
+    handle_intro_response,
 )
 
 # --- Test Data Fixtures ---
@@ -356,3 +357,49 @@ def test_extract_onboarding_data_from_response_updates_context(
     )
 
     assert result_context == expected_context
+
+
+@pytest.mark.parametrize(
+    "mock_intent, mock_validation, expected_action",
+    [
+        ("JOURNEY_RESPONSE", "Yes", "PROCEED"),
+        ("JOURNEY_RESPONSE", "No", "ABORT"),
+        ("JOURNEY_RESPONSE", None, "REPROMPT"),  # Ambiguous response
+        ("ASKING_TO_STOP_MESSAGES", None, "ABORT"),
+        ("QUESTION_ABOUT_STUDY", None, "REPROMPT_WITH_ANSWER"),
+        ("CHITCHAT", None, "ABORT"),
+    ],
+    ids=[
+        "Consents Yes",
+        "Consents No",
+        "Ambiguous Consent",
+        "Asks to Stop",
+        "Asks a Question",
+        "Chitchat",
+    ],
+)
+def test_handle_intro_response(mock_intent, mock_validation, expected_action):
+    """
+    Tests that the handle_intro_response task returns the correct action
+    based on the classified intent and validated response.
+    """
+    with (
+        mock.patch(
+            "ai4gd_momconnect_haystack.tasks.handle_user_message",
+            return_value=(mock_intent, "mock response"),
+        ) as mock_handle_msg,
+        mock.patch(
+            "ai4gd_momconnect_haystack.tasks.pipelines.run_clinic_visit_data_extraction_pipeline",
+            return_value=mock_validation,
+        ) as mock_run_pipeline,
+    ):
+        result = handle_intro_response(user_input="test input", flow_id="onboarding")
+
+        assert result["action"] == expected_action
+        mock_handle_msg.assert_called_once()
+
+        # The validation pipeline should only be called if the intent is JOURNEY_RESPONSE
+        if mock_intent == "JOURNEY_RESPONSE":
+            mock_run_pipeline.assert_called_once()
+        else:
+            mock_run_pipeline.assert_not_called()
