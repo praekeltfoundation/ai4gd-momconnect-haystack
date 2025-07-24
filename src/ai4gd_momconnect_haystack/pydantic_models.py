@@ -158,7 +158,7 @@ class AssessmentRequest(BaseModel):
 
 class AssessmentResponse(BaseModel):
     question: str
-    next_question: int
+    next_question: int | None
     intent: str | None
     intent_related_response: str | None
     processed_answer: str | None
@@ -191,3 +191,8 @@ class SurveyResponse(BaseModel):
     intent: str | None
     intent_related_response: str | None
     results_to_save: list[str]
+
+
+class IntroductionMessage(BaseModel):
+    id: str
+    content: str

@@ -525,3 +525,77 @@ def handle_user_message(
         logger.error(f"Intent detected: {intent}. No specific action defined.")
 
     return intent, response
+
+
+# In src/ai4gd_momconnect_haystack/tasks.py
+
+
+def handle_intro_response(user_input: str, flow_id: str) -> dict:
+    """
+    Handles a user's response to an introductory consent message by determining
+    their intent and validating their answer.
+    """
+    is_free_text_flow = (
+        "onboarding" in flow_id or "behaviour" in flow_id or "survey" in flow_id
+    )
+    previous_intro_message = (
+        doc_store.INTRO_MESSAGES["free_text_intro"]
+        if is_free_text_flow
+        else doc_store.INTRO_MESSAGES["multiple_choice_intro"]
+    )
+
+    # Level 1: General Intent Classification
+    intent, intent_related_response = handle_user_message(
+        previous_intro_message, user_input
+    )
+
+    # --- START DEBUGGING ---
+    print("\n--- INTRO DEBUG START ---")
+    print(f"DEBUG: User input was '{user_input}'")
+    print(f"DEBUG: Intent detected: {intent}")
+    # --- END DEBUGGING ---
+
+    action_result = {
+        "action": "",
+        "message": None,
+        "intent": intent,
+        "intent_related_response": intent_related_response,
+    }
+
+    if intent == "JOURNEY_RESPONSE":
+        # Level 2: Validate if the response is "Yes" or "No"
+        validated_consent = pipelines.run_clinic_visit_data_extraction_pipeline(
+            user_response=user_input,
+            previous_service_message=previous_intro_message,
+            valid_responses=["Yes", "No"],
+        )
+
+        # --- START DEBUGGING ---
+        print(f"DEBUG: Validated consent result: {validated_consent}")
+        # --- END DEBUGGING ---
+
+        if validated_consent == "Yes":
+            action_result["action"] = "PROCEED"
+        elif validated_consent == "No":
+            action_result["action"] = "ABORT"
+            action_result["message"] = doc_store.INTRO_MESSAGES["abort_message"]
+        else:
+            action_result["action"] = "REPROMPT"
+            action_result["message"] = (
+                f"Sorry, I didn't quite understand. Please reply with 'Yes' to begin or 'No' to stop.\n\n{previous_intro_message}"
+            )
+
+    elif intent in ["QUESTION_ABOUT_STUDY", "HEALTH_QUESTION"]:
+        action_result["action"] = "REPROMPT_WITH_ANSWER"
+        action_result["message"] = (
+            f"{intent_related_response}\n\n{previous_intro_message}"
+        )
+
+    else:  # ASK_TO_STOP, CHITCHAT, None, etc. are all treated as declining consent
+        action_result["action"] = "ABORT"
+        action_result["message"] = doc_store.INTRO_MESSAGES["abort_message"]
+
+    print(f"DEBUG: Final action result: {action_result['action']}")
+    print("--- INTRO DEBUG END ---\n")
+
+    return action_result
