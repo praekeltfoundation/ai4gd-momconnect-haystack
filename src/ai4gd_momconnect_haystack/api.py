@@ -16,8 +16,8 @@ from ai4gd_momconnect_haystack.assessment_logic import (
     get_content_from_message_data,
     response_is_required_for,
     score_assessment_question,
-    validate_assessment_end_response,
     validate_assessment_answer,
+    validate_assessment_end_response,
 )
 from ai4gd_momconnect_haystack.crud import (
     calculate_and_store_assessment_result,
@@ -32,8 +32,8 @@ from ai4gd_momconnect_haystack.crud import (
 )
 from ai4gd_momconnect_haystack.database import run_migrations
 from ai4gd_momconnect_haystack.doc_store import (
-    setup_document_store,
     INTRO_MESSAGES,
+    setup_document_store,
 )
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentEndRequest,
@@ -47,18 +47,20 @@ from ai4gd_momconnect_haystack.pydantic_models import (
 )
 from ai4gd_momconnect_haystack.tasks import (
     extract_anc_data_from_response,
-    process_onboarding_step,
+    extract_assessment_data_from_response,
     get_anc_survey_question,
     get_assessment_question,
-    extract_assessment_data_from_response,
     get_next_onboarding_question,
-    handle_user_message,
+    handle_conversational_repair,
     handle_intro_response,
+    handle_user_message,
+    process_onboarding_step,
 )
 from ai4gd_momconnect_haystack.utilities import (
+    FLOWS_WITH_INTRO,
+    all_onboarding_questions,
     assessment_end_flow_map,
     load_json_and_validate,
-    FLOWS_WITH_INTRO,
 )
 
 from .enums import HistoryType
@@ -156,11 +158,9 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         user_id=user_id, history_type=HistoryType.onboarding
     )
 
-    previous_context = request.user_context.copy()
-
-    # --- INTRO LOGIC ---
+    # This block handles the very first message of a flow (no user input)
     if not user_input:
-        if flow_id in FLOWS_WITH_INTRO:
+        if flow_id and flow_id in FLOWS_WITH_INTRO:
             await delete_chat_history_for_user(request.user_id, HistoryType.onboarding)
             chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
             intro_message = INTRO_MESSAGES["free_text_intro"]
@@ -176,14 +176,35 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
                 intent="SYSTEM_INTRO",
                 intent_related_response=None,
                 results_to_save=[],
+                failure_count=0,
             )
-
+    # This block handles the user's response to the intro message
+    last_assistant_msg = next(
+        (msg for msg in reversed(chat_history) if msg.role.value == "assistant"), None
+    )
     is_intro_response = (
         len(chat_history) == 2 and chat_history[0].role.value == "system"
     )
 
     if is_intro_response:
         result = handle_intro_response(user_input=user_input, flow_id=flow_id)
+        # If user chitchats on intro, trigger repair instead of aborting
+        if result["intent"] == "CHITCHAT":
+            rephrased_question = handle_conversational_repair(
+                flow_id=flow_id,
+                question_identifier=0,  # No specific question number for intro
+                previous_question=last_assistant_msg.text if last_assistant_msg else "",
+                invalid_input=user_input,
+            )
+            return OnboardingResponse(
+                question=rephrased_question
+                or (last_assistant_msg.text if last_assistant_msg else ""),
+                user_context=request.user_context,
+                intent="REPAIR",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=request.failure_count + 1,
+            )
 
         response = await _handle_consent_result(
             result=result,
@@ -191,44 +212,105 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
             base_response_args={
                 "user_context": request.user_context,
                 "results_to_save": [],
+                "failure_count": 0,
             },
         )
         if response:
             return response
-
+        # If 'response' is None, it means the user consented and we can proceed.
         chat_history.append(ChatMessage.from_user(text=user_input))
 
     # --- REGULAR ONBOARDING LOGIC ---
     last_question = ""
-    last_assistant_msg = next(
-        (msg for msg in reversed(chat_history) if msg.role.value == "assistant"), None
-    )
     if last_assistant_msg:
         last_question = last_assistant_msg.text
+    last_question_obj = next(
+        (
+            q
+            for q in all_onboarding_questions
+            if q.content and q.content in last_question
+        ),
+        None,
+    )
+    current_question_number = (
+        last_question_obj.question_number if last_question_obj else 0
+    )
 
+    # For subsequent messages, detect intent
     if not is_intro_response:
-        chat_history.append(ChatMessage.from_user(text=user_input))
         intent, intent_related_response = handle_user_message(last_question, user_input)
+        intent = intent or ""
+        intent_related_response = intent_related_response or ""
+
     else:
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
 
-    if intent == "JOURNEY_RESPONSE":
-        user_context, question = process_onboarding_step(
-            user_input=user_input,
-            current_context=request.user_context,
-            current_question=last_question,
+    if intent != "JOURNEY_RESPONSE":
+        if intent == "CHITCHAT":
+            rephrased_question = handle_conversational_repair(
+                flow_id=flow_id,
+                question_identifier=current_question_number,
+                previous_question=last_question,
+                invalid_input=user_input,
+            )
+            return OnboardingResponse(
+                question=rephrased_question or last_question,
+                user_context=request.user_context,
+                intent="REPAIR",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=request.failure_count + 1,
+            )
+        return OnboardingResponse(
+            question=last_question,
+            user_context=request.user_context,
+            intent=intent,
+            intent_related_response=intent_related_response,
+            results_to_save=[],
+            failure_count=request.failure_count,
         )
-    else:
-        # If there is no response to the question, the context stays the same
-        user_context = request.user_context
-        question = get_next_onboarding_question(user_context=user_context)
+
+    previous_context = request.user_context.copy()
+    user_context, question = process_onboarding_step(
+        user_input=user_input,
+        current_context=previous_context,
+        current_question=last_question,
+    )
+
+    if not question:  # REPAIR on failed validation
+        if request.failure_count >= 1:  # ESCAPE HATCH
+            logger.warning(
+                f"Onboarding failed for question '{last_question}' twice. Skipping."
+            )
+            # Robust skip logic would go here. For now, we get the next question based on the *unchanged* context.
+            user_context = previous_context  # Revert context
+            question = get_next_onboarding_question(user_context=user_context)
+        else:
+            rephrased_question = handle_conversational_repair(
+                flow_id=flow_id,
+                question_identifier=current_question_number,
+                previous_question=last_question,
+                invalid_input=request.user_input,
+            )
+            return OnboardingResponse(
+                question=rephrased_question or last_question,
+                user_context=previous_context,
+                intent="REPAIR",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=request.failure_count + 1,
+            )
 
     question_text = ""
     if question:
         question_text = question.get("contextualized_question", "")
 
+    if not is_intro_response:
+        chat_history.append(ChatMessage.from_user(text=user_input))
+
     if question_text:
         chat_history.append(ChatMessage.from_assistant(text=question_text))
+
     await save_chat_history(
         user_id=request.user_id,
         messages=chat_history,
@@ -236,7 +318,9 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     )
 
     # Identify what changed in user_context
-    diff_keys = [k for k in user_context if user_context[k] != previous_context.get(k)]
+    diff_keys = [
+        k for k in user_context if user_context.get(k) != previous_context.get(k)
+    ]
 
     return OnboardingResponse(
         question=question_text,
@@ -244,15 +328,17 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         intent=intent,
         intent_related_response=intent_related_response,
         results_to_save=diff_keys,
+        failure_count=0,
     )
 
 
 @app.post("/v1/assessment")
 async def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
-    # --- 1. HANDLE START OF A NEW FLOW with INTRO LOGIC ---
+    # --- 1. HANDLE START OF A NEW ASSESSMENT ---
     if not request.user_input:
         await delete_assessment_history_for_user(request.user_id, request.flow_id)
 
+        # Now, check if this specific flow needs an intro message.
         if request.flow_id.value in FLOWS_WITH_INTRO:
             intro_message = (
                 INTRO_MESSAGES["free_text_intro"]
@@ -261,10 +347,11 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
             )
             return AssessmentResponse(
                 question=intro_message,
-                next_question=0,  # Use 0 to signal that the next turn is a consent response
+                next_question=0,
                 intent="SYSTEM_INTRO",
                 intent_related_response=None,
                 processed_answer=None,
+                failure_count=0,
             )
 
     # --- 2. HANDLE THE USER'S RESPONSE TO THE INTRO ---
@@ -272,7 +359,6 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
         result = handle_intro_response(
             user_input=request.user_input, flow_id=request.flow_id.value
         )
-
         response = await _handle_consent_result(
             result=result,
             response_model=AssessmentResponse,
@@ -280,21 +366,47 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
         )
         if response:
             return response
-        # If 'response' is None, it means the user consented and we can proceed.
 
-    processed_answer = None
+    # --- REGULAR TURN LOGIC ---
     current_question_number = (
         1 if request.question_number == 0 else request.question_number
     )
+    next_question_number = current_question_number
+    processed_answer = None
+    intent: str | None = "JOURNEY_RESPONSE"
+    intent_related_response: str | None = ""
 
-    if request.user_input:
+    if request.user_input and request.question_number != 0:
         intent, intent_related_response = handle_user_message(
             request.previous_question, request.user_input
         )
-    else:
-        intent, intent_related_response = "JOURNEY_RESPONSE", ""
+        intent = intent or ""
 
-    if intent == "JOURNEY_RESPONSE" and request.user_input:
+        if intent != "JOURNEY_RESPONSE":
+            if intent == "CHITCHAT":
+                rephrased_question = handle_conversational_repair(
+                    flow_id=request.flow_id.value,
+                    question_identifier=current_question_number,
+                    previous_question=request.previous_question,
+                    invalid_input=request.user_input,
+                )
+                return AssessmentResponse(
+                    question=rephrased_question or request.previous_question,
+                    next_question=current_question_number,
+                    intent="REPAIR",
+                    intent_related_response=None,
+                    processed_answer=None,
+                    failure_count=request.failure_count + 1,
+                )
+            return AssessmentResponse(
+                question=request.previous_question,
+                next_question=current_question_number,
+                intent=intent,
+                intent_related_response=intent_related_response,
+                processed_answer=None,
+                failure_count=request.failure_count,
+            )
+
         if "behaviour" in request.flow_id.value:
             answer = extract_assessment_data_from_response(
                 user_response=request.user_input,
@@ -308,15 +420,31 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
                 current_flow_id=request.flow_id.value,
             )
         processed_answer = answer.get("processed_user_response")
-        next_question_number = answer.get(
-            "next_question_number", current_question_number
-        )
-    elif intent == "SKIP_QUESTION":
-        logger.info(f"User skipped question {request.question_number}. Advancing.")
-        processed_answer = "Skip"
-        next_question_number = request.question_number + 1
-    else:
-        next_question_number = request.question_number
+
+        if not processed_answer:
+            if request.failure_count >= 1:
+                logger.warning(f"Force-skipping question {current_question_number}.")
+                processed_answer = "Skip"
+                next_question_number = current_question_number + 1
+            else:
+                rephrased_question = handle_conversational_repair(
+                    flow_id=request.flow_id.value,
+                    question_identifier=current_question_number,
+                    previous_question=request.previous_question,
+                    invalid_input=request.user_input,
+                )
+                return AssessmentResponse(
+                    question=rephrased_question or request.previous_question,
+                    next_question=current_question_number,
+                    intent="REPAIR",
+                    intent_related_response=None,
+                    processed_answer=None,
+                    failure_count=request.failure_count + 1,
+                )
+        else:
+            next_question_number = answer.get(
+                "next_question_number", current_question_number + 1
+            )
 
     if processed_answer:
         score = score_assessment_question(
@@ -334,6 +462,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
         )
         await calculate_and_store_assessment_result(request.user_id, request.flow_id)
 
+    # --- FETCH AND RETURN NEXT QUESTION ---
     question = await get_assessment_question(
         user_id=request.user_id,
         flow_id=request.flow_id,
@@ -355,10 +484,11 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
 
     return AssessmentResponse(
         question=contextualized_question,
-        next_question=next_question_number,
+        next_question=next_question_number if contextualized_question else None,
         intent=intent,
         intent_related_response=intent_related_response,
         processed_answer=processed_answer,
+        failure_count=0 if processed_answer else request.failure_count,
     )
 
 
@@ -386,7 +516,7 @@ async def assessment_end(
     )
 
     # Determine Current State and Handle User Input
-    task = ""
+    task: str | None = ""
     previous_message_nr = 0
     if messaging_history:
         previous_message_nr = messaging_history[-1].message_number
@@ -493,7 +623,7 @@ async def assessment_end(
 
     return AssessmentEndResponse(
         message=next_message,
-        task=task,
+        task=task or "",
         intent=intent,
         intent_related_response=intent_related_response,
     )
@@ -501,21 +631,16 @@ async def assessment_end(
 
 @app.post("/v1/survey", response_model=SurveyResponse)
 async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
-    """
-    Handles the conversation flow for the ANC (Antenatal Care) survey.
-    It extracts data from the user's response and determines the next question.
-    """
     user_id = request.user_id
     user_input = request.user_input
     flow_id = "anc-survey"
     chat_history = await get_or_create_chat_history(
         user_id=user_id, history_type=request.survey_id
     )
-    previous_context = request.user_context.copy()
 
     # --- INTRO LOGIC ---
     if not user_input:
-        if flow_id in FLOWS_WITH_INTRO:
+        if flow_id and flow_id in FLOWS_WITH_INTRO:
             await delete_chat_history_for_user(request.user_id, HistoryType.anc)
             chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
             intro_message = INTRO_MESSAGES["free_text_intro"]
@@ -534,6 +659,7 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
                 intent="SYSTEM_INTRO",
                 intent_related_response=None,
                 results_to_save=[],
+                failure_count=0,
             )
 
     last_assistant_message = next(
@@ -553,6 +679,7 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
                 "user_context": request.user_context,
                 "results_to_save": [],
                 "survey_complete": False,
+                "failure_count": 0,
             },
         )
         if response:
@@ -565,47 +692,110 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
         last_question = last_assistant_message.text
         last_step_title = last_assistant_message.meta.get("step_title", "")
 
+    user_context = request.user_context.copy()
+    previous_context = request.user_context.copy()
+    intent: str | None = "JOURNEY_RESPONSE"
+    intent_related_response: str | None = ""
+
+    # FIX: Only process input if this is NOT a response to an intro.
     if not is_intro_response:
         chat_history.append(ChatMessage.from_user(text=user_input))
         intent, intent_related_response = handle_user_message(last_question, user_input)
-    else:
-        intent, intent_related_response = "JOURNEY_RESPONSE", ""
+        intent = intent or ""
+        intent_related_response = intent_related_response or ""
 
-    user_context = request.user_context
-    if intent == "JOURNEY_RESPONSE" and not is_intro_response:
+        if intent != "JOURNEY_RESPONSE":
+            if intent == "CHITCHAT":
+                rephrased_question = handle_conversational_repair(
+                    flow_id="anc-survey",
+                    question_identifier=last_step_title,
+                    previous_question=last_question,
+                    invalid_input=request.user_input,
+                )
+                return SurveyResponse(
+                    question=rephrased_question or last_question,
+                    user_context=request.user_context,
+                    survey_complete=False,
+                    intent="REPAIR",
+                    intent_related_response=None,
+                    results_to_save=[],
+                    failure_count=request.failure_count + 1,
+                )
+            return SurveyResponse(
+                question=last_question,
+                user_context=request.user_context,
+                survey_complete=False,
+                intent=intent,
+                intent_related_response=intent_related_response,
+                results_to_save=[],
+                failure_count=request.failure_count,
+            )
+
         user_context = extract_anc_data_from_response(
             user_response=request.user_input,
             user_context=request.user_context,
             step_title=last_step_title,
         )
 
+    if user_context == previous_context and not is_intro_response:
+        if request.failure_count >= 1:
+            logger.warning(
+                f"Survey failed for question '{last_step_title}' twice. Skipping."
+            )
+        else:
+            rephrased_question = handle_conversational_repair(
+                flow_id=flow_id,
+                question_identifier=last_step_title,
+                previous_question=last_question,
+                invalid_input=user_input,
+            )
+            return SurveyResponse(
+                question=rephrased_question or last_question,
+                user_context=previous_context,
+                survey_complete=False,
+                intent="REPAIR",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=request.failure_count + 1,
+            )
+
     question_result = await get_anc_survey_question(
-        user_id=user_id, user_context=user_context
+        user_id=request.user_id, user_context=user_context
     )
 
-    question, next_step = "", ""
+    question: str | None = ""
+    next_step = ""
     survey_complete = True
     if question_result:
         question = question_result.get("contextualized_question", "")
         survey_complete = question_result.get("is_final_step", False)
         next_step = question_result.get("question_identifier", "")
 
-    if (not question) and survey_complete:
+    if (not question) and not survey_complete:
+        # If get_anc_survey_question returns None, it's the end of the survey.
+        survey_complete = True
         question = "Thank you for completing the survey!"
 
-    chat_history.append(
-        ChatMessage.from_assistant(text=question, meta={"step_title": next_step})
-    )
+    if question:
+        chat_history.append(
+            ChatMessage.from_assistant(text=question, meta={"step_title": next_step})
+        )
+
     await save_chat_history(
         user_id=request.user_id, messages=chat_history, history_type=request.survey_id
     )
-    diff_keys = [k for k in user_context if user_context[k] != previous_context.get(k)]
+    diff_keys = [
+        k for k in user_context if user_context.get(k) != previous_context.get(k)
+    ]
 
     return SurveyResponse(
-        question=question,
+        question=question or "",
         user_context=user_context,
         survey_complete=survey_complete,
         intent=intent,
         intent_related_response=intent_related_response,
         results_to_save=diff_keys,
+        failure_count=0
+        if user_context != previous_context or request.failure_count >= 1
+        else request.failure_count,
     )

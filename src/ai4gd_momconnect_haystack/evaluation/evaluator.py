@@ -114,7 +114,7 @@ class Evaluator:
         except (AttributeError, IndexError):
             return 0.0, "Result extraction failed."
 
-    def run_suite(self):
+    def run_suite(self) -> None:
         """Orchestrates the loading, evaluation, and reporting."""
         print("--- Loading and Collating Evaluation Data ---")
         gt_data = load_json_file(self.gt_path)
@@ -226,12 +226,12 @@ class Evaluator:
             except IOError as e:
                 logging.error(f"Could not write report to file '{output_path}': {e}")
 
-    def _add_line(self, line: str):
+    def _add_line(self, line: str) -> None:
         """Helper to print a line to the console and add it to the report buffer."""
         print(line)
         self.report_lines.append(line)
 
-    def _present_turn_by_turn_report(self):
+    def _present_turn_by_turn_report(self) -> None:
         """Formats and prints the detailed report for each evaluated turn."""
         self._add_line("\n\n" + "=" * 50)
         self._add_line("          DETAILED TURN-BY-TURN REPORT")
@@ -288,7 +288,7 @@ class Evaluator:
                         f"       {Colors.WARNING}Reason: {reason}{Colors.ENDC}"
                     )
 
-    def _present_intent_classification_report(self):
+    def _present_intent_classification_report(self) -> None:
         """Generates and prints a classification report and confusion matrix for intents."""
         y_true, y_pred = [], []
         for res in self.collated_results.values():
@@ -321,7 +321,7 @@ class Evaluator:
         self._add_line(str(cm_df))
         self._add_line("=" * 60)
 
-    def _present_performance_summary_report(self):
+    def _present_performance_summary_report(self) -> None:
         """Aggregates results and prints a high-level performance summary."""
         summary_data: Dict[str, List] = {}
         for (s_id, flow_type, q_name), res in self.collated_results.items():
@@ -379,7 +379,7 @@ class Evaluator:
         self._add_line("\n" + "=" * 50)
 
 
-def main():
+def main() -> None:
     """Parses arguments and orchestrates the evaluation."""
     parser = argparse.ArgumentParser(
         description="Run a multi-faceted evaluation on LLM results."

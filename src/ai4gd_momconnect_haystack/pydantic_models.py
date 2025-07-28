@@ -137,6 +137,7 @@ class OnboardingRequest(BaseModel):
     user_id: str
     user_input: str
     user_context: dict[str, Any]
+    failure_count: int = 0
 
 
 class OnboardingResponse(BaseModel):
@@ -145,6 +146,7 @@ class OnboardingResponse(BaseModel):
     intent: str | None
     intent_related_response: str | None
     results_to_save: list[str]
+    failure_count: int
 
 
 class AssessmentRequest(BaseModel):
@@ -154,6 +156,7 @@ class AssessmentRequest(BaseModel):
     flow_id: AssessmentType
     question_number: int
     previous_question: str
+    failure_count: int = 0
 
 
 class AssessmentResponse(BaseModel):
@@ -162,6 +165,7 @@ class AssessmentResponse(BaseModel):
     intent: str | None
     intent_related_response: str | None
     processed_answer: str | None
+    failure_count: int = 0
 
 
 class AssessmentEndRequest(BaseModel):
@@ -172,7 +176,7 @@ class AssessmentEndRequest(BaseModel):
 
 class AssessmentEndResponse(BaseModel):
     message: str
-    task: str
+    task: str | None
     intent: str | None
     intent_related_response: str | None
 
@@ -182,15 +186,17 @@ class SurveyRequest(BaseModel):
     survey_id: HistoryType
     user_input: str
     user_context: dict[str, Any]
+    failure_count: int = 0
 
 
 class SurveyResponse(BaseModel):
-    question: str
+    question: str | None
     user_context: dict[str, Any]
     survey_complete: bool
     intent: str | None
     intent_related_response: str | None
     results_to_save: list[str]
+    failure_count: int = 0
 
 
 class IntroductionMessage(BaseModel):

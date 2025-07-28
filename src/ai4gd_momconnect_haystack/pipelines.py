@@ -26,6 +26,7 @@ from .pipeline_prompts import (
     INTENT_DETECTION_PROMPT,
     NEXT_ONBOARDING_QUESTION_PROMPT,
     ONBOARDING_DATA_EXTRACTION_PROMPT,
+    REPHRASE_QUESTION_PROMPT,
 )
 
 # --- Configuration ---
@@ -91,6 +92,19 @@ INTENT_DETECTION_SCHEMA = {
     },
     "required": ["intent"],
 }
+
+REPHRASED_QUESTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "rephrased_question": {
+            "type": "string",
+            "description": "The rephrased, user-facing version of the question.",
+        }
+    },
+    "required": ["rephrased_question"],
+    "additionalProperties": False,
+}
+
 
 # --- The ANC Survey flow, statically defined ---
 ANC_SURVEY_FLOW_LOGIC = {
@@ -691,6 +705,33 @@ def create_faq_answering_pipeline() -> Pipeline | None:
     pipeline.connect("prompt_builder.prompt", "llm.messages")
 
     logger.info("Created FAQ Answering Pipeline.")
+    return pipeline
+
+
+@cache
+def create_rephrase_question_pipeline() -> Pipeline | None:
+    """
+    Creates a pipeline to rephrase a question when a user's response is unclear.
+    """
+    llm_generator = get_llm_generator()  # Assumes get_llm_generator() exists
+    if not llm_generator:
+        logger.error(
+            "LLM Generator not available. Cannot create Rephrase Question Pipeline."
+        )
+        return None
+
+    pipeline = Pipeline()
+
+    json_validator = JsonSchemaValidator(json_schema=REPHRASED_QUESTION_SCHEMA)
+
+    pipeline.add_component("prompt_builder", ChatPromptBuilder())
+    pipeline.add_component("llm", llm_generator)
+    pipeline.add_component("json_validator", json_validator)
+
+    pipeline.connect("prompt_builder.prompt", "llm.messages")
+    pipeline.connect("llm.replies", "json_validator.messages")
+
+    logger.info("Created Rephrase Question Pipeline.")
     return pipeline
 
 
@@ -1445,5 +1486,59 @@ def run_faq_pipeline(user_question: str) -> dict[str, Any] | None:
         )
     except Exception as e:
         logger.warning("Error running FAQ pipeline: %s", e)
+
+    return None
+
+
+def run_rephrase_question_pipeline(
+    previous_question: str, invalid_input: str, valid_responses: list[str]
+) -> str | None:
+    """
+    Runs the question rephrasing pipeline.
+
+    Args:
+        previous_question: The question that the user found confusing.
+        invalid_input: The user's confusing response.
+        valid_responses: The list of acceptable answer strings.
+
+    Returns:
+        The rephrased question string, or None if an error occurs.
+    """
+    pipeline = create_rephrase_question_pipeline()
+    if not pipeline:
+        logger.warning("Failed to create Rephrase Question pipeline.")
+        return None
+
+    chat_template = [ChatMessage.from_system(REPHRASE_QUESTION_PROMPT)]
+
+    try:
+        result = pipeline.run(
+            {
+                "prompt_builder": {
+                    "template": chat_template,
+                    "template_variables": {
+                        "previous_question": previous_question,
+                        "invalid_input": invalid_input,
+                        "valid_responses": valid_responses,
+                    },
+                },
+            }
+        )
+
+        validated_message = result["json_validator"]["validated"][0]
+        question_data = json.loads(validated_message.text)
+        rephrased_question = question_data.get("rephrased_question")
+
+        if rephrased_question:
+            return rephrased_question
+        else:
+            logger.warning(
+                "Rephrasing pipeline succeeded but 'rephrased_question' key is missing."
+            )
+
+    except (KeyError, IndexError, json.JSONDecodeError) as e:
+        logger.warning("Rephrasing pipeline failed to produce a valid response: %s", e)
+    except Exception as e:
+        logger.error("Unexpected error in rephrase_question_pipeline execution: %s", e)
 
     return None
