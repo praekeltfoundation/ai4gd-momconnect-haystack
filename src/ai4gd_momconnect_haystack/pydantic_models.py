@@ -196,3 +196,13 @@ class SurveyResponse(BaseModel):
 class IntroductionMessage(BaseModel):
     id: str
     content: str
+
+
+class CatchAllRequest(BaseModel):
+    user_id: str
+    user_input: str
+
+
+class CatchAllResponse(BaseModel):
+    intent: str | None
+    intent_related_response: str | None
