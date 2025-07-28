@@ -26,6 +26,7 @@ dependencies = [
 dev = [
     { name = "aiosqlite" },
     { name = "deepeval" },
+    { name = "greenlet" },
     { name = "mypy" },
     { name = "polars" },
     { name = "pytest" },
@@ -51,6 +52,7 @@ requires-dist = [
 dev = [
     { name = "aiosqlite", specifier = ">=0.20.0" },
     { name = "deepeval", specifier = ">=0.24.38" },
+    { name = "greenlet", specifier = ">=3.0.0" },
     { name = "mypy", specifier = ">=1.16.0" },
     { name = "polars", specifier = ">=1.31.0" },
     { name = "pytest", specifier = ">=8.3.5" },
