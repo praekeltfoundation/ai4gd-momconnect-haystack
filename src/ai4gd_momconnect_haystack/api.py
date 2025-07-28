@@ -16,8 +16,8 @@ from ai4gd_momconnect_haystack.assessment_logic import (
     get_content_from_message_data,
     response_is_required_for,
     score_assessment_question,
-    validate_assessment_end_response,
     validate_assessment_answer,
+    validate_assessment_end_response,
 )
 from ai4gd_momconnect_haystack.crud import (
     calculate_and_store_assessment_result,
@@ -32,8 +32,8 @@ from ai4gd_momconnect_haystack.crud import (
 )
 from ai4gd_momconnect_haystack.database import run_migrations
 from ai4gd_momconnect_haystack.doc_store import (
-    setup_document_store,
     INTRO_MESSAGES,
+    setup_document_store,
 )
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentEndRequest,
@@ -47,20 +47,20 @@ from ai4gd_momconnect_haystack.pydantic_models import (
 )
 from ai4gd_momconnect_haystack.tasks import (
     extract_anc_data_from_response,
-    process_onboarding_step,
+    extract_assessment_data_from_response,
     get_anc_survey_question,
     get_assessment_question,
-    extract_assessment_data_from_response,
     get_next_onboarding_question,
-    handle_user_message,
-    handle_intro_response,
     handle_conversational_repair,
+    handle_intro_response,
+    handle_user_message,
+    process_onboarding_step,
 )
 from ai4gd_momconnect_haystack.utilities import (
-    assessment_end_flow_map,
-    load_json_and_validate,
     FLOWS_WITH_INTRO,
     all_onboarding_questions,
+    assessment_end_flow_map,
+    load_json_and_validate,
 )
 
 from .enums import HistoryType
@@ -373,7 +373,8 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
     )
     next_question_number = current_question_number
     processed_answer = None
-    intent, intent_related_response = "JOURNEY_RESPONSE", ""
+    intent: str | None = "JOURNEY_RESPONSE"
+    intent_related_response: str | None = ""
 
     if request.user_input and request.question_number != 0:
         intent, intent_related_response = handle_user_message(
@@ -693,7 +694,8 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
 
     user_context = request.user_context.copy()
     previous_context = request.user_context.copy()
-    intent, intent_related_response = "JOURNEY_RESPONSE", ""
+    intent: str | None = "JOURNEY_RESPONSE"
+    intent_related_response: str | None = ""
 
     # FIX: Only process input if this is NOT a response to an intro.
     if not is_intro_response:
