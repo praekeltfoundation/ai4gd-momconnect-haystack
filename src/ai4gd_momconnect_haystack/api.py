@@ -40,6 +40,8 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentEndResponse,
     AssessmentRequest,
     AssessmentResponse,
+    CatchAllRequest,
+    CatchAllResponse,
     OnboardingRequest,
     OnboardingResponse,
     SurveyRequest,
@@ -798,4 +800,14 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
         failure_count=0
         if user_context != previous_context or request.failure_count >= 1
         else request.failure_count,
+    )
+
+
+@app.post("/v1/catchall", response_model=CatchAllResponse)
+async def catchall(request: CatchAllRequest, token: str = Depends(verify_token)):
+    intent, intent_related_response = handle_user_message("", request.user_input)
+
+    return CatchAllResponse(
+        intent=intent,
+        intent_related_response=intent_related_response,
     )
