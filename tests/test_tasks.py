@@ -14,6 +14,7 @@ from ai4gd_momconnect_haystack.enums import AssessmentType
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentQuestion,
     AssessmentRun,
+    ResponseScore,
     Turn,
 )
 from ai4gd_momconnect_haystack.tasks import (
@@ -21,6 +22,7 @@ from ai4gd_momconnect_haystack.tasks import (
     get_assessment_question,
     get_next_onboarding_question,
     handle_intro_response,
+    handle_conversational_repair,
 )
 
 # --- Test Data Fixtures ---
@@ -403,3 +405,47 @@ def test_handle_intro_response(mock_intent, mock_validation, expected_action):
             mock_run_pipeline.assert_called_once()
         else:
             mock_run_pipeline.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "pipeline_return, expected_substring",
+    [
+        ("Rephrased question from LLM", "Rephrased question from LLM"),
+        (None, "Sorry, I didn't understand"),  # Test the fallback
+    ],
+    ids=["pipeline_success", "pipeline_failure_fallback"],
+)
+def test_handle_conversational_repair(pipeline_return, expected_substring):
+    """
+    Tests the handle_conversational_repair function for both successful
+    pipeline execution and fallback behavior.
+    """
+    mock_question = AssessmentQuestion(
+        question_number=1,
+        content="Original Question?",
+        valid_responses_and_scores=[ResponseScore(response="Yes", score=1)],
+    )
+
+    with (
+        mock.patch(
+            "ai4gd_momconnect_haystack.tasks.run_rephrase_question_pipeline",
+            return_value=pipeline_return,
+        ) as mock_run_pipeline,
+        mock.patch.dict(
+            "ai4gd_momconnect_haystack.tasks.assessment_flow_map",
+            {"test-flow": [mock_question]},
+        ),
+    ):
+        result = handle_conversational_repair(
+            flow_id="test-flow",
+            question_identifier=1,
+            previous_question="Original Question?",
+            invalid_input="bad answer",
+        )
+
+        assert expected_substring in result
+        mock_run_pipeline.assert_called_once_with(
+            previous_question="Original Question?",
+            invalid_input="bad answer",
+            valid_responses=["Yes"],
+        )

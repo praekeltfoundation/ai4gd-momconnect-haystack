@@ -10,6 +10,7 @@ from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType
 from ai4gd_momconnect_haystack.pipelines import (
     get_next_anc_survey_step,
     run_anc_survey_contextualization_pipeline,
+    run_rephrase_question_pipeline,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import AssessmentHistory
 
@@ -596,3 +597,87 @@ def handle_intro_response(user_input: str, flow_id: str) -> dict:
     print("--- INTRO DEBUG END ---\n")
 
     return action_result
+
+
+def handle_conversational_repair(
+    flow_id: str,
+    question_identifier: str | int,
+    previous_question: str,
+    invalid_input: str,
+) -> str | None:
+    """
+    Handles conversational repair by calling an LLM to rephrase a confusing question.
+    This function is generalized to work across 'assessment', 'onboarding', and 'anc-survey' flows.
+    """
+    logger.info(
+        f"Handling conversational repair for flow '{flow_id}', question '{question_identifier}'."
+    )
+
+    valid_responses: list[str] = []
+
+    # 1. Look up the canonical question data based on the flow_id
+    if flow_id in assessment_flow_map:
+        question_list = assessment_flow_map.get(flow_id)
+        if question_list:
+            assessment_question_data = next(
+                (q for q in question_list if q.question_number == question_identifier),
+                None,
+            )
+            if (
+                assessment_question_data
+                and assessment_question_data.valid_responses_and_scores
+            ):
+                valid_responses = [
+                    item.response
+                    for item in assessment_question_data.valid_responses_and_scores
+                ]
+
+    elif flow_id == "onboarding":
+        onboarding_question_list = all_onboarding_questions
+        onboarding_question_data = next(
+            (
+                q
+                for q in onboarding_question_list
+                if q.question_number == question_identifier
+            ),
+            None,
+        )
+        if onboarding_question_data and onboarding_question_data.valid_responses:
+            valid_responses = onboarding_question_data.valid_responses
+
+    elif flow_id == "anc-survey":
+        # Check if the identifier is a valid key before accessing.
+        if isinstance(question_identifier, str):
+            anc_question_data = ANC_SURVEY_MAP.get(question_identifier)
+            if anc_question_data and anc_question_data.valid_responses:
+                valid_responses = anc_question_data.valid_responses
+    # This `else` block was removed as it was not present in the provided file. A check for `valid_responses` handles all cases.
+
+    # Check if we found valid responses. If not, we cannot rephrase with options.
+    if not valid_responses:
+        logger.error(
+            f"Could not find valid responses for question '{question_identifier}' in flow '{flow_id}'. Cannot perform conversational repair."
+        )
+        # Fallback to a generic message without options, as we don't have any.
+        return f"Sorry, I didn't understand. Please try answering the previous question again:\n\n{previous_question}"
+
+    # 2. Call the rephrasing pipeline
+    rephrased_question = run_rephrase_question_pipeline(
+        previous_question=previous_question,
+        invalid_input=invalid_input,
+        valid_responses=valid_responses,
+    )
+
+    # 3. Fallback if the pipeline fails
+    if not rephrased_question:
+        logger.warning("LLM rephrasing failed. Using simple fallback.")
+        options = "\\n".join(
+            [
+                f"{chr(97 + idx)}. {resp}"
+                for idx, resp in enumerate(valid_responses)
+                if resp != "Skip"
+            ]
+        )
+        return f"Sorry, I didn't understand. Please try again.\n\n{previous_question}\n{options}"
+
+    return rephrased_question
