@@ -784,6 +784,7 @@ async def test_anc_survey(
     assert saved_messages[4].text == "Yes I did"
     assert saved_messages[5].text == "Q2"
 
+
 @pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch("ai4gd_momconnect_haystack.api.SERVICE_PERSONA_TEXT", "Test Persona")
@@ -848,9 +849,7 @@ async def test_anc_survey_first_question(
     get_or_create_chat_history.assert_awaited_once_with(
         user_id="TestUser", history_type=HistoryType.anc
     )
-    mock_handle_intro.assert_called_once_with(
-        user_input="Yes", flow_id="anc-survey"
-    )
+    mock_handle_intro.assert_called_once_with(user_input="Yes", flow_id="anc-survey")
     mock_get_question.assert_awaited_once()
     mock_handle_user_message.assert_not_called()
     save_chat_history.assert_awaited_once()
@@ -858,6 +857,7 @@ async def test_anc_survey_first_question(
     assert len(saved_messages) == 4
     assert saved_messages[2].text == "Yes"
     assert saved_messages[3].text == "Hi! Did you go for your clinic visit?"
+
 
 @pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
@@ -1235,19 +1235,28 @@ async def test_flow_repair_on_invalid_answer(
     """
     if endpoint == "/v1/onboarding":
         json_payload = {
-            "user_id": "TestUser", "user_context": {},
-            "user_input": "invalid answer", "failure_count": 0,
+            "user_id": "TestUser",
+            "user_context": {},
+            "user_input": "invalid answer",
+            "failure_count": 0,
         }
     elif endpoint == "/v1/survey":
         json_payload = {
-            "user_id": "TestUser", "survey_id": "anc", "user_context": {},
-            "user_input": "invalid answer", "failure_count": 0,
+            "user_id": "TestUser",
+            "survey_id": "anc",
+            "user_context": {},
+            "user_input": "invalid answer",
+            "failure_count": 0,
         }
     else:
         json_payload = {
-            "user_id": "TestUser", "user_context": {}, "user_input": "invalid answer",
-            "flow_id": flow_id, "question_number": question_number,
-            "previous_question": "Original question?", "failure_count": 0,
+            "user_id": "TestUser",
+            "user_context": {},
+            "user_input": "invalid answer",
+            "flow_id": flow_id,
+            "question_number": question_number,
+            "previous_question": "Original question?",
+            "failure_count": 0,
         }
 
     client = TestClient(app)
@@ -1261,6 +1270,7 @@ async def test_flow_repair_on_invalid_answer(
     assert json_response["intent"] == "REPAIR"
     assert json_response["failure_count"] == 1
     mock_repair.assert_called_once()
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
@@ -1309,28 +1319,46 @@ async def test_flow_repair_on_invalid_answer(
     return_value=("JOURNEY_RESPONSE", ""),
 )
 async def test_flow_repair_escape_hatch(
-    mock_handle_message, mock_validate, mock_process_onboarding, mock_extract_anc,
-    mock_repair, mock_get_assessment_q, mock_get_onboarding_q, mock_get_survey_q,
-    mock_get_history, flow_id, question_number, endpoint
+    mock_handle_message,
+    mock_validate,
+    mock_process_onboarding,
+    mock_extract_anc,
+    mock_repair,
+    mock_get_assessment_q,
+    mock_get_onboarding_q,
+    mock_get_survey_q,
+    mock_get_history,
+    flow_id,
+    question_number,
+    endpoint,
 ):
     """
     Tests that if a user fails validation twice, they are force-skipped to the next question across all flows.
     """
     if endpoint == "/v1/onboarding":
         json_payload = {
-            "user_id": "TestUser", "user_context": {},
-            "user_input": "another invalid", "failure_count": 1,
+            "user_id": "TestUser",
+            "user_context": {},
+            "user_input": "another invalid",
+            "failure_count": 1,
         }
     elif endpoint == "/v1/survey":
         json_payload = {
-            "user_id": "TestUser", "survey_id": "anc", "user_context": {},
-            "user_input": "another invalid", "failure_count": 1,
+            "user_id": "TestUser",
+            "survey_id": "anc",
+            "user_context": {},
+            "user_input": "another invalid",
+            "failure_count": 1,
         }
     else:
         json_payload = {
-            "user_id": "TestUser", "user_context": {}, "user_input": "another invalid",
-            "flow_id": flow_id, "question_number": question_number,
-            "previous_question": "Original question?", "failure_count": 1,
+            "user_id": "TestUser",
+            "user_context": {},
+            "user_input": "another invalid",
+            "flow_id": flow_id,
+            "question_number": question_number,
+            "previous_question": "Original question?",
+            "failure_count": 1,
         }
 
     client = TestClient(app)
@@ -1430,9 +1458,7 @@ async def test_onboarding_skip_question(
     "ai4gd_momconnect_haystack.api.calculate_and_store_assessment_result",
     new_callable=mock.AsyncMock,
 )
-@mock.patch(
-    "ai4gd_momconnect_haystack.api.score_assessment_question", return_value=0
-)
+@mock.patch("ai4gd_momconnect_haystack.api.score_assessment_question", return_value=0)
 @mock.patch(
     "ai4gd_momconnect_haystack.api.save_assessment_question",
     new_callable=mock.AsyncMock,
