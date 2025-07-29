@@ -520,6 +520,7 @@ def handle_user_message(
         "ASKING_TO_STOP_MESSAGES",
         "ASKING_TO_DELETE_DATA",
         "REPORTING_AIRTIME_NOT_RECEIVED",
+        "SKIP_QUESTION",
     ]:
         pass
     else:

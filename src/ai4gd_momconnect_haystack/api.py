@@ -247,7 +247,91 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     else:
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
 
-    if intent != "JOURNEY_RESPONSE":
+    user_context = request.user_context.copy()
+    results_to_save = []
+    question_text = ""
+    failure_count = request.failure_count
+
+    if intent == "SKIP_QUESTION":
+        failure_count = 0
+        question_to_skip = next(
+            (
+                q
+                for q in all_onboarding_questions
+                if q.question_number == current_question_number
+            ),
+            None,
+        )
+        if question_to_skip and question_to_skip.collects:
+            field_to_update = question_to_skip.collects
+            # This is where we record the skip in the user's context
+            user_context[field_to_update] = "Skip"
+            results_to_save.append(field_to_update)
+
+        next_question_data = get_next_onboarding_question(user_context=user_context)
+        if next_question_data:
+            question_text = next_question_data.get("contextualized_question", "")
+
+    elif intent == "JOURNEY_RESPONSE":
+        previous_context = request.user_context.copy()
+        user_context, question = process_onboarding_step(
+            user_input=user_input,
+            current_context=previous_context,
+            current_question=last_question,
+        )
+        if question:
+            question_text = question.get("contextualized_question", "")
+
+        diff_keys = [
+            k for k in user_context if user_context.get(k) != previous_context.get(k)
+        ]
+        results_to_save.extend(diff_keys)
+
+        if not diff_keys:  # Validation or extraction failed
+            if request.failure_count >= 1:
+                logger.warning(
+                    f"Onboarding failed for question '{last_question}' twice. Skipping."
+                )
+                question_to_skip = next(
+                    (
+                        q
+                        for q in all_onboarding_questions
+                        if q.question_number == current_question_number
+                    ),
+                    None,
+                )
+                if question_to_skip and question_to_skip.collects:
+                    field_to_update = question_to_skip.collects
+                    # Record the system-initiated skip
+                    user_context[field_to_update] = "Skipped - System"
+                    results_to_save.append(field_to_update)
+                next_question_data = get_next_onboarding_question(
+                    user_context=user_context
+                )
+                if next_question_data:
+                    question_text = next_question_data.get(
+                        "contextualized_question", ""
+                    )
+                failure_count = 0
+            else:
+                # First failure, trigger conversational repair
+                rephrased_question = handle_conversational_repair(
+                    flow_id=flow_id,
+                    question_identifier=current_question_number,
+                    previous_question=last_question,
+                    invalid_input=request.user_input,
+                )
+                return OnboardingResponse(
+                    question=rephrased_question or last_question,
+                    user_context=previous_context,
+                    intent="REPAIR",
+                    intent_related_response=None,
+                    results_to_save=[],
+                    failure_count=request.failure_count + 1,
+                )
+        else:
+            failure_count = 0
+    else:  # Handle other intents like CHITCHAT
         if intent == "CHITCHAT":
             rephrased_question = handle_conversational_repair(
                 flow_id=flow_id,
@@ -269,68 +353,26 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
             intent=intent,
             intent_related_response=intent_related_response,
             results_to_save=[],
-            failure_count=request.failure_count,
+            failure_count=failure_count,
         )
-
-    previous_context = request.user_context.copy()
-    user_context, question = process_onboarding_step(
-        user_input=user_input,
-        current_context=previous_context,
-        current_question=last_question,
-    )
-
-    if not question:  # REPAIR on failed validation
-        if request.failure_count >= 1:  # ESCAPE HATCH
-            logger.warning(
-                f"Onboarding failed for question '{last_question}' twice. Skipping."
-            )
-            # Robust skip logic would go here. For now, we get the next question based on the *unchanged* context.
-            user_context = previous_context  # Revert context
-            question = get_next_onboarding_question(user_context=user_context)
-        else:
-            rephrased_question = handle_conversational_repair(
-                flow_id=flow_id,
-                question_identifier=current_question_number,
-                previous_question=last_question,
-                invalid_input=request.user_input,
-            )
-            return OnboardingResponse(
-                question=rephrased_question or last_question,
-                user_context=previous_context,
-                intent="REPAIR",
-                intent_related_response=None,
-                results_to_save=[],
-                failure_count=request.failure_count + 1,
-            )
-
-    question_text = ""
-    if question:
-        question_text = question.get("contextualized_question", "")
 
     if not is_intro_response:
         chat_history.append(ChatMessage.from_user(text=user_input))
-
     if question_text:
         chat_history.append(ChatMessage.from_assistant(text=question_text))
-
     await save_chat_history(
         user_id=request.user_id,
         messages=chat_history,
         history_type=HistoryType.onboarding,
     )
 
-    # Identify what changed in user_context
-    diff_keys = [
-        k for k in user_context if user_context.get(k) != previous_context.get(k)
-    ]
-
     return OnboardingResponse(
         question=question_text,
         user_context=user_context,
         intent=intent,
         intent_related_response=intent_related_response,
-        results_to_save=diff_keys,
-        failure_count=0,
+        results_to_save=results_to_save,
+        failure_count=failure_count,
     )
 
 
@@ -377,6 +419,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
     processed_answer = None
     intent: str | None = "JOURNEY_RESPONSE"
     intent_related_response: str | None = ""
+    failure_count = request.failure_count
 
     if request.user_input and request.question_number != 0:
         intent, intent_related_response = handle_user_message(
@@ -384,7 +427,54 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
         )
         intent = intent or ""
 
-        if intent != "JOURNEY_RESPONSE":
+        if intent == "SKIP_QUESTION":
+            processed_answer = "Skip"
+            next_question_number = current_question_number + 1
+            failure_count = 0
+        elif intent == "JOURNEY_RESPONSE":
+            if "behaviour" in request.flow_id.value:
+                answer = extract_assessment_data_from_response(
+                    user_response=request.user_input,
+                    flow_id=request.flow_id.value,
+                    question_number=current_question_number,
+                )
+            else:
+                answer = validate_assessment_answer(
+                    user_response=request.user_input,
+                    question_number=current_question_number,
+                    current_flow_id=request.flow_id.value,
+                )
+            processed_answer = answer.get("processed_user_response")
+
+            if not processed_answer:
+                if request.failure_count >= 1:
+                    logger.warning(
+                        f"Force-skipping question {current_question_number}."
+                    )
+                    processed_answer = "Skip"
+                    next_question_number = current_question_number + 1
+                    failure_count = 0
+                else:
+                    rephrased_question = handle_conversational_repair(
+                        flow_id=request.flow_id.value,
+                        question_identifier=current_question_number,
+                        previous_question=request.previous_question,
+                        invalid_input=request.user_input,
+                    )
+                    return AssessmentResponse(
+                        question=rephrased_question or request.previous_question,
+                        next_question=current_question_number,
+                        intent="REPAIR",
+                        intent_related_response=None,
+                        processed_answer=None,
+                        failure_count=request.failure_count + 1,
+                    )
+            else:
+                next_question_number = answer.get(
+                    "next_question_number", current_question_number + 1
+                )
+                failure_count = 0
+        else:
             if intent == "CHITCHAT":
                 rephrased_question = handle_conversational_repair(
                     flow_id=request.flow_id.value,
@@ -406,46 +496,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
                 intent=intent,
                 intent_related_response=intent_related_response,
                 processed_answer=None,
-                failure_count=request.failure_count,
-            )
-
-        if "behaviour" in request.flow_id.value:
-            answer = extract_assessment_data_from_response(
-                user_response=request.user_input,
-                flow_id=request.flow_id.value,
-                question_number=current_question_number,
-            )
-        else:
-            answer = validate_assessment_answer(
-                user_response=request.user_input,
-                question_number=current_question_number,
-                current_flow_id=request.flow_id.value,
-            )
-        processed_answer = answer.get("processed_user_response")
-
-        if not processed_answer:
-            if request.failure_count >= 1:
-                logger.warning(f"Force-skipping question {current_question_number}.")
-                processed_answer = "Skip"
-                next_question_number = current_question_number + 1
-            else:
-                rephrased_question = handle_conversational_repair(
-                    flow_id=request.flow_id.value,
-                    question_identifier=current_question_number,
-                    previous_question=request.previous_question,
-                    invalid_input=request.user_input,
-                )
-                return AssessmentResponse(
-                    question=rephrased_question or request.previous_question,
-                    next_question=current_question_number,
-                    intent="REPAIR",
-                    intent_related_response=None,
-                    processed_answer=None,
-                    failure_count=request.failure_count + 1,
-                )
-        else:
-            next_question_number = answer.get(
-                "next_question_number", current_question_number + 1
+                failure_count=failure_count,
             )
 
     if processed_answer:
@@ -490,7 +541,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
         intent=intent,
         intent_related_response=intent_related_response,
         processed_answer=processed_answer,
-        failure_count=0 if processed_answer else request.failure_count,
+        failure_count=failure_count,
     )
 
 
