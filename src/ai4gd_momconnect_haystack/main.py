@@ -42,6 +42,8 @@ from ai4gd_momconnect_haystack.tasks import (
     get_next_onboarding_question,
     handle_user_message,
     handle_intro_response,
+    handle_summary_confirmation_step,
+    format_user_data_summary_for_whatsapp,
 )
 from ai4gd_momconnect_haystack.utilities import (
     assessment_map_to_their_pre,
@@ -497,6 +499,51 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                                 ],
                             }
                         )
+
+            # --- andle the summary and confirmation step after the loop ---
+            summary_message = format_user_data_summary_for_whatsapp(user_context)
+            print("-" * 20)
+            print("Onboarding Summary Screen:")
+            print(summary_message)
+
+            # Get the user's confirmation or update request from GT data or stdin
+            summary_response, _ = await _get_user_response(
+                gt_lookup=gt_lookup_by_flow,
+                flow_id=flow_id,
+                contextualized_question=summary_message,
+                turn_identifier_key="question_name",
+                turn_identifier_value="summary_confirmation",  # A key for the GT file
+            )
+
+            if summary_response:
+                print(f"User Response to Summary: {summary_response}")
+
+                # Process the response using the same reusable task as the API
+                summary_result = handle_summary_confirmation_step(
+                    summary_response, user_context
+                )
+
+                # Print the final system acknowledgement
+                print(f"System Acknowledgement: {summary_result['question']}")
+
+                # Update the final user_context from the result
+                user_context = summary_result["user_context"]
+
+                # Log this final interaction as a turn in the simulation output
+                onboarding_turns.append(
+                    {
+                        "question_name": "summary_confirmation",
+                        "llm_utterance": summary_message,
+                        "user_utterance": summary_response,
+                        "follow_up_utterance": summary_result["question"],
+                        "llm_extracted_user_response": summary_result[
+                            "results_to_save"
+                        ],
+                        "llm_initial_predicted_intent": summary_result["intent"],
+                        "llm_final_predicted_intent": summary_result["intent"],
+                    }
+                )
+
             run_results["turns"] = onboarding_turns
             simulation_results.append(run_results)
 
