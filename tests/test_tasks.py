@@ -632,3 +632,51 @@ def test_handle_summary_confirmation_step_with_denial(
     # Assert that the flow_state was NOT removed, to allow the conversation to continue
     updated_context = result["user_context"]
     assert updated_context.get("flow_state") == "confirming_summary"
+
+
+@pytest.mark.parametrize(
+    "user_input, mock_validation_return, expected_action",
+    [
+        # Affirmative cases
+        ("Yes", "Yes", "PROCEED"),
+        ("YES", "Yes", "PROCEED"),
+        ("yebo", "Yes", "PROCEED"),
+        ("ok", "Yes", "PROCEED"),
+        ("sure", "Yes", "PROCEED"),
+        # Negative cases
+        ("No", "No", "ABORT"),
+        ("NO", "No", "ABORT"),
+        ("nope", "No", "ABORT"),
+        ("no thanks", "No", "ABORT"),
+        # Ambiguous cases that should be re-prompted
+        ("maybe", None, "REPROMPT"),
+        ("I guess so", None, "REPROMPT"),
+        ("not sure", None, "REPROMPT"),
+    ],
+)
+@mock.patch("ai4gd_momconnect_haystack.tasks.handle_user_message")
+@mock.patch(
+    "ai4gd_momconnect_haystack.tasks.pipelines.run_clinic_visit_data_extraction_pipeline"
+)
+def test_handle_intro_response_consent_variations(
+    mock_run_pipeline,
+    mock_handle_user_message,
+    user_input,
+    mock_validation_return,
+    expected_action,
+):
+    """
+    Tests the handle_intro_response task with various user inputs for consent
+    to ensure robust handling of affirmations, denials, and ambiguity.
+    """
+    mock_handle_user_message.return_value = ("JOURNEY_RESPONSE", "mock response")
+    mock_run_pipeline.return_value = mock_validation_return
+
+    result = handle_intro_response(user_input=user_input, flow_id="onboarding")
+
+    mock_run_pipeline.assert_called_once_with(
+        user_response=user_input,
+        previous_service_message=mock.ANY,  # The exact intro message doesn't matter for this test
+        valid_responses=["Yes", "No"],
+    )
+    assert result["action"] == expected_action
