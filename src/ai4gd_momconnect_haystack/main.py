@@ -1564,7 +1564,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     )
                     break
 
-
                 if not contextualized_question:
                     if survey_complete:
                         logger.info(f"Survey ended with action: {question_identifier}")
