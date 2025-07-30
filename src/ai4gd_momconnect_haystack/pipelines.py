@@ -27,6 +27,7 @@ from .pipeline_prompts import (
     NEXT_ONBOARDING_QUESTION_PROMPT,
     ONBOARDING_DATA_EXTRACTION_PROMPT,
     REPHRASE_QUESTION_PROMPT,
+    SURVEY_DATA_EXTRACTION_PROMPT,
 )
 
 # --- Configuration ---
@@ -735,6 +736,43 @@ def create_rephrase_question_pipeline() -> Pipeline | None:
     return pipeline
 
 
+@cache
+def create_survey_data_extraction_pipeline() -> Pipeline | None:
+    """
+    Creates a pipeline for survey data extraction that returns a structured
+    object with confidence and match type.
+    """
+    llm_generator = get_llm_generator()
+    if not llm_generator:
+        logger.error(
+            "LLM Generator is not available. Cannot create Survey Data Extraction Pipeline."
+        )
+        return None
+
+    pipeline = Pipeline()
+    # Define the schema for the richer output
+    json_schema = {
+        "type": "object",
+        "properties": {
+            "validated_response": {"type": "string"},
+            "match_type": {"type": "string", "enum": ["exact", "inferred", "no_match"]},
+            "confidence": {"type": "string", "enum": ["high", "low"]},
+        },
+        "required": ["validated_response", "match_type", "confidence"],
+    }
+    json_validator = JsonSchemaValidator(json_schema=json_schema)
+
+    pipeline.add_component("prompt_builder", ChatPromptBuilder())
+    pipeline.add_component("llm", llm_generator)
+    pipeline.add_component("json_validator", json_validator)
+
+    pipeline.connect("prompt_builder.prompt", "llm.messages")
+    pipeline.connect("llm.replies", "json_validator.messages")
+
+    logger.info("Created Survey Data Extraction Pipeline with confidence scoring.")
+    return pipeline
+
+
 # --- Running Pipelines ---
 def run_next_onboarding_question_pipeline(
     user_context: dict[str, Any],
@@ -1390,7 +1428,7 @@ def run_clinic_visit_data_extraction_pipeline(
 
 
 def run_intent_detection_pipeline(
-    last_question: str, user_response: str
+    last_question: str, user_response: str, valid_responses: list[str] | None = None
 ) -> dict[str, Any] | None:
     """
     Runs the intent detection pipeline and safely parses the JSON from the LLM response.
@@ -1398,6 +1436,7 @@ def run_intent_detection_pipeline(
     Args:
         last_question: Previous message sent to the user, to which they are responding.
         user_response: User's latest message
+        valid_responses: Optional list of valid responses for the current question.
 
     Returns:
         Dictionary containing the classified intent.
@@ -1415,6 +1454,7 @@ def run_intent_detection_pipeline(
                     "template_variables": {
                         "last_question": last_question,
                         "user_response": user_response,
+                        "valid_responses": valid_responses or [],
                     },
                 },
             }
@@ -1542,3 +1582,37 @@ def run_rephrase_question_pipeline(
         logger.error("Unexpected error in rephrase_question_pipeline execution: %s", e)
 
     return None
+
+
+def run_survey_data_extraction_pipeline(
+    user_response: str,
+    previous_service_message: str,
+    valid_responses: list[str],
+) -> dict | None:
+    """
+    Runs the confidence-based survey data extraction pipeline.
+    """
+    pipeline = create_survey_data_extraction_pipeline()
+    if not pipeline:
+        return None
+
+    try:
+        result = pipeline.run(
+            {
+                "prompt_builder": {
+                    "template": [
+                        ChatMessage.from_system(SURVEY_DATA_EXTRACTION_PROMPT)
+                    ],
+                    "template_variables": {
+                        "user_response": user_response,
+                        "previous_service_message": previous_service_message,
+                        "valid_responses": valid_responses,
+                    },
+                }
+            }
+        )
+        validated_message = result["json_validator"]["validated"][0]
+        return json.loads(validated_message.text)
+    except Exception as e:
+        logger.error(f"Error running survey data extraction pipeline: {e}")
+        return None

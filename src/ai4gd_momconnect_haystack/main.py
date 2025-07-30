@@ -1589,7 +1589,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 )
 
                 previous_context = anc_user_context.copy()
-                anc_user_context = extract_anc_data_from_response(
+                anc_user_context, _ = extract_anc_data_from_response(
                     final_user_response,
                     anc_user_context,
                     question_identifier,
