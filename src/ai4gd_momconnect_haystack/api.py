@@ -726,6 +726,10 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
         and last_assistant_message.meta.get("step_title") == "intro"
     )
 
+    # --- Initialize intent variables at a higher scope ---
+    intent: str | None = "JOURNEY_RESPONSE"
+    intent_related_response: str | None = ""
+
     # Append user message to history early for all subsequent turns
     if user_input:
         chat_history.append(ChatMessage.from_user(text=user_input))
@@ -887,21 +891,12 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
         k for k in user_context if user_context.get(k) != previous_context.get(k)
     ]
 
-    # Determine intent for the final response
-    final_intent, final_intent_response = "JOURNEY_RESPONSE", ""
-    if not is_intro_response:
-        intent_result, intent_response_result = handle_user_message(
-            last_assistant_message.text if last_assistant_message else "", user_input
-        )
-        final_intent = intent_result or "JOURNEY_RESPONSE"
-        final_intent_response = intent_response_result or ""
-
     return SurveyResponse(
         question=question or "",
         user_context=user_context,
         survey_complete=survey_complete,
-        intent=final_intent,
-        intent_related_response=final_intent_response,
+        intent=intent,
+        intent_related_response=intent_related_response,
         results_to_save=diff_keys,
         failure_count=0,
     )

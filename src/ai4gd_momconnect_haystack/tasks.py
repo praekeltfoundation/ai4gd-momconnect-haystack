@@ -359,26 +359,42 @@ def extract_assessment_data_from_response(
 
 async def get_anc_survey_question(user_id: str, user_context: dict) -> dict | None:
     """
-    Gets the next contextualized ANC survey question by first determining the
-    next logical step, then fetching the content and contextualizing it.
+    Gets the next contextualized ANC survey question or identifies a special action step.
     """
     # TODO: Improve survey histories to know when it's truly a user's first time completing one. For now we are forcing "first_survey" to True.
     user_context["first_survey"] = True
     chat_history = await get_or_create_chat_history(user_id, HistoryType.anc)
-    if chat_history:
-        current_step = [
-            cm.meta["step_title"] for cm in chat_history if cm.role.value == "assistant"
-        ][-1]
-        next_step = get_next_anc_survey_step(current_step, user_context)
-    else:
-        next_step = "start"
 
-    is_final = False
+    current_step = "start"
+    if chat_history:
+        # Find the last message from the assistant that has a step title.
+        last_assistant_msg = next(
+            (
+                msg
+                for msg in reversed(chat_history)
+                if msg.role.value == "assistant" and msg.meta.get("step_title")
+            ),
+            None,
+        )
+        if last_assistant_msg:
+            current_step = last_assistant_msg.meta.get("step_title")
+
+    next_step = get_next_anc_survey_step(current_step, user_context)
+
     if not next_step:
-        is_final = True
         logger.warning(f"End of survey reached! Last step was: {current_step}")
         return None
 
+    # --- Check for special action steps before treating it as a question ---
+    if next_step.startswith("__") and next_step.endswith("__"):
+        logger.info(f"Identified special action step: {next_step}")
+        return {
+            "contextualized_question": None,  # There is no question to ask the user
+            "question_identifier": next_step,  # The action name is returned instead
+            "is_final_step": True,  # This action ends the current conversation turn
+        }
+
+    is_final = False
     text_to_prepend = ""
     if next_step == "not_going_next_one":
         # For this single step, we don't contextualize the content - we just prepend

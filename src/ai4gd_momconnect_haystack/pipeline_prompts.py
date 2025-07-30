@@ -606,7 +606,7 @@ You MUST respond with a valid JSON object with exactly these three keys:
 - `confidence`: (string) One of "high" or "low".
 
 ---
-**Example: Ambiguous Inference (Low Confidence)**
+**Example 1: Ambiguous Inference (Low Confidence)**
 - Question: "Did you go to your pregnancy check-up this week?"
 - Valid Responses: ["Yes, I went", "No, I'm not going", "I'm going soon"]
 - User Response: "Not yet"
@@ -617,7 +617,7 @@ You MUST respond with a valid JSON object with exactly these three keys:
     "confidence": "low"
 }
 ---
-**Example: No Match (Creating an "Other")**
+**Example 2 : No Match (Creating an "Other")**
 - Question: "What was the number 1 reason you didn't get to this one?"
 - Valid Responses: ["Transport 🚌", "No support 🤝", "Something else 😞"]
 - User Response: "I was too sick that day"
@@ -625,6 +625,17 @@ You MUST respond with a valid JSON object with exactly these three keys:
 {
     "validated_response": "I was too sick that day",
     "match_type": "no_match",
+    "confidence": "high"
+}
+---
+**Example 3: Conversational Affirmative**
+- Question: "We'd love to know how it went. Do you have 2 minutes to tell us about it?"
+- Valid Responses: ["Yes", "Remind me tomorrow"]
+- User Response: "I can"
+- JSON Response:
+{
+    "validated_response": "Yes",
+    "match_type": "inferred",
     "confidence": "high"
 }
 ---
