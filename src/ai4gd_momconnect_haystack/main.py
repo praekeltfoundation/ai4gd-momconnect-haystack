@@ -343,6 +343,10 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         if not has_deflected:
                             final_predicted_intent = initial_predicted_intent
                         break
+                    elif intent == "SKIP_QUESTION":
+                        final_user_response = user_response  # Keep original text e.g. "don't want to answer"
+                        final_predicted_intent = "SKIP_QUESTION"
+                        break
                     else:
                         if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
                             print(f"Intent: {intent}")
@@ -367,7 +371,20 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         if not gt_scenario:
                             current_prompt = f"Thanks. To continue, please answer:\n> {contextualized_question}"
 
-                if final_user_response:
+                if final_predicted_intent == "SKIP_QUESTION":
+                    logger.info(f"User skipped question #{question_number}.")
+                    question_to_skip = next(
+                        (
+                            q
+                            for q in all_onboarding_questions
+                            if q.question_number == question_number
+                        ),
+                        None,
+                    )
+                    if question_to_skip and question_to_skip.collects:
+                        # Record the skip by updating the context
+                        user_context[question_to_skip.collects] = "Skip"
+                elif final_user_response:
                     user_context = update_context_from_onboarding_response(
                         user_input=final_user_response,
                         current_context=user_context,
@@ -597,7 +614,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     elif intent == "SKIP_QUESTION":
                         logger.info(f"User skipped question {question_number}.")
                         final_user_response = "Skip"
-                        final_predicted_intent = initial_predicted_intent
+                        final_predicted_intent = "SKIP_QUESTION"
                         break
                     else:
                         # If a question about the study or about health was asked, print the
@@ -634,9 +651,8 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         current_flow_id=flow_id.value,
                     )
                 else:
-                    processed_user_response = "Skip"
                     result = {
-                        "processed_user_response": processed_user_response,
+                        "processed_user_response": "Skip",
                         "next_question_number": question_number + 1,
                     }
                 if not result:
@@ -1092,29 +1108,24 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     if final_user_response is None:
                         continue
 
-                    if final_predicted_intent != "SKIP_QUESTION":
-                        if "behaviour" in flow_id.value:
-                            # Use the new method for Behaviour assessments
-                            result = extract_assessment_data_from_response(
-                                user_response=final_user_response,
-                                flow_id=flow_id.value,
-                                question_number=question_number,
-                            )
-                        else:
-                            print(
-                                "Using: validate_assessment_answer instead of extract_assessment_data_from_response"
-                            )
-                            result = validate_assessment_answer(
-                                user_response=final_user_response,
-                                question_number=question_number,
-                                current_flow_id=flow_id.value,
-                            )
-                    else:
-                        processed_user_response = "Skip"
+                    if final_predicted_intent == "SKIP_QUESTION":
                         result = {
-                            "processed_user_response": processed_user_response,
+                            "processed_user_response": "Skip",
                             "next_question_number": question_number + 1,
                         }
+                    elif "behaviour" in flow_id.value:
+                        result = extract_assessment_data_from_response(
+                            user_response=final_user_response,
+                            flow_id=flow_id.value,
+                            question_number=question_number,
+                        )
+                    else:
+                        result = validate_assessment_answer(
+                            user_response=final_user_response,
+                            question_number=question_number,
+                            current_flow_id=flow_id.value,
+                        )
+
                     if not result:
                         logger.warning(
                             f"Response validation failed for question {question_number}."

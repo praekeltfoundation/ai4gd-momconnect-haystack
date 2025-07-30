@@ -109,73 +109,92 @@ async def test_onboarding_chitchat(
 @pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch("ai4gd_momconnect_haystack.api.SERVICE_PERSONA_TEXT", "Test Persona")
-async def test_onboarding_first_question():
+@mock.patch("ai4gd_momconnect_haystack.api.get_next_onboarding_question")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.save_chat_history",
+    new_callable=mock.AsyncMock,
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.delete_chat_history_for_user",
+    new_callable=mock.AsyncMock,
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
+    new_callable=mock.AsyncMock,
+)
+async def test_onboarding_first_question(
+    get_or_create_chat_history,
+    delete_chat_history_for_user,
+    save_chat_history,
+    get_next_onboarding_question,
+):
     """
     For the first interaction (no user input), the API should return the
     introduction message and correctly initialize the chat history.
     """
-    with (
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
-            new_callable=mock.AsyncMock,
-        ) as get_or_create_chat_history,
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.delete_chat_history_for_user",
-            new_callable=mock.AsyncMock,
-        ) as delete_chat_history_for_user,
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.save_chat_history",
-            new_callable=mock.AsyncMock,
-        ) as save_chat_history,
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.get_next_onboarding_question"
-        ) as get_next_onboarding_question,
-    ):
-        client = TestClient(app)
-        response = client.post(
-            "/v1/onboarding",
-            headers={"Authorization": "Token testtoken"},
-            json={"user_id": "TestUser", "user_context": {}, "user_input": ""},
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/v1/onboarding",
+        headers={"Authorization": "Token testtoken"},
+        json={"user_id": "TestUser", "user_context": {}, "user_input": ""},
+    )
 
-        # 1. Assert the API response is correct
-        assert response.status_code == 200
-        json_response = response.json()
-        assert "Shall we begin?" in json_response["question"]
-        assert json_response["intent"] == "SYSTEM_INTRO"
+    # 1. Assert the API response is correct
+    assert response.status_code == 200
+    json_response = response.json()
+    assert "Shall we begin?" in json_response["question"]
+    assert json_response["intent"] == "SYSTEM_INTRO"
 
-        # 2. Assert that history creation was attempted first
-        get_or_create_chat_history.assert_awaited_once_with(
-            user_id="TestUser", history_type=HistoryType.onboarding
-        )
+    # 2. Assert that history creation was attempted first
+    get_or_create_chat_history.assert_awaited_once_with(
+        user_id="TestUser", history_type=HistoryType.onboarding
+    )
 
-        # 3. Assert that the old history was then deleted
-        delete_chat_history_for_user.assert_awaited_once_with(
-            "TestUser", HistoryType.onboarding
-        )
+    # 3. Assert that the old history was then deleted
+    delete_chat_history_for_user.assert_awaited_once_with(
+        "TestUser", HistoryType.onboarding
+    )
 
-        # 4. Assert that the new history is saved correctly
-        save_chat_history.assert_awaited_once_with(
-            user_id="TestUser", messages=mock.ANY, history_type=HistoryType.onboarding
-        )
-        saved_messages = save_chat_history.call_args.kwargs["messages"]
+    # 4. Assert that the new history is saved correctly
+    save_chat_history.assert_awaited_once_with(
+        user_id="TestUser", messages=mock.ANY, history_type=HistoryType.onboarding
+    )
+    saved_messages = save_chat_history.call_args.kwargs["messages"]
 
-        # 5. Assert the content of the saved history
-        assert len(saved_messages) == 2
-        assert saved_messages[0].is_from(role="system")
-        assert saved_messages[0].text == "Test Persona"
-        assert saved_messages[1].is_from(role="assistant")
-        assert "Shall we begin?" in saved_messages[1].text
+    # 5. Assert the content of the saved history
+    assert len(saved_messages) == 2
+    assert saved_messages[0].is_from(role="system")
+    assert saved_messages[0].text == "Test Persona"
+    assert saved_messages[1].is_from(role="assistant")
+    assert "Shall we begin?" in saved_messages[1].text
 
-        # 6. Assert that the regular logic to get the next question was NOT called
-        get_next_onboarding_question.assert_not_called()
+    # 6. Assert that the regular logic to get the next question was NOT called
+    get_next_onboarding_question.assert_not_called()
 
 
 @pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
-async def test_onboarding():
+@mock.patch("ai4gd_momconnect_haystack.api.process_onboarding_step")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.handle_user_message",
+    return_value=("JOURNEY_RESPONSE", ""),
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.save_chat_history",
+    new_callable=mock.AsyncMock,
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
+    new_callable=mock.AsyncMock,
+)
+async def test_onboarding(
+    get_or_create_chat_history,
+    save_chat_history,
+    handle_user_message,
+    mock_process_step,
+):
     """
-    CORRECTED: A standard user response (after consent) should be processed,
+    A standard user response (after consent) should be processed,
     context updated, and the next question returned.
     """
     initial_history = [
@@ -184,37 +203,24 @@ async def test_onboarding():
         ChatMessage.from_user("Yes"),
         ChatMessage.from_assistant("Welcome!"),
     ]
-    with (
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
-            new_callable=mock.AsyncMock,
-            return_value=initial_history,
-        ),
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.save_chat_history",
-            new_callable=mock.AsyncMock,
-        ) as save_chat_history,
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.handle_user_message",
-            return_value=("JOURNEY_RESPONSE", ""),
-        ),
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.process_onboarding_step",
-            return_value=({"area_type": "City"}, {"contextualized_question": "Next Q"}),
-        ) as mock_process_step,
-    ):
-        client = TestClient(app)
-        client.post(
-            "/v1/onboarding",
-            headers={"Authorization": "Token testtoken"},
-            json={"user_id": "TestUser", "user_context": {}, "user_input": "city"},
-        )
-        saved_messages = save_chat_history.call_args.kwargs["messages"]
-        assert len(saved_messages) == 6
-        assert saved_messages[4].text == "city"
-        mock_process_step.assert_called_once_with(
-            user_input="city", current_context={}, current_question="Welcome!"
-        )
+    get_or_create_chat_history.return_value = initial_history
+    mock_process_step.return_value = (
+        {"area_type": "City"},
+        {"contextualized_question": "Next Q"},
+    )
+
+    client = TestClient(app)
+    client.post(
+        "/v1/onboarding",
+        headers={"Authorization": "Token testtoken"},
+        json={"user_id": "TestUser", "user_context": {}, "user_input": "city"},
+    )
+    saved_messages = save_chat_history.call_args.kwargs["messages"]
+    assert len(saved_messages) == 6
+    assert saved_messages[4].text == "city"
+    mock_process_step.assert_called_once_with(
+        user_input="city", current_context={}, current_question="Welcome!"
+    )
 
 
 @pytest.mark.asyncio
@@ -782,89 +788,75 @@ async def test_anc_survey(
 @pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch("ai4gd_momconnect_haystack.api.SERVICE_PERSONA_TEXT", "Test Persona")
-async def test_anc_survey_first_question():
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_anc_survey_question",
+    return_value={
+        "contextualized_question": "Hi! Did you go for your clinic visit?",
+        "is_final_step": False,
+        "question_identifier": "start",
+    },
+)
+@mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.handle_intro_response",
+    return_value={
+        "action": "PROCEED",
+        "intent": "JOURNEY_RESPONSE",
+        "intent_related_response": "",
+    },
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.save_chat_history",
+    new_callable=mock.AsyncMock,
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
+    new_callable=mock.AsyncMock,
+)
+async def test_anc_survey_first_question(
+    get_or_create_chat_history,
+    save_chat_history,
+    mock_handle_intro,
+    mock_handle_user_message,
+    mock_get_question,
+):
     """
     Tests that after a user provides consent, they receive the first proper
     ANC survey question.
     """
-    # 1. Simulate the state AFTER the intro has been sent to the user.
     history_after_intro_was_sent = [
         ChatMessage.from_system(text="Test Persona"),
         ChatMessage.from_assistant(
             text="The intro message.", meta={"step_title": "intro"}
         ),
     ]
+    get_or_create_chat_history.return_value = history_after_intro_was_sent
 
-    with (
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
-            new_callable=mock.AsyncMock,
-            return_value=history_after_intro_was_sent,
-        ) as get_or_create_chat_history,
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.save_chat_history",
-            new_callable=mock.AsyncMock,
-        ) as save_chat_history,
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.handle_intro_response",
-            return_value={
-                "action": "PROCEED",
-                "intent": "JOURNEY_RESPONSE",
-                "intent_related_response": "",
-            },
-        ) as mock_handle_intro,
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.handle_user_message"
-        ) as mock_handle_user_message,
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.get_anc_survey_question",
-            return_value={
-                "contextualized_question": "Hi! Did you go for your clinic visit?",
-                "is_final_step": False,
-                "question_identifier": "start",
-            },
-        ) as mock_get_question,
-    ):
-        client = TestClient(app)
-        response = client.post(
-            "/v1/survey",
-            headers={"Authorization": "Token testtoken"},
-            json={
-                "user_id": "TestUser",
-                "survey_id": "anc",
-                "user_context": {},
-                "user_input": "Yes",  # User gives consent
-            },
-        )
-
-        # 4. Assert the API response is correct.
-        assert response.status_code == 200
-        assert response.json() == {
-            "question": "Hi! Did you go for your clinic visit?",
+    client = TestClient(app)
+    response = client.post(
+        "/v1/survey",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "TestUser",
+            "survey_id": "anc",
             "user_context": {},
-            "survey_complete": False,
-            "intent": "JOURNEY_RESPONSE",
-            "intent_related_response": "",
-            "results_to_save": [],
-            "failure_count": 0,
-        }
+            "user_input": "Yes",  # User gives consent
+        },
+    )
 
-        # 5. Verify the mocks were called as expected.
-        get_or_create_chat_history.assert_awaited_once_with(
-            user_id="TestUser", history_type=HistoryType.anc
-        )
-        mock_handle_intro.assert_called_once_with(
-            user_input="Yes", flow_id="anc-survey"
-        )
-        mock_get_question.assert_awaited_once()
-        mock_handle_user_message.assert_not_called()
-
-        # 6. Check the final saved history is correct.
-        save_chat_history.assert_awaited_once()
-        saved_messages = save_chat_history.call_args.kwargs["messages"]
-        assert len(saved_messages) == 4
-        assert saved_messages[2].text == "Yes"
-        assert saved_messages[3].text == "Hi! Did you go for your clinic visit?"
+    assert response.status_code == 200
+    assert response.json()["question"] == "Hi! Did you go for your clinic visit?"
+    get_or_create_chat_history.assert_awaited_once_with(
+        user_id="TestUser", history_type=HistoryType.anc
+    )
+    mock_handle_intro.assert_called_once_with(user_input="Yes", flow_id="anc-survey")
+    mock_get_question.assert_awaited_once()
+    mock_handle_user_message.assert_not_called()
+    save_chat_history.assert_awaited_once()
+    saved_messages = save_chat_history.call_args.kwargs["messages"]
+    assert len(saved_messages) == 4
+    assert saved_messages[2].text == "Yes"
+    assert saved_messages[3].text == "Hi! Did you go for your clinic visit?"
 
 
 @pytest.mark.asyncio
@@ -873,7 +865,14 @@ async def test_anc_survey_first_question():
     "ai4gd_momconnect_haystack.api.handle_conversational_repair",
     return_value="Rephrased question.",
 )
-@mock.patch("ai4gd_momconnect_haystack.api.get_anc_survey_question")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_anc_survey_question",
+    return_value={
+        "contextualized_question": "Hi! Did you go for your clinic visit?",
+        "is_final_step": False,
+        "question_identifier": "clinic_visit_prompt",
+    },
+)
 @mock.patch("ai4gd_momconnect_haystack.api.extract_anc_data_from_response")
 @mock.patch(
     "ai4gd_momconnect_haystack.api.handle_user_message",
@@ -906,11 +905,6 @@ async def test_anc_survey_chitchat(
         )
     ]
     mock_get_history.return_value = initial_history
-    mock_get_question.return_value = {
-        "contextualized_question": "Hi! Did you go for your clinic visit?",
-        "is_final_step": False,
-        "question_identifier": "clinic_visit_prompt",
-    }
 
     client = TestClient(app)
     response = client.post(
@@ -925,23 +919,13 @@ async def test_anc_survey_chitchat(
         },
     )
 
-    # 1. Assert the API returned the correct repair response
     assert response.status_code == 200
     json_response = response.json()
     assert json_response["question"] == "Rephrased question."
     assert json_response["intent"] == "REPAIR"
     assert json_response["failure_count"] == 1
-
-    # 2. Assert that the repair function was called
     mock_repair.assert_called_once()
-
-    # 3. Assert that the chat history was NOT saved
-    # NOTE: We do not save chitchat to the history for structured flows.
-    # This keeps the conversational state clean, ensuring the last message
-    # in the database is always the question the user needs to answer next.
     mock_save_history.assert_not_awaited()
-
-    # 4. Assert that other functions were called (or not called) as expected
     mock_get_history.assert_awaited_once_with(
         user_id="TestUser", history_type=HistoryType.anc
     )
@@ -1161,48 +1145,43 @@ def test_assessment_consent_aborts(mock_handle_intro):
 
 @pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
-async def test_repair_on_intro_consent():
+@mock.patch("ai4gd_momconnect_haystack.api.get_assessment_question")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.handle_intro_response",
+    return_value={
+        "action": "REPROMPT",
+        "message": "Re-prompt message",
+        "intent": "REPAIR",
+        "intent_related_response": None,
+    },
+)
+async def test_repair_on_intro_consent(mock_handle_intro, mock_get_q):
     """
     Tests that a repair is triggered if the user gives a confusing response
     to the initial consent question.
     """
-    with (
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.handle_intro_response",
-            # Simulate the intro handler asking to re-prompt
-            return_value={
-                "action": "REPROMPT",
-                "message": "Re-prompt message",
-                "intent": "REPAIR",
-                "intent_related_response": None,
-            },
-        ) as mock_handle_intro,
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.get_assessment_question"
-        ) as mock_get_q,
-    ):
-        client = TestClient(app)
-        response = client.post(
-            "/v1/assessment",
-            headers={"Authorization": "Token testtoken"},
-            json={
-                "user_id": "TestUser",
-                "user_context": {},
-                "user_input": "maybe?",  # Confusing consent
-                "flow_id": "behaviour-pre-assessment",
-                "question_number": 0,  # Indicates this is a response to the intro
-                "previous_question": "Intro message",
-                "failure_count": 0,
-            },
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/v1/assessment",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "TestUser",
+            "user_context": {},
+            "user_input": "maybe?",
+            "flow_id": "behaviour-pre-assessment",
+            "question_number": 0,
+            "previous_question": "Intro message",
+            "failure_count": 0,
+        },
+    )
 
-        assert response.status_code == 200
-        json_response = response.json()
-        assert json_response["question"] == "Re-prompt message"
-        assert json_response["next_question"] == 0  # Stays on the consent step
-        assert json_response["failure_count"] == 0
-        mock_handle_intro.assert_called_once()
-        mock_get_q.assert_not_called()  # Should not proceed to the first question
+    assert response.status_code == 200
+    json_response = response.json()
+    assert json_response["question"] == "Re-prompt message"
+    assert json_response["next_question"] == 0
+    assert json_response["failure_count"] == 0
+    mock_handle_intro.assert_called_once()
+    mock_get_q.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -1215,11 +1194,45 @@ async def test_repair_on_intro_consent():
     ],
 )
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
-async def test_flow_repair_on_invalid_answer(flow_id, question_number, endpoint):
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
+    new_callable=mock.AsyncMock,
+    return_value=[ChatMessage.from_assistant("Original question?")],
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.handle_conversational_repair",
+    return_value="This is the rephrased question.",
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.extract_anc_data_from_response",
+    side_effect=lambda user_context, **kwargs: user_context,
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.process_onboarding_step",
+    return_value=({}, None),
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.validate_assessment_answer",
+    return_value={"processed_user_response": None},
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.handle_user_message",
+    return_value=("JOURNEY_RESPONSE", ""),
+)
+async def test_flow_repair_on_invalid_answer(
+    mock_handle_message,
+    mock_validate,
+    mock_process_onboarding,
+    mock_extract_anc,
+    mock_repair,
+    mock_get_history,
+    flow_id,
+    question_number,
+    endpoint,
+):
     """
     Tests that if answer validation fails, the conversational repair is triggered across all flows.
     """
-    # Common setup for all flows
     if endpoint == "/v1/onboarding":
         json_payload = {
             "user_id": "TestUser",
@@ -1246,46 +1259,17 @@ async def test_flow_repair_on_invalid_answer(flow_id, question_number, endpoint)
             "failure_count": 0,
         }
 
-    with (
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.handle_user_message",
-            return_value=("JOURNEY_RESPONSE", ""),
-        ),
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.validate_assessment_answer",
-            return_value={"processed_user_response": None},
-        ),
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.process_onboarding_step",
-            return_value=({}, None),
-        ),  # Simulates failure
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.extract_anc_data_from_response",
-            # FIX: Update lambda to accept keyword arguments
-            side_effect=lambda user_context, **kwargs: user_context,
-        ),  # Simulates failure
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.handle_conversational_repair",
-            return_value="This is the rephrased question.",
-        ) as mock_repair,
-        # Mock chat history to provide a previous question
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
-            new_callable=mock.AsyncMock,
-            return_value=[ChatMessage.from_assistant("Original question?")],
-        ),
-    ):
-        client = TestClient(app)
-        response = client.post(
-            endpoint, headers={"Authorization": "Token testtoken"}, json=json_payload
-        )
+    client = TestClient(app)
+    response = client.post(
+        endpoint, headers={"Authorization": "Token testtoken"}, json=json_payload
+    )
 
-        assert response.status_code == 200
-        json_response = response.json()
-        assert json_response["question"] == "This is the rephrased question."
-        assert json_response["intent"] == "REPAIR"
-        assert json_response["failure_count"] == 1
-        mock_repair.assert_called_once()
+    assert response.status_code == 200
+    json_response = response.json()
+    assert json_response["question"] == "This is the rephrased question."
+    assert json_response["intent"] == "REPAIR"
+    assert json_response["failure_count"] == 1
+    mock_repair.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -1298,11 +1282,59 @@ async def test_flow_repair_on_invalid_answer(flow_id, question_number, endpoint)
     ],
 )
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
-async def test_flow_repair_escape_hatch(flow_id, question_number, endpoint):
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
+    new_callable=mock.AsyncMock,
+    return_value=[ChatMessage.from_assistant("Original question?")],
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_anc_survey_question",
+    new_callable=mock.AsyncMock,
+    return_value={"contextualized_question": "Next survey Q"},
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_next_onboarding_question",
+    return_value={"contextualized_question": "Next onboarding Q"},
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_assessment_question",
+    new_callable=mock.AsyncMock,
+    return_value={"contextualized_question": "Next assessment Q"},
+)
+@mock.patch("ai4gd_momconnect_haystack.api.handle_conversational_repair")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.extract_anc_data_from_response",
+    side_effect=lambda user_context, **kwargs: user_context,
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.process_onboarding_step",
+    return_value=({}, None),
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.validate_assessment_answer",
+    return_value={"processed_user_response": None},
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.handle_user_message",
+    return_value=("JOURNEY_RESPONSE", ""),
+)
+async def test_flow_repair_escape_hatch(
+    mock_handle_message,
+    mock_validate,
+    mock_process_onboarding,
+    mock_extract_anc,
+    mock_repair,
+    mock_get_assessment_q,
+    mock_get_onboarding_q,
+    mock_get_survey_q,
+    mock_get_history,
+    flow_id,
+    question_number,
+    endpoint,
+):
     """
     Tests that if a user fails validation twice, they are force-skipped to the next question across all flows.
     """
-    # Common setup for all flows
     if endpoint == "/v1/onboarding":
         json_payload = {
             "user_id": "TestUser",
@@ -1329,58 +1361,157 @@ async def test_flow_repair_escape_hatch(flow_id, question_number, endpoint):
             "failure_count": 1,
         }
 
-    with (
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.handle_user_message",
-            return_value=("JOURNEY_RESPONSE", ""),
-        ),
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.validate_assessment_answer",
-            return_value={"processed_user_response": None},
-        ),
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.process_onboarding_step",
-            return_value=({}, None),
-        ),
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.extract_anc_data_from_response",
-            side_effect=lambda user_context, **kwargs: user_context,
-        ),
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.handle_conversational_repair"
-        ) as mock_repair,
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.get_assessment_question",
-            new_callable=mock.AsyncMock,
-            return_value={"contextualized_question": "Next assessment Q"},
-        ),
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.get_next_onboarding_question",
-            return_value={"contextualized_question": "Next onboarding Q"},
-        ),
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.get_anc_survey_question",
-            new_callable=mock.AsyncMock,
-            return_value={"contextualized_question": "Next survey Q"},
-        ),
-        mock.patch(
-            "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
-            new_callable=mock.AsyncMock,
-            return_value=[ChatMessage.from_assistant("Original question?")],
-        ),
-    ):
-        client = TestClient(app)
-        response = client.post(
-            endpoint, headers={"Authorization": "Token testtoken"}, json=json_payload
-        )
+    client = TestClient(app)
+    response = client.post(
+        endpoint, headers={"Authorization": "Token testtoken"}, json=json_payload
+    )
 
-        assert response.status_code == 200
-        json_response = response.json()
+    assert response.status_code == 200
+    json_response = response.json()
 
-        if endpoint == "/v1/assessment":
-            assert json_response["processed_answer"] == "Skip"
-            assert json_response["next_question"] == 2
+    if endpoint == "/v1/assessment":
+        assert json_response["processed_answer"] == "Skip"
+        assert json_response["next_question"] == 2
 
-        assert "Next" in json_response["question"]
-        assert json_response["failure_count"] == 0
-        mock_repair.assert_not_called()
+    assert "Next" in json_response["question"]
+    assert json_response["failure_count"] == 0
+    mock_repair.assert_not_called()
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.save_chat_history",
+    new_callable=mock.AsyncMock,
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_next_onboarding_question",
+    return_value={"contextualized_question": "What is your area type?"},
+)
+@mock.patch("ai4gd_momconnect_haystack.api.process_onboarding_step")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.handle_user_message",
+    return_value=("SKIP_QUESTION", ""),
+)
+@mock.patch("ai4gd_momconnect_haystack.api.all_onboarding_questions")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
+    new_callable=mock.AsyncMock,
+)
+async def test_onboarding_skip_question(
+    mock_get_history,
+    mock_all_questions,
+    mock_handle_user_message,
+    mock_process_step,
+    mock_get_next_q,
+    mock_save_history,
+):
+    """
+    Tests that if a user wants to skip an onboarding question, the context is
+    updated with "Skipped" and the flow proceeds to the next question without
+    triggering a validation failure or repair.
+    """
+    initial_history = [
+        ChatMessage.from_system("..."),
+        ChatMessage.from_assistant("Intro..."),
+        ChatMessage.from_user("Yes"),
+        ChatMessage.from_assistant("What province do you live in?"),
+    ]
+    mock_get_history.return_value = initial_history
+    mock_q1 = mock.Mock()
+    mock_q1.question_number = 1
+    mock_q1.collects = "province"
+    mock_q1.content = "What province do you live in?"
+    mock_all_questions.__iter__.return_value = [mock_q1]
+
+    client = TestClient(app)
+    response = client.post(
+        "/v1/onboarding",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "TestUser",
+            "user_context": {"province": None},
+            "user_input": "skip",
+            "failure_count": 0,
+        },
+    )
+
+    assert response.status_code == 200
+    json_response = response.json()
+
+    assert json_response["question"] == "What is your area type?"
+    assert json_response["user_context"] == {"province": "Skip"}
+    assert json_response["results_to_save"] == ["province"]
+    mock_process_step.assert_not_called()
+    mock_handle_user_message.assert_called_once()
+    mock_get_next_q.assert_called_once()
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_assessment_question",
+    new_callable=mock.AsyncMock,
+    return_value={"contextualized_question": "This is Question 2"},
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.calculate_and_store_assessment_result",
+    new_callable=mock.AsyncMock,
+)
+@mock.patch("ai4gd_momconnect_haystack.api.score_assessment_question", return_value=0)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.save_assessment_question",
+    new_callable=mock.AsyncMock,
+)
+@mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_answer")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.handle_user_message",
+    return_value=("SKIP_QUESTION", ""),
+)
+async def test_assessment_skip_question(
+    mock_handle_user_message,
+    mock_validate_answer,
+    mock_save_q,
+    mock_score_q,
+    mock_calc_result,
+    mock_get_q,
+):
+    """
+    Tests that if a user wants to skip an assessment question, the answer is
+    recorded as "Skip" and the flow proceeds to the next question without
+    triggering validation or repair.
+    """
+    client = TestClient(app)
+    response = client.post(
+        "/v1/assessment",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "TestUser",
+            "user_context": {},
+            "user_input": "I don't want to answer",
+            "flow_id": "dma-pre-assessment",
+            "question_number": 1,
+            "previous_question": "This is Question 1",
+            "failure_count": 0,
+        },
+    )
+
+    assert response.status_code == 200
+    json_response = response.json()
+
+    assert json_response["question"] == "This is Question 2"
+    assert json_response["next_question"] == 2
+    assert json_response["processed_answer"] == "Skip"
+    mock_validate_answer.assert_not_called()
+    mock_handle_user_message.assert_called_once()
+    assert mock_save_q.await_count == 2
+    call_to_save_answer = mock.call(
+        user_id="TestUser",
+        assessment_type=AssessmentType.dma_pre_assessment,
+        question_number=1,
+        question="This is Question 1",
+        user_response="Skip",
+        score=0,
+    )
+    mock_save_q.assert_has_awaits([call_to_save_answer], any_order=True)
+    mock_get_q.assert_awaited_once()
