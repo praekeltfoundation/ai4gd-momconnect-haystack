@@ -22,10 +22,8 @@ from .utilities import (
     assessment_map_to_their_pre,
     kab_b_post_flow_id,
     kab_b_pre_flow_id,
-    prepare_valid_responses_to_display_to_anc_survey_user,
     prepare_valid_responses_to_display_to_assessment_user,
     prepare_valid_responses_to_display_to_onboarding_user,
-    prepare_valid_responses_to_use_in_anc_survey_system_prompt,
 )
 
 
@@ -364,26 +362,42 @@ def extract_assessment_data_from_response(
 
 async def get_anc_survey_question(user_id: str, user_context: dict) -> dict | None:
     """
-    Gets the next contextualized ANC survey question by first determining the
-    next logical step, then fetching the content and contextualizing it.
+    Gets the next contextualized ANC survey question or identifies a special action step.
     """
     # TODO: Improve survey histories to know when it's truly a user's first time completing one. For now we are forcing "first_survey" to True.
     user_context["first_survey"] = True
     chat_history = await get_or_create_chat_history(user_id, HistoryType.anc)
-    if chat_history:
-        current_step = [
-            cm.meta["step_title"] for cm in chat_history if cm.role.value == "assistant"
-        ][-1]
-        next_step = get_next_anc_survey_step(current_step, user_context)
-    else:
-        next_step = "start"
 
-    is_final = False
+    current_step = "start"
+    if chat_history:
+        # Find the last message from the assistant that has a step title.
+        last_assistant_msg = next(
+            (
+                msg
+                for msg in reversed(chat_history)
+                if msg.role.value == "assistant" and msg.meta.get("step_title")
+            ),
+            None,
+        )
+        if last_assistant_msg:
+            current_step = last_assistant_msg.meta.get("step_title")
+
+    next_step = get_next_anc_survey_step(current_step, user_context)
+
     if not next_step:
-        is_final = True
         logger.warning(f"End of survey reached! Last step was: {current_step}")
         return None
 
+    # --- Check for special action steps before treating it as a question ---
+    if next_step.startswith("__") and next_step.endswith("__"):
+        logger.info(f"Identified special action step: {next_step}")
+        return {
+            "contextualized_question": None,  # There is no question to ask the user
+            "question_identifier": next_step,  # The action name is returned instead
+            "is_final_step": True,  # This action ends the current conversation turn
+        }
+
+    is_final = False
     text_to_prepend = ""
     if next_step == "not_going_next_one":
         # For this single step, we don't contextualize the content - we just prepend
@@ -435,9 +449,7 @@ async def get_anc_survey_question(user_id: str, user_context: dict) -> dict | No
         valid_responses,
     )
 
-    final_question_text = prepare_valid_responses_to_display_to_anc_survey_user(
-        text_to_prepend, contextualized_question, valid_responses, next_step
-    )
+    final_question_text = text_to_prepend + contextualized_question
 
     return {
         "contextualized_question": final_question_text.strip(),
@@ -450,42 +462,94 @@ def extract_anc_data_from_response(
     user_response: str,
     user_context: dict,
     step_title: str,
-) -> dict:
+) -> tuple[dict, dict | None]:
     """
-    Extracts data from a user's response to an ANC survey question.
+    Extracts data from a user's response to an ANC survey question using a
+    confidence-based pipeline.
+    Returns the updated context and an optional action dictionary for the API.
     """
-    logger.info("Running ANC survey data extraction pipeline...")
+    logger.info("Running confidence-based ANC survey data extraction...")
     question_data = ANC_SURVEY_MAP.get(step_title)
+    action_dict = None  # To hold special instructions for the API
+
     if not question_data:
         logger.error(f"Could not find question content for step_id: '{step_title}'")
-        return user_context
-    valid_responses = question_data.valid_responses
-    if valid_responses:
-        previous_question = prepare_valid_responses_to_use_in_anc_survey_system_prompt(
-            question_data.content, valid_responses, step_title
-        )
-        extracted_data = pipelines.run_clinic_visit_data_extraction_pipeline(
-            user_response,
-            previous_question,
-            valid_responses,
-        )
-    else:
-        extracted_data = user_response
-    if extracted_data:
-        print(f"[Extracted ANC Data]:\n{json.dumps(extracted_data, indent=2)}\n")
-        # Update the user_context with the newly extracted data
-        user_context[step_title] = extracted_data
-        logger.info(f"Updated user_context for {step_title}: {extracted_data}")
-    else:
+        return user_context, None
+
+    # Default to raw user response if there are no predefined options
+    if not question_data.valid_responses:
+        user_context[step_title] = user_response
+        return user_context, None
+
+    # Call our new, more intelligent pipeline
+    extraction_result = pipelines.run_survey_data_extraction_pipeline(
+        user_response,
+        question_data.content,
+        question_data.valid_responses,
+    )
+
+    if not extraction_result:
         logger.warning("ANC data extraction pipeline did not produce a result.")
+        return user_context, None
 
-    return user_context
+    print(f"[Extracted ANC Data]:\n{json.dumps(extraction_result, indent=2)}\n")
+
+    match_type = extraction_result.get("match_type")
+    validated_response = extraction_result.get("validated_response")
+    confidence = extraction_result.get("confidence")
+
+    if confidence == "low":
+        # RECOMMENDATION 1: This is the clarification loop.
+        # Signal the API to ask the user for confirmation.
+        action_dict = {
+            "status": "needs_confirmation",
+            "message": f"It sounds like you meant '{validated_response}'. Is that correct?",
+            "potential_answer": validated_response,
+            "step_title_to_confirm": step_title,
+        }
+        logger.info(
+            f"Low confidence match. Triggering confirmation for: {validated_response}"
+        )
+
+    elif match_type == "no_match":
+        # RECOMMENDATION 2: Handle the "Other" category gracefully.
+        other_option = next(
+            (
+                resp
+                for resp in question_data.valid_responses
+                if "Something else" in resp
+            ),
+            None,
+        )
+        if other_option:
+            user_context[step_title] = other_option
+            user_context[f"{step_title}_other_text"] = (
+                validated_response  # Store the verbatim text
+            )
+            logger.info(
+                f"Handled as 'other'. Storing '{validated_response}' in '{step_title}_other_text'"
+            )
+        else:
+            user_context[step_title] = (
+                validated_response  # Fallback if no "other" option exists
+            )
+
+    elif validated_response:
+        # High-confidence, direct match.
+        user_context[step_title] = validated_response
+        logger.info(f"Updated user_context for {step_title}: {validated_response}")
+
+    return user_context, action_dict
 
 
-def detect_user_intent(last_question: str, user_response: str) -> str | None:
+def detect_user_intent(
+    last_question: str, user_response: str, valid_responses: list[str] | None = None
+) -> str | None:
     """Runs the intent detection pipeline."""
     logger.info("Running intent detection pipeline...")
-    result = pipelines.run_intent_detection_pipeline(last_question, user_response)
+    result = pipelines.run_intent_detection_pipeline(
+        last_question, user_response, valid_responses
+    )
     return result.get("intent") if result else None
 
 
@@ -499,12 +563,12 @@ def get_faq_answer(user_question: str) -> str | None:
 
 
 def handle_user_message(
-    previous_question: str, user_message: str
+    previous_question: str, user_message: str, valid_responses: list[str] | None = None
 ) -> tuple[str | None, str | None]:
     """
     Orchestrates the process of handling a new user message.
     """
-    intent = detect_user_intent(previous_question, user_message)
+    intent = detect_user_intent(previous_question, user_message, valid_responses)
     response = None
 
     if intent == "QUESTION_ABOUT_STUDY":

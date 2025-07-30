@@ -450,7 +450,7 @@ First, think step-by-step in a `<reasoning>` block. Analyze if the user is direc
 Second, based on your reasoning, provide the final classification in a `<json>` block.
 
 Here are the possible intents:
-- 'JOURNEY_RESPONSE': The user is directly attempting to answer the question asked.
+- 'JOURNEY_RESPONSE': The user is directly attempting to answer the question asked.  **If the user's response is a simple variation of one of the provided valid_responses (like "yes", "not bad", "I agree"), this is the correct intent.**
 - 'QUESTION_ABOUT_STUDY': The user is asking a question about the survey process, why a question is being asked, or who is asking it.
 - 'HEALTH_QUESTION': The user is ignoring the survey question and asking a new, unsolicited question about their health or their baby's health.
 - 'CHITCHAT': The user provides a low-information, conversational filler response that does not answer the question (e.g., "ok", "thanks", "hello").
@@ -533,6 +533,9 @@ The user's response "skipp" is a clear misspelling of "skip". This indicates a d
 Last question that was sent to the user:
 "{{ last_question }}"
 
+Valid responses for the last question:
+"{{ valid_responses }}"
+
 User's response:
 "{{ user_response }}"
 """
@@ -600,4 +603,69 @@ Your task is to analyze the user's response and identify any specific informatio
 - Map conversational language (e.g., "KZN") to the formal correct value (e.g., "KwaZulu-Natal").
 
 Use the `extract_updated_data` tool to return all the extracted changes in a single call.
+"""
+
+SURVEY_DATA_EXTRACTION_PROMPT = """
+You are an expert AI assistant for a maternal health survey. Your task is to analyze a user's free-text response and map it to one of the predefined "valid_responses". You must return a structured JSON object with your analysis.
+
+**Analysis Steps:**
+1.  **Compare**: Compare the user's response against the list of valid responses.
+2.  **Match Type**: Determine the type of match.
+    - `exact`: The user's response is a direct keyword match or a very close synonym (e.g., "yes", "yebo", "yeah" for "Yes").
+    - `inferred`: The user's response does not contain keywords but its meaning can be reasonably inferred to match one of the options.
+    - `no_match`: The user's response is a valid answer to the question but does not align with any of the predefined options.
+3.  **Confidence**: Assess your confidence in the mapping.
+    - `high`: You are certain of the match. This is always the case for an `exact` or `no_match` type.
+    - `low`: The match is a plausible inference but is ambiguous or could be interpreted differently (e.g., user says "Not yet" when an option is "I'm going soon").
+4.  **Validated Response**:
+    - For `exact` or `inferred` matches, this MUST be the exact string of the matched valid response.
+    - For `no_match`, this MUST be the user's original, unaltered free-text response.
+
+**JSON Output Structure:**
+You MUST respond with a valid JSON object with exactly these three keys:
+- `validated_response`: (string) The matched valid response string, or the user's original text if no match was found.
+- `match_type`: (string) One of "exact", "inferred", or "no_match".
+- `confidence`: (string) One of "high" or "low".
+
+---
+**Example 1: Ambiguous Inference (Low Confidence)**
+- Question: "Did you go to your pregnancy check-up this week?"
+- Valid Responses: ["Yes, I went", "No, I'm not going", "I'm going soon"]
+- User Response: "Not yet"
+- JSON Response:
+{
+    "validated_response": "I'm going soon",
+    "match_type": "inferred",
+    "confidence": "low"
+}
+---
+**Example 2 : No Match (Creating an "Other")**
+- Question: "What was the number 1 reason you didn't get to this one?"
+- Valid Responses: ["Transport 🚌", "No support 🤝", "Something else 😞"]
+- User Response: "I was too sick that day"
+- JSON Response:
+{
+    "validated_response": "I was too sick that day",
+    "match_type": "no_match",
+    "confidence": "high"
+}
+---
+**Example 3: Conversational Affirmative**
+- Question: "We'd love to know how it went. Do you have 2 minutes to tell us about it?"
+- Valid Responses: ["Yes", "Remind me tomorrow"]
+- User Response: "I can"
+- JSON Response:
+{
+    "validated_response": "Yes",
+    "match_type": "inferred",
+    "confidence": "high"
+}
+---
+
+**Your Task:**
+- Previous Question: "{{ previous_service_message }}"
+- Valid Responses: {{ valid_responses }}
+- User's Response: "{{ user_response }}"
+
+JSON Response:
 """

@@ -53,6 +53,7 @@ from ai4gd_momconnect_haystack.utilities import (
     load_json_and_validate,
     save_json_file,
     FLOWS_WITH_INTRO,
+    ANC_SURVEY_MAP,
 )
 
 from .database import AsyncSessionLocal, init_db
@@ -159,6 +160,9 @@ async def handle_intro_simulation(
     flow_id: str,
     turn_identifier_key: str,
     turn_identifier_value: Any,
+    chat_history: list[ChatMessage],  # Add chat_history parameter
+    user_id: str,  # Add user_id parameter
+    history_type: HistoryType = HistoryType.anc,  # Add history_type parameter
 ) -> bool:
     """Handles the intro/consent step for a simulation flow."""
     if flow_id not in FLOWS_WITH_INTRO:
@@ -175,6 +179,7 @@ async def handle_intro_simulation(
         else INTRO_MESSAGES["multiple_choice_intro"]
     )
     # print(f"Intro Message: {intro_message}")
+    logger.info(f"Intro Message: {intro_message}")
 
     consent_response, _ = await _get_user_response(
         gt_lookup=gt_lookup,
@@ -197,6 +202,13 @@ async def handle_intro_simulation(
         )
         print(f"System Response: {intro_result['message']}")
         return False
+
+    # Append intro message and user response to chat_history
+    chat_history.append(
+        ChatMessage.from_assistant(text=intro_message, meta={"step_title": "intro"})
+    )
+    chat_history.append(ChatMessage.from_user(text=consent_response))
+    await save_chat_history(user_id, chat_history, history_type)
 
     logger.info(f"User consented. Starting {flow_id}...")
     return True
@@ -237,7 +249,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
         "other": {},
     }
     max_onboarding_steps = 10  # Safety break
-    chat_history: list[ChatMessage] = []
     onboarding_turns = []
 
     # --- NEW: Add retry logic variables ---
@@ -262,8 +273,15 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 print("Please enter 'Y' or 'N'.")
 
     if sim_onboarding:
-        chat_history.append(ChatMessage.from_system(text=SERVICE_PERSONA_TEXT))
         # Simulate Onboarding
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                await session.execute(
+                    delete(ChatHistory).where(ChatHistory.user_id == user_id)
+                )
+        chat_history: list[ChatMessage] = [
+            ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)
+        ]
         flow_id = "onboarding"
         gt_scenario = gt_lookup_by_flow.get(flow_id)
         scenario_id_to_use = (
@@ -282,6 +300,9 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             flow_id=flow_id,
             turn_identifier_key="question_number",
             turn_identifier_value=0,
+            chat_history=chat_history,
+            user_id=user_id,
+            history_type=HistoryType.onboarding,
         )
 
         if should_proceed:
@@ -567,6 +588,9 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
         user_context["goal"] = "Complete the assessment"
         max_assessment_steps = 10  # Safety break
         question_number = 1
+        chat_history = [
+            ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)
+        ]  # Initialize here
 
         async with AsyncSessionLocal() as session:
             async with session.begin():
@@ -596,6 +620,9 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             flow_id=flow_id.value,
             turn_identifier_key="question_number",
             turn_identifier_value=0,
+            chat_history=chat_history,
+            user_id=user_id,
+            history_type=HistoryType.onboarding,
         )
 
         if should_proceed:
@@ -1047,6 +1074,14 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             question_number = 1
             user_context["goal"] = "Complete the assessment"
             max_assessment_steps = 20  # Safety break
+            async with AsyncSessionLocal() as session:
+                async with session.begin():
+                    await session.execute(
+                        delete(ChatHistory).where(ChatHistory.user_id == user_id)
+                    )
+            chat_history = [
+                ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)
+            ]  # Initialize here
 
             # Simulate Assessments
             gt_scenario = gt_lookup_by_flow.get(flow_id)
@@ -1066,6 +1101,9 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 flow_id=flow_id.value,
                 turn_identifier_key="question_number",
                 turn_identifier_value=0,
+                chat_history=chat_history,
+                user_id=user_id,
+                history_type=HistoryType.onboarding,
             )
             print(f"FlowID: {flow_id}")
 
@@ -1514,16 +1552,18 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         ChatHistory.user_id == user_id,
                     )
                 )
-        chat_history.append(ChatMessage.from_system(text=SERVICE_PERSONA_TEXT))
+        chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
         anc_user_context = {
             "age": user_context.get("age"),
             "gender": user_context.get("gender"),
             "goal": "Complete the ANC survey",
         }
         survey_complete = False
-        max_survey_steps = 25  # Safety break
+        max_survey_steps = 25
 
-        # Simulate ANC Survey
+        MAX_CONSECUTIVE_FAILURES = 2
+        consecutive_failures = 0
+
         flow_id = "anc-survey"
         gt_scenario = gt_lookup_by_flow.get(flow_id)
         scenario_id_to_use = (
@@ -1541,44 +1581,59 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
         should_proceed = await handle_intro_simulation(
             gt_lookup=gt_lookup_by_flow,
             flow_id=flow_id,
-            turn_identifier_key="question_name",
+            turn_identifier_key="title",
             turn_identifier_value="intro",
+            chat_history=chat_history,
+            user_id=user_id,
+            history_type=HistoryType.anc,
         )
 
         if should_proceed:
             for _ in range(max_survey_steps):
                 if survey_complete:
-                    logger.info("Survey flow complete.")
                     break
 
                 print("-" * 20)
-                logger.info("ANC Survey Step: Requesting next question...")
-
                 result = await get_anc_survey_question(
                     user_id=user_id, user_context=anc_user_context
                 )
 
-                if not result or not result.get("contextualized_question"):
-                    logger.info("Could not get next survey question. Ending flow.")
+                if not result:
                     break
 
-                contextualized_question = result["contextualized_question"]
-                question_identifier = result["question_identifier"]
+                contextualized_question = result.get("contextualized_question")
+                question_identifier = result.get("question_identifier")
                 survey_complete = result.get("is_final_step", False)
 
-                print("-" * 20)
+                if not question_identifier:
+                    logger.warning(
+                        "Could not get question identifier from survey step. Ending flow."
+                    )
+                    break
+
+                if not contextualized_question:
+                    if survey_complete:
+                        logger.info(f"Survey ended with action: {question_identifier}")
+                    else:
+                        logger.info("Could not get next survey question. Ending flow.")
+                    break
+
                 print(f"Question title: {question_identifier}")
+
                 has_deflected = False
                 final_user_response = None
                 initial_predicted_intent = None
                 final_predicted_intent = None
                 current_prompt = contextualized_question
+                gt_turn = None
+
+                first_user_utterance = None
 
                 while True:
                     user_response, gt_turn = await _get_user_response(
                         gt_lookup=gt_lookup_by_flow,
                         flow_id=flow_id,
-                        contextualized_question=contextualized_question,
+                        contextualized_question=current_prompt,
                         turn_identifier_key="question_name",
                         turn_identifier_value=question_identifier,
                         use_follow_up=has_deflected,
@@ -1586,12 +1641,17 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     if user_response is None:
                         break
 
-                    print(f"Use_response: {user_response}")
-                    chat_history.append(ChatMessage.from_user(text=user_response))
-                    intent, intent_related_response = handle_user_message(
-                        contextualized_question, user_response
+                    if not has_deflected:
+                        first_user_utterance = user_response
+
+                    question_data = ANC_SURVEY_MAP.get(question_identifier)
+                    valid_responses = (
+                        question_data.valid_responses if question_data else []
                     )
-                    print(f"Predicted Intent: {intent}")
+
+                    intent, intent_related_response = handle_user_message(
+                        current_prompt, user_response, valid_responses
+                    )
 
                     if not has_deflected:
                         initial_predicted_intent = intent
@@ -1602,10 +1662,20 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         final_user_response = user_response
                         if not has_deflected:
                             final_predicted_intent = initial_predicted_intent
-                            user_context[question_identifier] = final_user_response
+                        break
+                    elif intent == "SKIP_QUESTION":
+                        final_user_response = "Skip"
+                        final_predicted_intent = "SKIP_QUESTION"
                         break
                     else:
-                        if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
+                        print(
+                            f"Predicted Intent: {intent}"
+                        )  # CORRECTED: Moved print statement here
+                        if intent in [
+                            "HEALTH_QUESTION",
+                            "QUESTION_ABOUT_STUDY",
+                            "CHITCHAT",
+                        ]:
                             print(intent_related_response)
                         elif intent in [
                             "ASKING_TO_STOP_MESSAGES",
@@ -1613,14 +1683,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                             "REPORTING_AIRTIME_NOT_RECEIVED",
                         ]:
                             print(f"Turn must be notified that user is {intent}")
-                        elif intent == "CHITCHAT":
-                            print(intent_related_response)
-                            print(
-                                (
-                                    f"User is chitchatting and needs to still respond to "
-                                    f"the previous question: {contextualized_question}"
-                                )
-                            )
 
                         has_deflected = True
                         if not gt_scenario:
@@ -1629,38 +1691,77 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 if final_user_response is None:
                     continue
 
-                # intent must be JOURNEY_RESPONSE. Perform data extraction to add it and the preceding question to the chat history.
-                previous_chat_message = ChatMessage.from_assistant(
-                    text=contextualized_question,
-                    meta={"step_title": question_identifier},
-                )
+                print(
+                    f"Final User Response: {final_user_response}"
+                )  # CORRECTED: Added for clarity
+                print(
+                    f"Final Predicted Intent: {final_predicted_intent}"
+                )  # CORRECTED: Added for clarity
 
                 previous_context = anc_user_context.copy()
-                anc_user_context = extract_anc_data_from_response(
-                    final_user_response,
-                    anc_user_context,
-                    question_identifier,
-                )
-                # Identify what changed in user_context
-                diff_keys = [
+                action_dict = None
+
+                action_dict = None
+                if final_predicted_intent == "SKIP_QUESTION":
+                    anc_user_context[question_identifier] = "Skip"
+                elif final_predicted_intent == "JOURNEY_RESPONSE":
+                    anc_user_context, action_dict = extract_anc_data_from_response(
+                        final_user_response, anc_user_context, question_identifier
+                    )
+
+                    if (
+                        action_dict
+                        and action_dict.get("status") == "needs_confirmation"
+                    ):
+                        print(f"Confirmation Question: {action_dict['message']}")
+                        confirm_response, _ = await _get_user_response(
+                            gt_lookup={},
+                            flow_id=flow_id,
+                            contextualized_question=action_dict["message"],
+                            turn_identifier_key="question_name",
+                            turn_identifier_value=f"{question_identifier}_confirm",
+                        )
+                        if confirm_response and confirm_response.lower().strip() in [
+                            "yes",
+                            "y",
+                            "yebo",
+                        ]:
+                            anc_user_context[question_identifier] = action_dict[
+                                "potential_answer"
+                            ]
+
+                if anc_user_context == previous_context:
+                    consecutive_failures += 1
+                    if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                        anc_user_context[question_identifier] = "Skipped - System"
+                        consecutive_failures = 0
+                else:
+                    consecutive_failures = 0
+
+                if diff_keys := [
                     k
                     for k in anc_user_context
                     if anc_user_context[k] != previous_context.get(k)
-                ]
-                if diff_keys:
-                    chat_history.append(previous_chat_message)
-                    for updated_field in diff_keys:
-                        logger.info(
-                            f"Creating turn for extracted field: {updated_field}"
+                ]:
+                    chat_history.append(
+                        ChatMessage.from_assistant(
+                            text=contextualized_question,
+                            meta={"step_title": question_identifier},
                         )
+                    )
+                    for updated_field in diff_keys:
+                        # CORRECTED LOGIC: Use first_user_utterance and handle follow_up correctly
+                        user_utterance_for_turn = first_user_utterance
+                        follow_up_for_turn = (
+                            final_user_response if has_deflected else None
+                        )
+
                         anc_survey_turns.append(
                             {
                                 "question_name": question_identifier,
                                 "llm_utterance": contextualized_question,
-                                "user_utterance": gt_turn.get("user_utterance")
-                                if gt_turn
-                                else final_user_response,
-                                "follow_up_utterance": final_user_response,
+                                "user_utterance": user_utterance_for_turn,
+                                "follow_up_utterance": follow_up_for_turn,
                                 "llm_initial_predicted_intent": initial_predicted_intent,
                                 "llm_final_predicted_intent": final_predicted_intent,
                                 "llm_extracted_user_response": anc_user_context[
@@ -1668,16 +1769,12 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                                 ],
                             }
                         )
-                    # There is only expected to be one updated field:
-                    chat_history.append(
-                        ChatMessage.from_user(text=anc_user_context[updated_field])
-                    )
-                    # Save the updated chat_history to the db
+                    chat_history.append(ChatMessage.from_user(text=final_user_response))
                     await save_chat_history(user_id, chat_history, HistoryType.anc)
-                else:
-                    logger.info(
-                        "No valid data extracted... Trying again in the next simulation loop."
-                    )
+
+                if survey_complete:
+                    break
+
             run_results["turns"] = anc_survey_turns
             simulation_results.append(run_results)
 
