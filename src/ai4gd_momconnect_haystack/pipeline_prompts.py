@@ -579,3 +579,25 @@ JSON Response:
     "rephrased_question": "Sorry, I didn't quite understand. Please can you tell me how much you agree with this statement: *I feel like I can make decisions about my health.*\\n\\nYou can reply with:\\na. Strongly disagree\\nb. Disagree\\nc. I’m not sure\\nd. Agree\\ne. Strongly agree"
 }
 """
+
+
+DATA_UPDATE_PROMPT = """
+You are an AI assistant helping a user update their profile information for a maternal health service.
+
+Here is the user's current information:
+{% for key, value in user_context.items() %}
+- {{ key }}: {{ value }}
+{% endfor %}
+
+The user was just shown the information above and asked if it was correct.
+
+Here is their response:
+"{{ user_input }}"
+
+Your task is to analyze the user's response and identify any specific information they want to change.
+- If the user confirms the data is correct (e.g., "yes", "it's correct"), call the tool with no arguments.
+- If the user provides new information, extract the new values for the corresponding fields.
+- Map conversational language (e.g., "KZN") to the formal correct value (e.g., "KwaZulu-Natal").
+
+Use the `extract_updated_data` tool to return all the extracted changes in a single call.
+"""

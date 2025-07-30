@@ -23,6 +23,8 @@ from ai4gd_momconnect_haystack.tasks import (
     get_next_onboarding_question,
     handle_intro_response,
     handle_conversational_repair,
+    handle_summary_confirmation_step,
+    format_user_data_summary_for_whatsapp,
 )
 
 # --- Test Data Fixtures ---
@@ -92,6 +94,16 @@ def raw_simulation_output() -> list[dict[str, Any]]:
 def validated_simulation_output(raw_simulation_output) -> list[AssessmentRun]:
     """Provides a list of validated Pydantic AssessmentRun models."""
     return [AssessmentRun.model_validate(run) for run in raw_simulation_output]
+
+
+@pytest.fixture
+def sample_user_context():
+    """Provides a sample user_context after data collection is complete."""
+    return {
+        "province": "Gauteng",
+        "area_type": "City",
+        "relationship_status": "Single",
+    }
 
 
 # --- Tests for the scoring logic ---
@@ -449,3 +461,66 @@ def test_handle_conversational_repair(pipeline_return, expected_substring):
             invalid_input="bad answer",
             valid_responses=["Yes"],
         )
+
+
+def test_format_user_data_summary_for_whatsapp(sample_user_context):
+    """
+    Tests the WhatsApp summary formatting function for correctness.
+    """
+    # Scenario 1: Full context
+    summary = format_user_data_summary_for_whatsapp(sample_user_context)
+    assert "Here's the information I have for you:" in summary
+    assert "_*Province*: Gauteng_" in summary
+    assert "_*Area Type*: City_" in summary
+    assert "_*Relationship Status*: Single_" in summary
+    assert "Is this all correct?" in summary
+
+    # Scenario 2: Context with a skipped value should not show the skipped field
+    context_with_skip = {"province": "Limpopo", "area_type": "Skipped - System"}
+    summary_with_skip = format_user_data_summary_for_whatsapp(context_with_skip)
+    assert "_*Province*: Limpopo_" in summary_with_skip
+    assert "Area Type" not in summary_with_skip
+
+
+@mock.patch("ai4gd_momconnect_haystack.tasks.pipelines.run_data_update_pipeline")
+def test_handle_summary_confirmation_step_with_update(
+    mock_run_pipeline, sample_user_context
+):
+    """
+    Tests the summary handler when the user provides an update.
+    """
+    # Mock the pipeline to return an update
+    mock_run_pipeline.return_value = {"province": "KwaZulu-Natal"}
+
+    user_input = "my province is KZN"
+    context_copy = sample_user_context.copy()
+    result = handle_summary_confirmation_step(user_input, context_copy)
+
+    mock_run_pipeline.assert_called_once_with(user_input, context_copy)
+    assert result["intent"] == "ONBOARDING_UPDATE_COMPLETE"
+    assert "Thank you! I've updated your information." in result["question"]
+    assert result["results_to_save"] == ["province"]
+
+    updated_context = result["user_context"]
+    assert updated_context["province"] == "KwaZulu-Natal"
+    assert "flow_state" not in updated_context
+
+
+@mock.patch("ai4gd_momconnect_haystack.tasks.pipelines.run_data_update_pipeline")
+def test_handle_summary_confirmation_step_with_confirmation(
+    mock_run_pipeline, sample_user_context
+):
+    """
+    Tests the summary handler when the user confirms their data (no updates extracted).
+    """
+    # Mock the pipeline to return no updates
+    mock_run_pipeline.return_value = {}
+
+    user_input = "yes, that is correct"
+    context_copy = sample_user_context.copy()
+    result = handle_summary_confirmation_step(user_input, context_copy)
+
+    mock_run_pipeline.assert_called_once_with(user_input, context_copy)
+    assert result["intent"] == "ONBOARDING_COMPLETE"
+    assert "Perfect, thank you! Your onboarding is complete." in result["question"]
+    assert "flow_state" not in result["user_context"]

@@ -27,6 +27,7 @@ from .pipeline_prompts import (
     NEXT_ONBOARDING_QUESTION_PROMPT,
     ONBOARDING_DATA_EXTRACTION_PROMPT,
     REPHRASE_QUESTION_PROMPT,
+    DATA_UPDATE_PROMPT,
 )
 
 # --- Configuration ---
@@ -375,6 +376,92 @@ def create_onboarding_tool() -> Tool:
         },
     )
 
+    return tool
+
+
+def extract_updated_data(**kwargs) -> dict[str, Any]:
+    """
+    Receives extracted data from the LLM tool call during a data update request.
+    This function acts as a placeholder; its primary role is to define
+    the tool structure for the LLM. It simply returns the arguments it receives.
+    """
+    logger.info(f"Tool 'extract_updated_data' would be called with: {kwargs}")
+    return kwargs
+
+
+def create_data_update_tool() -> Tool:
+    """Creates the data extraction tool for updating user profile information."""
+    # This tool is intentionally similar to the onboarding tool for consistency.
+    tool = Tool(
+        name="extract_updated_data",
+        description="Extracts one or more pieces of user profile information from the user's message and returns them in a structured format.",
+        function=extract_updated_data,
+        parameters={
+            "type": "object",
+            "properties": {
+                "province": {
+                    "type": "string",
+                    "description": "The user's province.",
+                    "enum": [
+                        "Eastern Cape",
+                        "Free State",
+                        "Gauteng",
+                        "KwaZulu-Natal",
+                        "Limpopo",
+                        "Mpumalanga",
+                        "Northern Cape",
+                        "North West",
+                        "Western Cape",
+                    ],
+                },
+                "area_type": {
+                    "type": "string",
+                    "description": "The type of area the user lives in.",
+                    "enum": [
+                        "City",
+                        "Township or suburb",
+                        "Town",
+                        "Farm or smallholding",
+                        "Village",
+                        "Rural area",
+                    ],
+                },
+                "relationship_status": {
+                    "type": "string",
+                    "description": "The user's relationship status.",
+                    "enum": ["Single", "Relationship", "Married"],
+                },
+                "education_level": {
+                    "type": "string",
+                    "description": "The user's highest education level.",
+                    "enum": [
+                        "No school",
+                        "Some primary",
+                        "Finished primary",
+                        "Some high school",
+                        "Finished high school",
+                        "More than high school",
+                        "Don't know",
+                    ],
+                },
+                "hunger_days": {
+                    "type": "string",
+                    "description": "Number of days in the past 7 days the user didn't have enough to eat.",
+                    "enum": ["0 days", "1-2 days", "3-4 days", "5-7 days"],
+                },
+                "num_children": {
+                    "type": "string",
+                    "description": "The number of children the user has.",
+                    "enum": ["0", "1", "2", "3", "More than 3"],
+                },
+                "phone_ownership": {
+                    "type": "string",
+                    "description": "Whether the user owns their phone.",
+                    "enum": ["Yes", "No"],
+                },
+            },
+        },
+    )
     return tool
 
 
@@ -732,6 +819,31 @@ def create_rephrase_question_pipeline() -> Pipeline | None:
     pipeline.connect("llm.replies", "json_validator.messages")
 
     logger.info("Created Rephrase Question Pipeline.")
+    return pipeline
+
+
+@cache
+def create_data_update_pipeline() -> Pipeline | None:
+    """
+    Creates a pipeline that uses a tool to extract updated profile data
+    from a user's free-text request.
+    """
+    llm_generator = get_llm_generator()
+    if not llm_generator:
+        logger.error(
+            "LLM Generator is not available. Cannot create Data Update Pipeline."
+        )
+        return None
+
+    update_tool = create_data_update_tool()
+    llm_generator.tools = [update_tool]
+
+    pipeline = Pipeline()
+    pipeline.add_component("prompt_builder", ChatPromptBuilder())
+    pipeline.add_component("llm", llm_generator)
+    pipeline.connect("prompt_builder.prompt", "llm.messages")
+
+    logger.info("Created Data Update Pipeline with Tools.")
     return pipeline
 
 
@@ -1542,3 +1654,44 @@ def run_rephrase_question_pipeline(
         logger.error("Unexpected error in rephrase_question_pipeline execution: %s", e)
 
     return None
+
+
+def run_data_update_pipeline(user_input: str, user_context: dict) -> dict:
+    """
+    Runs the pipeline to extract updated data fields from a user's free-text request.
+    """
+    pipeline = create_data_update_pipeline()
+    if not pipeline:
+        logger.warning("Failed to create Data Update pipeline.")
+        return {}
+
+    try:
+        chat_template = [ChatMessage.from_system(DATA_UPDATE_PROMPT)]
+        result = pipeline.run(
+            {
+                "prompt_builder": {
+                    "template": chat_template,
+                    "template_variables": {
+                        "user_input": user_input,
+                        "user_context": user_context,
+                    },
+                }
+            }
+        )
+
+        tool_calls = result["llm"]["replies"][0].tool_calls
+        if tool_calls:
+            arguments = tool_calls[0].arguments
+            if isinstance(arguments, dict):
+                logger.info(f"Extracted updated data: {arguments}")
+                return arguments
+        else:
+            logger.info("Data update pipeline ran, but no updates were extracted.")
+
+    except (KeyError, IndexError, AttributeError) as e:
+        logger.warning(
+            "Failed to parse LLM response for data update: %s. Result: %s",
+            e,
+            result,
+        )
+    return {}

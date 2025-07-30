@@ -32,6 +32,9 @@ from .utilities import (
 # --- Configuration ---
 logger = logging.getLogger(__name__)
 
+# Create a mapping from a field `collects` key to its corresponding question object
+FIELD_TO_QUESTION_MAP = {q.collects: q for q in all_onboarding_questions if q.collects}
+
 
 def get_next_onboarding_question(
     user_context: dict, append_valid_responses: bool = False
@@ -682,3 +685,67 @@ def handle_conversational_repair(
         return f"Sorry, I didn't understand. Please try again.\n\n{previous_question}\n{options}"
 
     return rephrased_question
+
+
+def format_user_data_summary_for_whatsapp(user_context: dict) -> str:
+    """Formats the collected user data into a human-readable summary for WhatsApp."""
+    summary_lines = ["Great, thanks! Here's the information I have for you:"]
+    has_data = False
+
+    # Iterate through the defined questions to maintain a consistent order
+    for field, question_obj in FIELD_TO_QUESTION_MAP.items():
+        value = user_context.get(field)
+        # Display the data if it exists and wasn't skipped
+        if value and "skip" not in str(value).lower():
+            field_title = f"*{field.replace('_', ' ').title()}*"
+            summary_lines.append(f"_{field_title}: {value}_")
+            has_data = True
+
+    if not has_data:
+        return (
+            "It looks like we haven't collected any information yet. Let's get started!"
+        )
+
+    summary_lines.append("\nIs this all correct?")
+    return "\n".join(summary_lines)
+
+
+def handle_summary_confirmation_step(user_input: str, user_context: dict) -> dict:
+    """
+    Handles the user's response during the summary confirmation step.
+
+    This task runs the data update pipeline and returns a dictionary with the
+    next message and the final user context.
+
+    Args:
+        user_input: The user's free-text response.
+        user_context: The current context of the user.
+
+    Returns:
+        A dictionary containing the data for the API response.
+    """
+    # Run the pipeline to see if the user is requesting updates.
+    updates = pipelines.run_data_update_pipeline(user_input, user_context)
+
+    # Clean the flow_state from the context in all scenarios.
+    user_context.pop("flow_state", None)
+
+    # If the pipeline returns an empty dictionary, it implies a "yes" or affirmation.
+    if not updates:
+        return {
+            "question": "Perfect, thank you! Your onboarding is complete.",
+            "user_context": user_context,
+            "intent": "ONBOARDING_COMPLETE",
+            "results_to_save": [],
+        }
+
+    # If we have updates, apply them to the context.
+    for key, value in updates.items():
+        user_context[key] = value
+
+    return {
+        "question": "Thank you! I've updated your information.",
+        "user_context": user_context,
+        "intent": "ONBOARDING_UPDATE_COMPLETE",
+        "results_to_save": list(updates.keys()),
+    }

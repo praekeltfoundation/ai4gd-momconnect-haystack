@@ -57,6 +57,8 @@ from ai4gd_momconnect_haystack.tasks import (
     handle_intro_response,
     handle_user_message,
     process_onboarding_step,
+    handle_summary_confirmation_step,
+    format_user_data_summary_for_whatsapp,
 )
 from ai4gd_momconnect_haystack.utilities import (
     FLOWS_WITH_INTRO,
@@ -156,9 +158,25 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     user_id = request.user_id
     user_input = request.user_input
     flow_id = "onboarding"
+    user_context = request.user_context.copy()
     chat_history = await get_or_create_chat_history(
         user_id=user_id, history_type=HistoryType.onboarding
     )
+
+    # --- STATE MACHINE: Handles summary confirmation and updates ---
+    flow_state = user_context.get("flow_state")
+
+    if flow_state == "confirming_summary":
+        result = handle_summary_confirmation_step(user_input, user_context)
+
+        return OnboardingResponse(
+            question=result["question"],
+            user_context=result["user_context"],
+            intent=result["intent"],
+            intent_related_response=None,
+            results_to_save=result["results_to_save"],
+            failure_count=0,
+        )
 
     # This block handles the very first message of a flow (no user input)
     if not user_input:
@@ -180,6 +198,7 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
                 results_to_save=[],
                 failure_count=0,
             )
+
     # This block handles the user's response to the intro message
     last_assistant_msg = next(
         (msg for msg in reversed(chat_history) if msg.role.value == "assistant"), None
@@ -358,6 +377,13 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
 
     if not is_intro_response:
         chat_history.append(ChatMessage.from_user(text=user_input))
+
+    # After processing the last answer, question_text will be empty.
+    if not question_text:
+        user_context["flow_state"] = "confirming_summary"
+        question_text = format_user_data_summary_for_whatsapp(user_context)
+        intent = "AWAITING_SUMMARY_CONFIRMATION"
+
     if question_text:
         chat_history.append(ChatMessage.from_assistant(text=question_text))
     await save_chat_history(
