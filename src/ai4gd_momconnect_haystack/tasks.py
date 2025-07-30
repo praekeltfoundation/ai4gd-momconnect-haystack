@@ -777,25 +777,31 @@ def format_user_data_summary_for_whatsapp(user_context: dict) -> str:
 def handle_summary_confirmation_step(user_input: str, user_context: dict) -> dict:
     """
     Handles the user's response during the summary confirmation step.
-
     This task runs the data update pipeline and returns a dictionary with the
     next message and the final user context.
-
-    Args:
-        user_input: The user's free-text response.
-        user_context: The current context of the user.
-
-    Returns:
-        A dictionary containing the data for the API response.
     """
-    # Run the pipeline to see if the user is requesting updates.
     updates = pipelines.run_data_update_pipeline(user_input, user_context)
 
-    # Clean the flow_state from the context in all scenarios.
-    user_context.pop("flow_state", None)
+    # If the LLM found specific updates, process them and end the flow.
+    if updates:
+        user_context.pop("flow_state", None)  # End the flow
+        for key, value in updates.items():
+            user_context[key] = value
+        return {
+            "question": "Thank you! I've updated your information.",
+            "user_context": user_context,
+            "intent": "ONBOARDING_UPDATE_COMPLETE",
+            "results_to_save": list(updates.keys()),
+        }
 
-    # If the pipeline returns an empty dictionary, it implies a "yes" or affirmation.
-    if not updates:
+    # If no updates were found, check if the user was confirming or denying.
+    user_input_lower = user_input.lower().strip()
+    affirmative_words = ["yes", "correct", "yebo", "yup", "perfect"]
+    negative_words = ["no", "not", "n", "wrong", "incorrect"]
+
+    # If the user's input is clearly affirmative, complete the onboarding.
+    if any(word in user_input_lower for word in affirmative_words):
+        user_context.pop("flow_state", None)  # End the flow
         return {
             "question": "Perfect, thank you! Your onboarding is complete.",
             "user_context": user_context,
@@ -803,13 +809,21 @@ def handle_summary_confirmation_step(user_input: str, user_context: dict) -> dic
             "results_to_save": [],
         }
 
-    # If we have updates, apply them to the context.
-    for key, value in updates.items():
-        user_context[key] = value
+    # If the user's input is negative or ambiguous, ask for clarification.
+    if any(word in user_input_lower for word in negative_words):
+        # We keep the flow_state so the next response comes back to this logic.
+        return {
+            "question": "No problem. Please tell me what you would like to change. For example, 'My province is Western Cape'.",
+            "user_context": user_context,
+            "intent": "REPAIR",
+            "results_to_save": [],
+        }
 
+    # Fallback for ambiguous input (e.g., "ok") is to treat it as confirmation.
+    user_context.pop("flow_state", None)  # End the flow
     return {
-        "question": "Thank you! I've updated your information.",
+        "question": "Thank you for confirming. Your onboarding is complete.",
         "user_context": user_context,
-        "intent": "ONBOARDING_UPDATE_COMPLETE",
-        "results_to_save": list(updates.keys()),
+        "intent": "ONBOARDING_COMPLETE",
+        "results_to_save": [],
     }

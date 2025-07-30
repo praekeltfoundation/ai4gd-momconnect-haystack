@@ -602,3 +602,33 @@ def test_handle_summary_confirmation_step_with_confirmation(
     assert result["intent"] == "ONBOARDING_COMPLETE"
     assert "Perfect, thank you! Your onboarding is complete." in result["question"]
     assert "flow_state" not in result["user_context"]
+
+
+@mock.patch("ai4gd_momconnect_haystack.tasks.pipelines.run_data_update_pipeline")
+def test_handle_summary_confirmation_step_with_denial(
+    mock_run_pipeline, sample_user_context
+):
+    """
+    Tests the summary handler when the user denies the summary and must be
+    re-prompted for clarification.
+    """
+    # Mock the pipeline to return no updates, simulating a simple "no"
+    mock_run_pipeline.return_value = {}
+
+    user_input = "no that is wrong"
+    # The context must still have the flow_state for this test
+    context_with_state = sample_user_context.copy()
+    context_with_state["flow_state"] = "confirming_summary"
+
+    result = handle_summary_confirmation_step(user_input, context_with_state)
+
+    # Assert the pipeline was called
+    mock_run_pipeline.assert_called_once_with(user_input, context_with_state)
+
+    # Assert the result is a repair/re-prompt
+    assert result["intent"] == "REPAIR"
+    assert "Please tell me what you would like to change" in result["question"]
+
+    # Assert that the flow_state was NOT removed, to allow the conversation to continue
+    updated_context = result["user_context"]
+    assert updated_context.get("flow_state") == "confirming_summary"
