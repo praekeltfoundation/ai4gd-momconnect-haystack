@@ -399,7 +399,7 @@ def prepare_valid_responses_to_use_in_assessment_system_prompt(
 
         # Special hardcoded case for question 2 to align with the user view.
         if "knowledge" in flow_id and question_number == 2:
-            #options = "a. You have contractions that stop when you move\nb. Your tummy stays tight, hard and is very painful\nc. Your lower back aches all day\nd. I don't know\ne. Skip"
+            # options = "a. You have contractions that stop when you move\nb. Your tummy stays tight, hard and is very painful\nc. Your lower back aches all day\nd. I don't know\ne. Skip"
             options = "a. Contractions stop\nb. Tight painful tummy\nc. Lower back ache\nd. I don't know\ne. Skip"
         # General case for all other assessment questions with options.
         else:

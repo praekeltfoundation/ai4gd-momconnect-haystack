@@ -659,7 +659,9 @@ def test_classify_yes_no_response(user_input, expected_classification):
     assert classify_yes_no_response(user_input) == expected_classification
 
 
-@mock.patch("ai4gd_momconnect_haystack.assessment_logic.pipelines.run_assessment_response_validator_pipeline")
+@mock.patch(
+    "ai4gd_momconnect_haystack.assessment_logic.pipelines.run_assessment_response_validator_pipeline"
+)
 def test_validate_dma_answer_prepares_aligned_prompts(mock_run_pipeline):
     """
     Tests that validate_assessment_answer prepares aligned prompts for the LLM.
