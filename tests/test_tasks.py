@@ -23,6 +23,7 @@ from ai4gd_momconnect_haystack.tasks import (
     get_next_onboarding_question,
     handle_intro_response,
     handle_conversational_repair,
+    extract_anc_data_from_response,
 )
 
 # --- Test Data Fixtures ---
@@ -449,3 +450,80 @@ def test_handle_conversational_repair(pipeline_return, expected_substring):
             invalid_input="bad answer",
             valid_responses=["Yes"],
         )
+
+
+@mock.patch.dict(
+    "ai4gd_momconnect_haystack.tasks.ANC_SURVEY_MAP",
+    {"start": mock.Mock(content="Q1", valid_responses=["Yes, I went"])},
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.tasks.pipelines.run_survey_data_extraction_pipeline"
+)
+def test_extract_anc_data_high_confidence(mock_run_pipeline):
+    """Tests that a high-confidence match correctly updates the context."""
+    mock_run_pipeline.return_value = {
+        "validated_response": "Yes, I went",
+        "match_type": "exact",
+        "confidence": "high",
+    }
+
+    context, action_dict = extract_anc_data_from_response(
+        user_response="yebo", user_context={}, step_title="start"
+    )
+
+    assert context["start"] == "Yes, I went"
+    assert action_dict is None
+
+
+@mock.patch.dict(
+    "ai4gd_momconnect_haystack.tasks.ANC_SURVEY_MAP",
+    {"start": mock.Mock(content="Q1", valid_responses=["I'm going soon"])},
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.tasks.pipelines.run_survey_data_extraction_pipeline"
+)
+def test_extract_anc_data_low_confidence_triggers_clarification(mock_run_pipeline):
+    """Tests that a low-confidence match returns an action_dict to trigger the clarification loop."""
+    mock_run_pipeline.return_value = {
+        "validated_response": "I'm going soon",
+        "match_type": "inferred",
+        "confidence": "low",
+    }
+
+    context, action_dict = extract_anc_data_from_response(
+        user_response="not yet", user_context={}, step_title="start"
+    )
+
+    assert "start" not in context
+    assert action_dict is not None
+    assert action_dict["status"] == "needs_confirmation"
+    assert action_dict["potential_answer"] == "I'm going soon"
+
+
+@mock.patch.dict(
+    "ai4gd_momconnect_haystack.tasks.ANC_SURVEY_MAP",
+    {
+        "Q_challenges": mock.Mock(
+            content="Q_challenges",
+            valid_responses=["Transport 🚌", "Something else 😞"],
+        )
+    },
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.tasks.pipelines.run_survey_data_extraction_pipeline"
+)
+def test_extract_anc_data_no_match_handles_other(mock_run_pipeline):
+    """Tests that a no_match response correctly populates the 'other' fields in the context."""
+    mock_run_pipeline.return_value = {
+        "validated_response": "I was too sick",
+        "match_type": "no_match",
+        "confidence": "high",
+    }
+
+    context, action_dict = extract_anc_data_from_response(
+        user_response="I was too sick", user_context={}, step_title="Q_challenges"
+    )
+
+    assert context["Q_challenges"] == "Something else 😞"
+    assert context["Q_challenges_other_text"] == "I was too sick"
+    assert action_dict is None

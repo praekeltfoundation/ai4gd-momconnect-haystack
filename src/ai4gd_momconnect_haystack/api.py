@@ -63,6 +63,7 @@ from ai4gd_momconnect_haystack.utilities import (
     all_onboarding_questions,
     assessment_end_flow_map,
     load_json_and_validate,
+    ANC_SURVEY_MAP,
 )
 
 from .enums import HistoryType
@@ -690,10 +691,12 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
     chat_history = await get_or_create_chat_history(
         user_id=user_id, history_type=request.survey_id
     )
+    user_context = request.user_context.copy()
+    previous_context = request.user_context.copy()
 
-    # --- INTRO LOGIC ---
+    # --- 1. INTRO LOGIC ---
     if not user_input:
-        if flow_id and flow_id in FLOWS_WITH_INTRO:
+        if flow_id in FLOWS_WITH_INTRO:
             await delete_chat_history_for_user(request.user_id, HistoryType.anc)
             chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
             intro_message = INTRO_MESSAGES["free_text_intro"]
@@ -707,7 +710,7 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
             )
             return SurveyResponse(
                 question=intro_message,
-                user_context=request.user_context,
+                user_context=user_context,
                 survey_complete=False,
                 intent="SYSTEM_INTRO",
                 intent_related_response=None,
@@ -723,13 +726,21 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
         and last_assistant_message.meta.get("step_title") == "intro"
     )
 
+    # --- Initialize intent variables at a higher scope ---
+    intent: str | None = "JOURNEY_RESPONSE"
+    intent_related_response: str | None = ""
+
+    # Append user message to history early for all subsequent turns
+    if user_input:
+        chat_history.append(ChatMessage.from_user(text=user_input))
+
     if is_intro_response:
         result = handle_intro_response(user_input=user_input, flow_id=flow_id)
         response = await _handle_consent_result(
             result=result,
             response_model=SurveyResponse,
             base_response_args={
-                "user_context": request.user_context,
+                "user_context": user_context,
                 "results_to_save": [],
                 "survey_complete": False,
                 "failure_count": 0,
@@ -737,74 +748,30 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
         )
         if response:
             return response
-        chat_history.append(ChatMessage.from_user(text=user_input))
+        # Consent given, fall through to get the first question
 
-    # --- REGULAR SURVEY LOGIC ---
-    last_question, last_step_title = "", ""
-    if last_assistant_message:
-        last_question = last_assistant_message.text
-        last_step_title = last_assistant_message.meta.get("step_title", "")
+    # --- 2. CLARIFICATION LOOP (INCOMING) ---
+    elif "pending_confirmation" in previous_context:
+        pending_info = user_context.pop("pending_confirmation")
+        step_title_to_confirm = pending_info["step_title_to_confirm"]
+        potential_answer = pending_info["potential_answer"]
 
-    user_context = request.user_context.copy()
-    previous_context = request.user_context.copy()
-    intent: str | None = "JOURNEY_RESPONSE"
-    intent_related_response: str | None = ""
-
-    # FIX: Only process input if this is NOT a response to an intro.
-    if not is_intro_response:
-        chat_history.append(ChatMessage.from_user(text=user_input))
-        intent, intent_related_response = handle_user_message(last_question, user_input)
-        intent = intent or ""
-        intent_related_response = intent_related_response or ""
-
-        if intent != "JOURNEY_RESPONSE":
-            if intent == "CHITCHAT":
-                rephrased_question = handle_conversational_repair(
-                    flow_id="anc-survey",
-                    question_identifier=last_step_title,
-                    previous_question=last_question,
-                    invalid_input=request.user_input,
-                )
-                return SurveyResponse(
-                    question=rephrased_question or last_question,
-                    user_context=request.user_context,
-                    survey_complete=False,
-                    intent="REPAIR",
-                    intent_related_response=None,
-                    results_to_save=[],
-                    failure_count=request.failure_count + 1,
-                )
-            return SurveyResponse(
-                question=last_question,
-                user_context=request.user_context,
-                survey_complete=False,
-                intent=intent,
-                intent_related_response=intent_related_response,
-                results_to_save=[],
-                failure_count=request.failure_count,
-            )
-
-        user_context = extract_anc_data_from_response(
-            user_response=request.user_input,
-            user_context=request.user_context,
-            step_title=last_step_title,
-        )
-
-    if user_context == previous_context and not is_intro_response:
-        if request.failure_count >= 1:
-            logger.warning(
-                f"Survey failed for question '{last_step_title}' twice. Skipping."
-            )
+        if user_input.lower().strip() in ["yes", "y", "yebo", "correct"]:
+            user_context[step_title_to_confirm] = potential_answer
+            # Fall through to get the next question
         else:
+            original_question_data = ANC_SURVEY_MAP.get(step_title_to_confirm)
             rephrased_question = handle_conversational_repair(
                 flow_id=flow_id,
-                question_identifier=last_step_title,
-                previous_question=last_question,
+                question_identifier=step_title_to_confirm,
+                previous_question=original_question_data.content
+                if original_question_data
+                else "",
                 invalid_input=user_input,
             )
             return SurveyResponse(
-                question=rephrased_question or last_question,
-                user_context=previous_context,
+                question=rephrased_question,
+                user_context=user_context,
                 survey_complete=False,
                 intent="REPAIR",
                 intent_related_response=None,
@@ -812,20 +779,103 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
                 failure_count=request.failure_count + 1,
             )
 
+    # --- 3. REGULAR SURVEY LOGIC ---
+    else:
+        last_question = last_assistant_message.text if last_assistant_message else ""
+        last_step_title = (
+            last_assistant_message.meta.get("step_title", "")
+            if last_assistant_message
+            else ""
+        )
+
+        last_question_data = ANC_SURVEY_MAP.get(last_step_title)
+        valid_responses_for_intent = (
+            last_question_data.valid_responses if last_question_data else []
+        )
+        intent, intent_related_response = handle_user_message(
+            last_question, user_input, valid_responses_for_intent
+        )
+
+        if intent == "SKIP_QUESTION":
+            user_context[last_step_title] = "Skip"
+        elif intent == "JOURNEY_RESPONSE":
+            user_context, action_dict = extract_anc_data_from_response(
+                user_response=user_input,
+                user_context=user_context,
+                step_title=last_step_title,
+            )
+
+            if action_dict and action_dict.get("status") == "needs_confirmation":
+                user_context["pending_confirmation"] = action_dict
+                confirmation_question = action_dict["message"]
+                chat_history.append(
+                    ChatMessage.from_assistant(
+                        text=confirmation_question, meta={"step_title": "confirmation"}
+                    )
+                )
+                await save_chat_history(
+                    user_id=user_id,
+                    messages=chat_history,
+                    history_type=request.survey_id,
+                )
+                return SurveyResponse(
+                    question=confirmation_question,
+                    user_context=user_context,
+                    survey_complete=False,
+                    intent="SYSTEM_CONFIRM",
+                    intent_related_response=None,
+                    results_to_save=[],
+                    failure_count=request.failure_count,
+                )
+        else:  # Handle chitchat or other non-journey intents
+            rephrased_question = handle_conversational_repair(
+                flow_id=flow_id,
+                question_identifier=last_step_title,
+                previous_question=last_question,
+                invalid_input=user_input,
+            )
+            return SurveyResponse(
+                question=rephrased_question,
+                user_context=user_context,
+                survey_complete=False,
+                intent="REPAIR",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=request.failure_count + 1,
+            )
+
+        if user_context == previous_context:
+            if request.failure_count >= 1:
+                user_context[last_step_title] = "Skipped - System"
+            else:
+                rephrased_question = handle_conversational_repair(
+                    flow_id=flow_id,
+                    question_identifier=last_step_title,
+                    previous_question=last_question,
+                    invalid_input=user_input,
+                )
+                return SurveyResponse(
+                    question=rephrased_question,
+                    user_context=previous_context,
+                    survey_complete=False,
+                    intent="REPAIR",
+                    intent_related_response=None,
+                    results_to_save=[],
+                    failure_count=request.failure_count + 1,
+                )
+
+    # --- 4. GET NEXT QUESTION ---
     question_result = await get_anc_survey_question(
-        user_id=request.user_id, user_context=user_context
+        user_id=user_id, user_context=user_context
     )
 
-    question: str | None = ""
-    next_step = ""
-    survey_complete = True
+    question, next_step, survey_complete = "", "", True
     if question_result:
         question = question_result.get("contextualized_question", "")
         survey_complete = question_result.get("is_final_step", False)
         next_step = question_result.get("question_identifier", "")
 
-    if (not question) and not survey_complete:
-        # If get_anc_survey_question returns None, it's the end of the survey.
+    if not question and not survey_complete:
         survey_complete = True
         question = "Thank you for completing the survey!"
 
@@ -835,7 +885,7 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
         )
 
     await save_chat_history(
-        user_id=request.user_id, messages=chat_history, history_type=request.survey_id
+        user_id=user_id, messages=chat_history, history_type=request.survey_id
     )
     diff_keys = [
         k for k in user_context if user_context.get(k) != previous_context.get(k)
@@ -848,9 +898,7 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
         intent=intent,
         intent_related_response=intent_related_response,
         results_to_save=diff_keys,
-        failure_count=0
-        if user_context != previous_context or request.failure_count >= 1
-        else request.failure_count,
+        failure_count=0,
     )
 
 

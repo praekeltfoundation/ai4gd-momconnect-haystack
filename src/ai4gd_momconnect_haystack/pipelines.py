@@ -27,6 +27,7 @@ from .pipeline_prompts import (
     NEXT_ONBOARDING_QUESTION_PROMPT,
     ONBOARDING_DATA_EXTRACTION_PROMPT,
     REPHRASE_QUESTION_PROMPT,
+    SURVEY_DATA_EXTRACTION_PROMPT,
 )
 
 # --- Configuration ---
@@ -108,13 +109,14 @@ REPHRASED_QUESTION_SCHEMA = {
 
 # --- The ANC Survey flow, statically defined ---
 ANC_SURVEY_FLOW_LOGIC = {
+    "intro": lambda ctx: "start",
     "start": lambda ctx: "Q_seen"
     if ctx.get("start") == "Yes, I went"
     else "start_not_going"
     if ctx.get("start") == "No, I'm not going"
     else "start_going_soon"
     if ctx.get("start") == "I'm going soon"
-    else None,
+    else "Q_seen",  # ADDED DEFAULT PATH
     # I'm going soon
     "start_going_soon": lambda ctx: "__GOING_SOON_REMINDER_3_DAYS__",
     # Yes, I went
@@ -122,17 +124,17 @@ ANC_SURVEY_FLOW_LOGIC = {
     if ctx.get("Q_seen") == "Yes"
     else "Q_seen_no"
     if ctx.get("Q_seen") == "No"
-    else None,
+    else "Q_challenges",  # ADDED DEFAULT PATH (skips to a common subsequent question)
     "seen_yes": lambda ctx: "Q_bp"
     if ctx.get("seen_yes") == "Yes"
     else "mom_ANC_remind_me_01"
     if ctx.get("seen_yes") == "Remind me tomorrow"
-    else None,
+    else "Q_bp",  # ADDED DEFAULT PATH
     "Q_seen_no": lambda ctx: "Q_why_no_visit"
     if ctx.get("Q_seen_no") == "Yes"
     else "mom_ANC_remind_me_01"
     if ctx.get("Q_seen_no") == "Remind me tomorrow"
-    else None,
+    else "Q_why_no_visit",  # ADDED DEFAULT PATH
     "Q_why_no_visit": lambda ctx: "intent"
     if ctx.get("Q_why_no_visit")
     in [
@@ -145,7 +147,7 @@ ANC_SURVEY_FLOW_LOGIC = {
     ]
     else "Q_why_no_visit_other"
     if ctx.get("Q_why_no_visit") == "Something else 😞"
-    else None,
+    else "intent",  # ADDED DEFAULT PATH
     "Q_why_no_visit_other": lambda ctx: "intent",
     "mom_ANC_remind_me_01": lambda ctx: "__NOT_GOING_REMINDER_1_DAY__",
     "Q_bp": lambda ctx: "Q_experience",
@@ -153,9 +155,9 @@ ANC_SURVEY_FLOW_LOGIC = {
     if ctx.get("Q_experience") in ["Bad", "Very bad"]
     else "good"
     if ctx.get("Q_experience") in ["Very good", "Good", "OK"]
-    else None,
+    else "Q_visit_good",  # ADDED DEFAULT PATH
     "bad": lambda ctx: "Q_visit_bad",
-    "good": lambda ctx: "Q_visit_bad",
+    "good": lambda ctx: "Q_visit_good",
     "Q_visit_good": lambda ctx: "Q_challenges"
     if ctx.get("Q_visit_good")
     in [
@@ -170,7 +172,7 @@ ANC_SURVEY_FLOW_LOGIC = {
     ]
     else "Q_visit_other"
     if ctx.get("Q_visit_good") == "Something else 😞"
-    else None,
+    else "Q_challenges",  # ADDED DEFAULT PATH
     "Q_visit_bad": lambda ctx: "Q_challenges"
     if ctx.get("Q_visit_bad")
     in [
@@ -184,21 +186,21 @@ ANC_SURVEY_FLOW_LOGIC = {
     ]
     else "Q_visit_other"
     if ctx.get("Q_visit_bad") == "Something else 😞"
-    else None,
+    else "Q_challenges",  # ADDED DEFAULT PATH
     "Q_visit_other": lambda ctx: "Q_challenges",
     "Q_challenges": lambda ctx: "intent"
     if ctx.get("Q_challenges")
     in ["No challenges 👌", "Transport 🚌", "No support 🤝", "Clinic opening hours 🏥"]
     else "Q_challenges_other"
     if ctx.get("Q_challenges") == "Something else 😞"
-    else None,
+    else "intent",  # ADDED DEFAULT PATH
     "Q_challenges_other": lambda ctx: "intent",
     # No, I'm not going
     "start_not_going": lambda ctx: "Q_why_not_go"
     if ctx.get("start_not_going") == "Yes"
     else "mom_ANC_remind_me_02"
     if ctx.get("start_not_going") == "Remind me tomorrow"
-    else None,
+    else "Q_why_not_go",  # ADDED DEFAULT PATH
     "mom_ANC_remind_me_02": lambda ctx: "__WENT_REMINDER_1_DAY__",
     "Q_why_not_go": lambda ctx: "intent"
     if ctx.get("Q_why_not_go")
@@ -215,7 +217,7 @@ ANC_SURVEY_FLOW_LOGIC = {
     ]
     else "Q_why_not_go_other"
     if ctx.get("Q_why_not_go") == "Something else 😞"
-    else None,
+    else "intent",  # ADDED DEFAULT PATH
     "Q_why_not_go_other": lambda ctx: "intent",
     "intent": lambda ctx: "end"
     if (not ctx.get("first_survey")) and ctx.get("intent") == "Yes, I will"
@@ -223,12 +225,10 @@ ANC_SURVEY_FLOW_LOGIC = {
     if ctx.get("first_survey") and ctx.get("intent") == "Yes, I will"
     else "not_going_next_one"
     if ctx.get("intent") == "No, I won't"
-    else None,
+    else "feedback_if_first_survey",  # ADDED DEFAULT PATH
     "not_going_next_one": lambda ctx: "end"
     if not ctx.get("first_survey")
-    else "feedback_if_first_survey"
-    if ctx.get("first_survey")
-    else None,
+    else "feedback_if_first_survey",
     # Feedback and thanks after the user's first survey completion
     "feedback_if_first_survey": lambda ctx: "end_if_feedback",
 }
@@ -732,6 +732,43 @@ def create_rephrase_question_pipeline() -> Pipeline | None:
     pipeline.connect("llm.replies", "json_validator.messages")
 
     logger.info("Created Rephrase Question Pipeline.")
+    return pipeline
+
+
+@cache
+def create_survey_data_extraction_pipeline() -> Pipeline | None:
+    """
+    Creates a pipeline for survey data extraction that returns a structured
+    object with confidence and match type.
+    """
+    llm_generator = get_llm_generator()
+    if not llm_generator:
+        logger.error(
+            "LLM Generator is not available. Cannot create Survey Data Extraction Pipeline."
+        )
+        return None
+
+    pipeline = Pipeline()
+    # Define the schema for the richer output
+    json_schema = {
+        "type": "object",
+        "properties": {
+            "validated_response": {"type": "string"},
+            "match_type": {"type": "string", "enum": ["exact", "inferred", "no_match"]},
+            "confidence": {"type": "string", "enum": ["high", "low"]},
+        },
+        "required": ["validated_response", "match_type", "confidence"],
+    }
+    json_validator = JsonSchemaValidator(json_schema=json_schema)
+
+    pipeline.add_component("prompt_builder", ChatPromptBuilder())
+    pipeline.add_component("llm", llm_generator)
+    pipeline.add_component("json_validator", json_validator)
+
+    pipeline.connect("prompt_builder.prompt", "llm.messages")
+    pipeline.connect("llm.replies", "json_validator.messages")
+
+    logger.info("Created Survey Data Extraction Pipeline with confidence scoring.")
     return pipeline
 
 
@@ -1390,7 +1427,7 @@ def run_clinic_visit_data_extraction_pipeline(
 
 
 def run_intent_detection_pipeline(
-    last_question: str, user_response: str
+    last_question: str, user_response: str, valid_responses: list[str] | None = None
 ) -> dict[str, Any] | None:
     """
     Runs the intent detection pipeline and safely parses the JSON from the LLM response.
@@ -1398,6 +1435,7 @@ def run_intent_detection_pipeline(
     Args:
         last_question: Previous message sent to the user, to which they are responding.
         user_response: User's latest message
+        valid_responses: Optional list of valid responses for the current question.
 
     Returns:
         Dictionary containing the classified intent.
@@ -1415,6 +1453,7 @@ def run_intent_detection_pipeline(
                     "template_variables": {
                         "last_question": last_question,
                         "user_response": user_response,
+                        "valid_responses": valid_responses or [],
                     },
                 },
             }
@@ -1542,3 +1581,37 @@ def run_rephrase_question_pipeline(
         logger.error("Unexpected error in rephrase_question_pipeline execution: %s", e)
 
     return None
+
+
+def run_survey_data_extraction_pipeline(
+    user_response: str,
+    previous_service_message: str,
+    valid_responses: list[str],
+) -> dict | None:
+    """
+    Runs the confidence-based survey data extraction pipeline.
+    """
+    pipeline = create_survey_data_extraction_pipeline()
+    if not pipeline:
+        return None
+
+    try:
+        result = pipeline.run(
+            {
+                "prompt_builder": {
+                    "template": [
+                        ChatMessage.from_system(SURVEY_DATA_EXTRACTION_PROMPT)
+                    ],
+                    "template_variables": {
+                        "user_response": user_response,
+                        "previous_service_message": previous_service_message,
+                        "valid_responses": valid_responses,
+                    },
+                }
+            }
+        )
+        validated_message = result["json_validator"]["validated"][0]
+        return json.loads(validated_message.text)
+    except Exception as e:
+        logger.error(f"Error running survey data extraction pipeline: {e}")
+        return None
