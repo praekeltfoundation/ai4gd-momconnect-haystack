@@ -153,11 +153,11 @@
             "content": "Fantastic!\n\nRemember, if you want to skip a question, just type and send `skip`.\n\nLet’s go! Do you agree with this statement?\n\n*Pregnancy check-ups are a good way to check that you and your unborn baby are healthy.* 🫄🏽",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
-                { "response": "I strongly agree", "score": 5 },
-                { "response": "I agree", "score": 4 },
+                { "response": "I strongly disagree 👎👎", "score": 1 },
+                { "response": "I disagree 👎", "score": 2 },
                 { "response": "I'm not sure", "score": 3 },
-                { "response": "I disagree", "score": 2 },
-                { "response": "I strongly disagree", "score": 1 },
+                { "response": "I agree 👍", "score": 4 },
+                { "response": "I strongly agree 👍👍", "score": 5 },
                 { "response": "Skip", "score": 0 }
             ]
         },
@@ -167,11 +167,11 @@
             "content": "What about this one…\n\n*Home birth is safer than giving birth in a hospital.* 🫄🏽",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
-                { "response": "I strongly agree", "score": 1 },
-                { "response": "I agree", "score": 2 },
+                { "response": "I strongly disagree 👎👎", "score": 5 },
+                { "response": "I disagree 👎 👎", "score": 4 },
                 { "response": "I'm not sure", "score": 3 },
-                { "response": "I disagree", "score": 4 },
-                { "response": "I strongly disagree", "score": 5 },
+                { "response": "I agree 👍", "score": 2 },
+                { "response": "I strongly agree 👍👍", "score": 1 },
                 { "response": "Skip", "score": 0 }
             ]
         },
@@ -181,11 +181,11 @@
             "content": "And…\n\n*It's important for a pregnant woman to get an HIV test when she is pregnant.* 🫄🏽",
             "content_type": "assessment_question",
             "valid_responses_and_scores": [
-                { "response": "I strongly agree", "score": 5 },
-                { "response": "I agree", "score": 4 },
+                { "response": "I strongly disagree 👎👎", "score": 1 },
+                { "response": "I disagree 👎", "score": 2 },
                 { "response": "I'm not sure", "score": 3 },
-                { "response": "I disagree", "score": 2 },
-                { "response": "I strongly disagree", "score": 1 },
+                { "response": "I agree 👍", "score": 4 },
+                { "response": "I strongly agree 👍👍", "score": 5 },
                 { "response": "Skip", "score": 0 }
             ]
         }

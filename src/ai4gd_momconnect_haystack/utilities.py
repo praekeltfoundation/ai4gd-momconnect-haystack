@@ -343,8 +343,22 @@ def prepare_valid_responses_to_use_in_anc_survey_system_prompt(
 def prepare_valid_responses_to_display_to_assessment_user(
     flow_id: str, question_number: int, question: str, question_data: AssessmentQuestion
 ) -> str:
+    """
+    Appends formatted, alphabetized options to an assessment question for user display.
+
+    Args:
+        flow_id: The identifier for the current assessment flow.
+        question_number: The specific question number within the flow.
+        question: The base text of the question.
+        question_data: The AssessmentQuestion object with response data.
+
+    Returns:
+        The formatted question string with a list of options.
+    """
     if question_data.valid_responses_and_scores:
-        if "dma" in flow_id or "attitude" in flow_id:
+        if "knowledge" in flow_id and question_number == 2:
+            question = f"{question}\n\na. You have contractions that stop when you move\nb. Your tummy stays tight, hard and is very painful\nc. Your lower back aches all day\nd. I don't know"
+        else:
             options = "\n\n" + "\n".join(
                 prepend_valid_responses_with_alphabetical_index(
                     [
@@ -355,77 +369,46 @@ def prepare_valid_responses_to_display_to_assessment_user(
                 )
             )
             question = f"{question}{options}"
-        elif flow_id == "behaviour-pre-assessment":
-            if question_number == 3:
-                question = question + "\n\n0 or 1?"
-            if question_number == 4:
-                options = "\n\n" + "\n".join(["0 or 1?"])
-                question = question + '\n\nPlease reply with "Yes" or "No".'
-        else:
-            if question_number in [1, 3, 5]:
-                options = "\n\n" + "\n".join(
-                    prepend_valid_responses_with_alphabetical_index(
-                        [
-                            item.response
-                            for item in question_data.valid_responses_and_scores
-                            if item.response != "Skip"
-                        ]
-                    )
-                )
-                question = f"{question}{options}"
-            if question_number == 2:
-                question = f"{question}\n\na. You have contractions that stop when you move\nb. Your tummy stays tight, hard and is very painful\nc. Your lower back aches all day"
     return question
 
 
 def prepare_valid_responses_to_use_in_assessment_system_prompt(
     flow_id: str, question_number: int, question_data: AssessmentQuestion
 ) -> str:
+    """
+    Formats valid responses into a string for the LLM's system prompt.
+
+    This creates the 'answer key' that the LLM uses to validate a user's
+    free-text response. The structure MUST align with the options shown to the
+    user by `prepare_valid_responses_to_display_to_assessment_user` for
+    reliable validation.
+
+    Args:
+        flow_id: The identifier for the current assessment flow.
+        question_number: The specific question number within the flow.
+        question_data: The AssessmentQuestion object with response data.
+
+    Returns:
+        A newline-separated string of valid responses formatted for an LLM prompt.
+    """
+    options = ""
     if question_data.valid_responses_and_scores:
-        if flow_id in ["dma-assessment", "attitude-assessment"]:
+        valid_responses = [
+            item.response for item in question_data.valid_responses_and_scores
+        ]
+
+        # Special hardcoded case for question 2 to align with the user view.
+        if "knowledge" in flow_id and question_number == 2:
+            # options = "a. You have contractions that stop when you move\nb. Your tummy stays tight, hard and is very painful\nc. Your lower back aches all day\nd. I don't know\ne. Skip"
+            options = "a. Contractions stop\nb. Tight painful tummy\nc. Lower back ache\nd. I don't know\ne. Skip"
+        # General case for all other assessment questions with options.
+        else:
             options = "\n".join(
-                get_likert_scale_with_numeric_index_and_responses_in_quotes()
+                prepend_valid_responses_with_alphabetical_index_and_responses_in_quotes(
+                    [r for r in valid_responses if r != "Skip"]
+                )
                 + ['"Skip"']
             )
-        elif flow_id == "behaviour-pre-assessment":
-            if question_number == 3:
-                options = "\n".join(['- "0"', '- "1"', '- "Skip"'])
-            elif question_number == 4:
-                options = "\n".join(['- "Yes"', '- "No"', '- "Skip"'])
-            else:
-                options = "\n".join(
-                    [
-                        f'- "{vr}"'
-                        for vr in [
-                            item.response
-                            for item in question_data.valid_responses_and_scores
-                        ]
-                    ]
-                )
-        else:
-            if question_number in [1, 3, 5]:
-                options = "\n".join(
-                    prepend_valid_responses_with_alphabetical_index_and_responses_in_quotes(
-                        [
-                            item.response
-                            for item in question_data.valid_responses_and_scores
-                            if item.response != "Skip"
-                        ]
-                    )
-                    + ['"Skip"']
-                )
-            elif question_number == 2:
-                options = "a. Contractions stop\nb. Tight painful tummy\nc. Lower back ache\nI don't know\nSkip"
-            else:
-                options = "\n".join(
-                    [
-                        f'- "{vr}"'
-                        for vr in [
-                            item.response
-                            for item in question_data.valid_responses_and_scores
-                        ]
-                    ]
-                )
     return options
 
 

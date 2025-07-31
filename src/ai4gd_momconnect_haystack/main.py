@@ -1188,6 +1188,11 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                             if not has_deflected:
                                 final_predicted_intent = initial_predicted_intent
                             break
+                        elif intent == "SKIP_QUESTION":
+                            logger.info(f"User skipped question {question_number}.")
+                            final_user_response = "Skip"
+                            final_predicted_intent = "SKIP_QUESTION"
+                            break
                         else:
                             if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
                                 print(intent_related_response)

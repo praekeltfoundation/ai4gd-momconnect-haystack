@@ -225,7 +225,7 @@ async def test_get_assessment_question():
             user_context={},
         )
         assert result == {
-            "contextualized_question": "mock_question\n\na. I strongly disagree\nb. I disagree\nc. I'm not sure\nd. I agree\ne. I strongly agree",
+            "contextualized_question": "mock_question\n\na. I strongly disagree 👎👎\nb. I disagree 👎\nc. I'm not sure\nd. I agree 👍\ne. I strongly agree 👍👍",
         }
 
         mock_run_pipeline.assert_called_once()
@@ -253,7 +253,7 @@ async def test_get_last_assessment_question():
             user_context={},
         )
         assert result == {
-            "contextualized_question": "mock_question\n\na. I strongly disagree\nb. I disagree\nc. I'm not sure\nd. I agree\ne. I strongly agree",
+            "contextualized_question": "mock_question\n\na. I strongly disagree 👎👎\nb. I disagree 👎\nc. I'm not sure\nd. I agree 👍\ne. I strongly agree 👍👍",
         }
 
         # This call should fail before the pipeline is even created or run,
@@ -657,3 +657,50 @@ def test_classify_yes_no_response(user_input, expected_classification):
     Tests the deterministic Yes/No classifier with various inputs.
     """
     assert classify_yes_no_response(user_input) == expected_classification
+
+
+@mock.patch(
+    "ai4gd_momconnect_haystack.assessment_logic.pipelines.run_assessment_response_validator_pipeline"
+)
+def test_validate_dma_answer_prepares_aligned_prompts(mock_run_pipeline):
+    """
+    Tests that validate_assessment_answer prepares aligned prompts for the LLM.
+
+    This test verifies the fix for the DMA mismatch bug by ensuring that the
+    context sent to the LLM in the system prompt (alphabetical, user-facing)
+    correctly corresponds to the canonical list of responses used for validation.
+    """
+    # Arrange: Mock the pipeline to return a valid canonical response
+    mock_run_pipeline.return_value = "I agree 👍"
+
+    # Act: Call the function for a DMA assessment question
+    validate_assessment_answer(
+        user_response="d",
+        question_number=1,
+        current_flow_id="dma-pre-assessment",
+    )
+
+    # Assert: Check that the pipeline was called with the correctly aligned arguments
+    expected_canonical_responses = [
+        "I strongly disagree 👎👎",
+        "I disagree 👎",
+        "I'm not sure",
+        "I agree 👍",
+        "I strongly agree 👍👍",
+        "Skip",
+    ]
+
+    expected_prompt_context = (
+        'a. "I strongly disagree 👎👎"\n'
+        'b. "I disagree 👎"\n'
+        'c. "I\'m not sure"\n'
+        'd. "I agree 👍"\n'
+        'e. "I strongly agree 👍👍"\n'
+        '"Skip"'
+    )
+
+    mock_run_pipeline.assert_called_once_with(
+        "d",  # The raw user response
+        expected_canonical_responses,
+        expected_prompt_context,
+    )
