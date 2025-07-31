@@ -1510,3 +1510,84 @@ async def test_assessment_skip_question(
     )
     mock_save_q.assert_has_awaits([call_to_save_answer], any_order=True)
     mock_get_q.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch("ai4gd_momconnect_haystack.api.handle_summary_confirmation_step")
+async def test_onboarding_api_summary_state_handles_update(mock_summary_handler):
+    """
+    Tests that the API correctly calls the summary handler task when in the
+    'confirming_summary' state and returns its result.
+    """
+    # Arrange
+    mock_summary_handler.return_value = {
+        "question": "Thank you! I've updated your information.",
+        "user_context": {"province": "Western Cape", "area_type": "City"},
+        "intent": "ONBOARDING_UPDATE_COMPLETE",
+        "results_to_save": ["province"],
+    }
+
+    client = TestClient(app)
+    # Act
+    response = client.post(
+        "/v1/onboarding",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "test-user-123",
+            "user_input": "change province to western cape",
+            "user_context": {"flow_state": "confirming_summary", "province": "Gauteng"},
+        },
+    )
+
+    # Assert
+    assert response.status_code == 200
+    mock_summary_handler.assert_called_once()
+    response_data = response.json()
+    assert response_data["question"] == "Thank you! I've updated your information."
+    assert response_data["intent"] == "ONBOARDING_UPDATE_COMPLETE"
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch("ai4gd_momconnect_haystack.api.process_onboarding_step")
+@mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
+    new_callable=mock.AsyncMock,
+)
+async def test_onboarding_api_flow_transitions_to_summary(
+    mock_get_history, mock_handle_message, mock_process_step
+):
+    """
+    Tests the full onboarding conversation flow up to the point where
+    the final answer is given and the API transitions to the summary state.
+    """
+    # Arrange
+    mock_get_history.return_value = [ChatMessage.from_assistant("Last question?")]
+    mock_handle_message.return_value = ("JOURNEY_RESPONSE", "")
+    mock_process_step.return_value = (
+        {"province": "Gauteng", "area_type": "City"},
+        None,  # NO more questions
+    )
+
+    client = TestClient(app)
+    # Act
+    final_response = client.post(
+        "/v1/onboarding",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "test-user-flow",
+            "user_input": "City",
+            "user_context": {"province": "Gauteng"},
+        },
+    )
+
+    # Assert
+    assert final_response.status_code == 200
+    response_data = final_response.json()
+
+    assert response_data["intent"] == "AWAITING_SUMMARY_CONFIRMATION"
+    assert "Here's the information I have for you:" in response_data["question"]
+    assert "_*Province*: Gauteng_" in response_data["question"]
+    assert response_data["user_context"]["flow_state"] == "confirming_summary"

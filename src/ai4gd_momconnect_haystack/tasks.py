@@ -1,3 +1,4 @@
+import re
 import json
 import logging
 
@@ -29,6 +30,9 @@ from .utilities import (
 
 # --- Configuration ---
 logger = logging.getLogger(__name__)
+
+# Create a mapping from a field `collects` key to its corresponding question object
+FIELD_TO_QUESTION_MAP = {q.collects: q for q in all_onboarding_questions if q.collects}
 
 
 def get_next_onboarding_question(
@@ -134,12 +138,39 @@ def update_context_from_onboarding_response(
     This is the core business logic for an onboarding turn.
     """
     updated_context = current_context.copy()
+    updates = {}
 
-    updates = extract_onboarding_data_from_response(
-        user_response=user_input,
-        user_context=current_context,
-        current_question=current_question,
+    current_question_obj = next(
+        (
+            q
+            for q in all_onboarding_questions
+            if q.content and q.content in current_question
+        ),
+        None,
     )
+
+    # Check if this is a simple Yes/No question
+    if current_question_obj and current_question_obj.valid_responses == [
+        "Yes",
+        "No",
+        "Skip",
+    ]:
+        # Use the new reusable helper function
+        intent = classify_yes_no_response(user_input)
+        if intent == "AFFIRMATIVE":
+            updates = {current_question_obj.collects: "Yes"}
+        elif intent == "NEGATIVE":
+            updates = {current_question_obj.collects: "No"}
+        # If ambiguous, 'updates' remains empty, and we fall through to the LLM
+
+    # If it's not a simple Yes/No question, or the answer was ambiguous,
+    # fall back to the powerful LLM pipeline.
+    if not updates:
+        updates = extract_onboarding_data_from_response(
+            user_response=user_input,
+            user_context=current_context,
+            current_question=current_question,
+        )
 
     if updates:
         onboarding_data_to_collect = [
@@ -596,7 +627,8 @@ def handle_user_message(
 def handle_intro_response(user_input: str, flow_id: str) -> dict:
     """
     Handles a user's response to an introductory consent message by determining
-    their intent and validating their answer.
+    their intent and validating their answer. This version prioritizes a
+    deterministic check for Yes/No before falling back to intent detection.
     """
     is_free_text_flow = (
         "onboarding" in flow_id or "behaviour" in flow_id or "survey" in flow_id
@@ -607,16 +639,29 @@ def handle_intro_response(user_input: str, flow_id: str) -> dict:
         else doc_store.INTRO_MESSAGES["multiple_choice_intro"]
     )
 
-    # Level 1: General Intent Classification
+    # First, perform the reliable, deterministic check for a clear Yes/No.
+    consent_intent = classify_yes_no_response(user_input)
+
+    if consent_intent == "AFFIRMATIVE":
+        return {
+            "action": "PROCEED",
+            "message": None,
+            "intent": "JOURNEY_RESPONSE",
+            "intent_related_response": None,
+        }
+
+    if consent_intent == "NEGATIVE":
+        return {
+            "action": "ABORT",
+            "message": doc_store.INTRO_MESSAGES["abort_message"],
+            "intent": "ASKING_TO_STOP_MESSAGES",
+            "intent_related_response": None,
+        }
+
+    # If the response is ambiguous, THEN use the AI for general intent detection.
     intent, intent_related_response = handle_user_message(
         previous_intro_message, user_input
     )
-
-    # --- START DEBUGGING ---
-    print("\n--- INTRO DEBUG START ---")
-    print(f"DEBUG: User input was '{user_input}'")
-    print(f"DEBUG: Intent detected: {intent}")
-    # --- END DEBUGGING ---
 
     action_result = {
         "action": "",
@@ -625,41 +670,25 @@ def handle_intro_response(user_input: str, flow_id: str) -> dict:
         "intent_related_response": intent_related_response,
     }
 
-    if intent == "JOURNEY_RESPONSE":
-        # Level 2: Validate if the response is "Yes" or "No"
-        validated_consent = pipelines.run_clinic_visit_data_extraction_pipeline(
-            user_response=user_input,
-            previous_service_message=previous_intro_message,
-            valid_responses=["Yes", "No"],
-        )
-
-        # --- START DEBUGGING ---
-        print(f"DEBUG: Validated consent result: {validated_consent}")
-        # --- END DEBUGGING ---
-
-        if validated_consent == "Yes":
-            action_result["action"] = "PROCEED"
-        elif validated_consent == "No":
-            action_result["action"] = "ABORT"
-            action_result["message"] = doc_store.INTRO_MESSAGES["abort_message"]
-        else:
-            action_result["action"] = "REPROMPT"
-            action_result["message"] = (
-                f"Sorry, I didn't quite understand. Please reply with 'Yes' to begin or 'No' to stop.\n\n{previous_intro_message}"
-            )
-
-    elif intent in ["QUESTION_ABOUT_STUDY", "HEALTH_QUESTION"]:
+    if intent in ["QUESTION_ABOUT_STUDY", "HEALTH_QUESTION"]:
         action_result["action"] = "REPROMPT_WITH_ANSWER"
         action_result["message"] = (
             f"{intent_related_response}\n\n{previous_intro_message}"
         )
-
-    else:  # ASK_TO_STOP, CHITCHAT, None, etc. are all treated as declining consent
+    # If the user is asking to stop, abort the conversation.
+    elif intent in [
+        "ASKING_TO_STOP_MESSAGES",
+        "ASKING_TO_DELETE_DATA",
+        "REPORTING_AIRTIME_NOT_RECEIVED",
+    ]:
         action_result["action"] = "ABORT"
         action_result["message"] = doc_store.INTRO_MESSAGES["abort_message"]
-
-    print(f"DEBUG: Final action result: {action_result['action']}")
-    print("--- INTRO DEBUG END ---\n")
+    # For chitchat or an ambiguous journey response, repair by re-prompting.
+    else:
+        action_result["action"] = "REPROMPT"
+        action_result["message"] = (
+            f"Sorry, I didn't quite understand. Please reply with 'Yes' to begin or 'No' to stop.\n\n{previous_intro_message}"
+        )
 
     return action_result
 
@@ -746,3 +775,109 @@ def handle_conversational_repair(
         return f"Sorry, I didn't understand. Please try again.\n\n{previous_question}\n{options}"
 
     return rephrased_question
+
+
+def format_user_data_summary_for_whatsapp(user_context: dict) -> str:
+    """Formats the collected user data into a human-readable summary for WhatsApp."""
+    summary_lines = ["Great, thanks! Here's the information I have for you:"]
+    has_data = False
+
+    # Iterate through the defined questions to maintain a consistent order
+    for field, question_obj in FIELD_TO_QUESTION_MAP.items():
+        value = user_context.get(field)
+        # Display the data if it exists and wasn't skipped
+        if value and "skip" not in str(value).lower():
+            field_title = f"*{field.replace('_', ' ').title()}*"
+            summary_lines.append(f"_{field_title}: {value}_")
+            has_data = True
+
+    if not has_data:
+        return (
+            "It looks like we haven't collected any information yet. Let's get started!"
+        )
+
+    summary_lines.append("\nIs this all correct?")
+    return "\n".join(summary_lines)
+
+
+def handle_summary_confirmation_step(user_input: str, user_context: dict) -> dict:
+    """
+    Handles the user's response during the summary confirmation step.
+    This task runs the data update pipeline and returns a dictionary with the
+    next message and the final user context.
+    """
+    updates = pipelines.run_data_update_pipeline(user_input, user_context)
+
+    # If the LLM found specific updates, process them and end the flow.
+    if updates:
+        user_context.pop("flow_state", None)  # End the flow
+        for key, value in updates.items():
+            user_context[key] = value
+        return {
+            "question": "Thank you! I've updated your information.",
+            "user_context": user_context,
+            "intent": "ONBOARDING_UPDATE_COMPLETE",
+            "results_to_save": list(updates.keys()),
+        }
+
+    # If no updates were found, check if the user was confirming or denying.
+    user_input_lower = user_input.lower().strip()
+    affirmative_words = ["yes", "correct", "yebo", "yup", "perfect"]
+    negative_words = ["no", "not", "n", "wrong", "incorrect"]
+
+    # If the user's input is clearly affirmative, complete the onboarding.
+    if any(word in user_input_lower for word in affirmative_words):
+        user_context.pop("flow_state", None)  # End the flow
+        return {
+            "question": "Perfect, thank you! Your onboarding is complete.",
+            "user_context": user_context,
+            "intent": "ONBOARDING_COMPLETE",
+            "results_to_save": [],
+        }
+
+    # If the user's input is negative or ambiguous, ask for clarification.
+    if any(word in user_input_lower for word in negative_words):
+        # We keep the flow_state so the next response comes back to this logic.
+        return {
+            "question": "No problem. Please tell me what you would like to change. For example, 'My province is Western Cape'.",
+            "user_context": user_context,
+            "intent": "REPAIR",
+            "results_to_save": [],
+        }
+
+    # Fallback for ambiguous input (e.g., "ok") is to treat it as confirmation.
+    user_context.pop("flow_state", None)  # End the flow
+    return {
+        "question": "Thank you for confirming. Your onboarding is complete.",
+        "user_context": user_context,
+        "intent": "ONBOARDING_COMPLETE",
+        "results_to_save": [],
+    }
+
+
+def classify_yes_no_response(user_input: str) -> str:
+    """
+    Classifies a user's free-text response as affirmative, negative, or ambiguous
+    using robust whole-word matching.
+
+    Returns:
+        A string: "AFFIRMATIVE", "NEGATIVE", or "AMBIGUOUS".
+    """
+    user_input_lower = user_input.lower().strip()
+    # Using word boundaries (\b) for more accurate matching
+    affirmative_pattern = r"\b(yes|yebo|y|ok|okay|sure|please)\b"
+    negative_pattern = r"\b(no|nope|n|stop|not|nah|never)\b"
+
+    is_affirmative = bool(re.search(affirmative_pattern, user_input_lower))
+    is_negative = bool(re.search(negative_pattern, user_input_lower))
+
+    # This logic must check for the ambiguous case first.
+    if is_affirmative and is_negative:
+        return "AMBIGUOUS"
+    if is_affirmative:
+        return "AFFIRMATIVE"
+    if is_negative:
+        return "NEGATIVE"
+
+    # If neither is found, the intent is ambiguous.
+    return "AMBIGUOUS"

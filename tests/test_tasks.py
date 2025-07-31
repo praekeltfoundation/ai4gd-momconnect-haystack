@@ -24,6 +24,9 @@ from ai4gd_momconnect_haystack.tasks import (
     handle_intro_response,
     handle_conversational_repair,
     extract_anc_data_from_response,
+    handle_summary_confirmation_step,
+    format_user_data_summary_for_whatsapp,
+    classify_yes_no_response,
 )
 
 # --- Test Data Fixtures ---
@@ -93,6 +96,16 @@ def raw_simulation_output() -> list[dict[str, Any]]:
 def validated_simulation_output(raw_simulation_output) -> list[AssessmentRun]:
     """Provides a list of validated Pydantic AssessmentRun models."""
     return [AssessmentRun.model_validate(run) for run in raw_simulation_output]
+
+
+@pytest.fixture
+def sample_user_context():
+    """Provides a sample user_context after data collection is complete."""
+    return {
+        "province": "Gauteng",
+        "area_type": "City",
+        "relationship_status": "Single",
+    }
 
 
 # --- Tests for the scoring logic ---
@@ -363,52 +376,6 @@ def test_extract_onboarding_data_from_response_updates_context(
 
 
 @pytest.mark.parametrize(
-    "mock_intent, mock_validation, expected_action",
-    [
-        ("JOURNEY_RESPONSE", "Yes", "PROCEED"),
-        ("JOURNEY_RESPONSE", "No", "ABORT"),
-        ("JOURNEY_RESPONSE", None, "REPROMPT"),  # Ambiguous response
-        ("ASKING_TO_STOP_MESSAGES", None, "ABORT"),
-        ("QUESTION_ABOUT_STUDY", None, "REPROMPT_WITH_ANSWER"),
-        ("CHITCHAT", None, "ABORT"),
-    ],
-    ids=[
-        "Consents Yes",
-        "Consents No",
-        "Ambiguous Consent",
-        "Asks to Stop",
-        "Asks a Question",
-        "Chitchat",
-    ],
-)
-def test_handle_intro_response(mock_intent, mock_validation, expected_action):
-    """
-    Tests that the handle_intro_response task returns the correct action
-    based on the classified intent and validated response.
-    """
-    with (
-        mock.patch(
-            "ai4gd_momconnect_haystack.tasks.handle_user_message",
-            return_value=(mock_intent, "mock response"),
-        ) as mock_handle_msg,
-        mock.patch(
-            "ai4gd_momconnect_haystack.tasks.pipelines.run_clinic_visit_data_extraction_pipeline",
-            return_value=mock_validation,
-        ) as mock_run_pipeline,
-    ):
-        result = handle_intro_response(user_input="test input", flow_id="onboarding")
-
-        assert result["action"] == expected_action
-        mock_handle_msg.assert_called_once()
-
-        # The validation pipeline should only be called if the intent is JOURNEY_RESPONSE
-        if mock_intent == "JOURNEY_RESPONSE":
-            mock_run_pipeline.assert_called_once()
-        else:
-            mock_run_pipeline.assert_not_called()
-
-
-@pytest.mark.parametrize(
     "pipeline_return, expected_substring",
     [
         ("Rephrased question from LLM", "Rephrased question from LLM"),
@@ -527,3 +494,166 @@ def test_extract_anc_data_no_match_handles_other(mock_run_pipeline):
     assert context["Q_challenges"] == "Something else 😞"
     assert context["Q_challenges_other_text"] == "I was too sick"
     assert action_dict is None
+
+
+def test_format_user_data_summary_for_whatsapp(sample_user_context):
+    """
+    Tests the WhatsApp summary formatting function for correctness.
+    """
+    # Scenario 1: Full context
+    summary = format_user_data_summary_for_whatsapp(sample_user_context)
+    assert "Here's the information I have for you:" in summary
+    assert "_*Province*: Gauteng_" in summary
+    assert "_*Area Type*: City_" in summary
+    assert "_*Relationship Status*: Single_" in summary
+    assert "Is this all correct?" in summary
+
+    # Scenario 2: Context with a skipped value should not show the skipped field
+    context_with_skip = {"province": "Limpopo", "area_type": "Skipped - System"}
+    summary_with_skip = format_user_data_summary_for_whatsapp(context_with_skip)
+    assert "_*Province*: Limpopo_" in summary_with_skip
+    assert "Area Type" not in summary_with_skip
+
+
+@mock.patch("ai4gd_momconnect_haystack.tasks.pipelines.run_data_update_pipeline")
+def test_handle_summary_confirmation_step_with_update(
+    mock_run_pipeline, sample_user_context
+):
+    """
+    Tests the summary handler when the user provides an update.
+    """
+    # Mock the pipeline to return an update
+    mock_run_pipeline.return_value = {"province": "KwaZulu-Natal"}
+
+    user_input = "my province is KZN"
+    context_copy = sample_user_context.copy()
+    result = handle_summary_confirmation_step(user_input, context_copy)
+
+    mock_run_pipeline.assert_called_once_with(user_input, context_copy)
+    assert result["intent"] == "ONBOARDING_UPDATE_COMPLETE"
+    assert "Thank you! I've updated your information." in result["question"]
+    assert result["results_to_save"] == ["province"]
+
+    updated_context = result["user_context"]
+    assert updated_context["province"] == "KwaZulu-Natal"
+    assert "flow_state" not in updated_context
+
+
+@mock.patch("ai4gd_momconnect_haystack.tasks.pipelines.run_data_update_pipeline")
+def test_handle_summary_confirmation_step_with_confirmation(
+    mock_run_pipeline, sample_user_context
+):
+    """
+    Tests the summary handler when the user confirms their data (no updates extracted).
+    """
+    # Mock the pipeline to return no updates
+    mock_run_pipeline.return_value = {}
+
+    user_input = "yes, that is correct"
+    context_copy = sample_user_context.copy()
+    result = handle_summary_confirmation_step(user_input, context_copy)
+
+    mock_run_pipeline.assert_called_once_with(user_input, context_copy)
+    assert result["intent"] == "ONBOARDING_COMPLETE"
+    assert "Perfect, thank you! Your onboarding is complete." in result["question"]
+    assert "flow_state" not in result["user_context"]
+
+
+@mock.patch("ai4gd_momconnect_haystack.tasks.pipelines.run_data_update_pipeline")
+def test_handle_summary_confirmation_step_with_denial(
+    mock_run_pipeline, sample_user_context
+):
+    """
+    Tests the summary handler when the user denies the summary and must be
+    re-prompted for clarification.
+    """
+    # Mock the pipeline to return no updates, simulating a simple "no"
+    mock_run_pipeline.return_value = {}
+
+    user_input = "no that is wrong"
+    # The context must still have the flow_state for this test
+    context_with_state = sample_user_context.copy()
+    context_with_state["flow_state"] = "confirming_summary"
+
+    result = handle_summary_confirmation_step(user_input, context_with_state)
+
+    # Assert the pipeline was called
+    mock_run_pipeline.assert_called_once_with(user_input, context_with_state)
+
+    # Assert the result is a repair/re-prompt
+    assert result["intent"] == "REPAIR"
+    assert "Please tell me what you would like to change" in result["question"]
+
+    # Assert that the flow_state was NOT removed, to allow the conversation to continue
+    updated_context = result["user_context"]
+    assert updated_context.get("flow_state") == "confirming_summary"
+
+
+@pytest.mark.parametrize(
+    "mock_intent, mock_classification, expected_action",
+    [
+        # Cases handled by the reliable classifier (handle_user_message is NOT called)
+        (None, "AFFIRMATIVE", "PROCEED"),
+        (None, "NEGATIVE", "ABORT"),
+        # Cases that fall back to the LLM-based intent detection
+        ("JOURNEY_RESPONSE", "AMBIGUOUS", "REPROMPT"),
+        ("QUESTION_ABOUT_STUDY", "AMBIGUOUS", "REPROMPT_WITH_ANSWER"),
+        # Chitchat should now trigger a REPROMPT to repair the conversation.
+        ("CHITCHAT", "AMBIGUOUS", "REPROMPT"),
+        ("ASKING_TO_STOP_MESSAGES", "AMBIGUOUS", "ABORT"),
+    ],
+)
+@mock.patch("ai4gd_momconnect_haystack.tasks.classify_yes_no_response")
+@mock.patch("ai4gd_momconnect_haystack.tasks.handle_user_message")
+def test_handle_intro_response_logic(
+    mock_handle_msg, mock_classify, mock_intent, mock_classification, expected_action
+):
+    """
+    Tests the logic of handle_intro_response by mocking its dependencies.
+    """
+    # Arrange: Set the return values for the mocked functions
+    mock_classify.return_value = mock_classification
+    mock_handle_msg.return_value = (mock_intent, "mock response")
+
+    # Act
+    result = handle_intro_response(user_input="test input", flow_id="onboarding")
+
+    # Assert
+    assert result["action"] == expected_action
+
+    # The classifier is always called first.
+    mock_classify.assert_called_once_with("test input")
+
+    # The intent detection (handle_user_message) is ONLY called if the first
+    # classification is ambiguous.
+    if mock_classification == "AMBIGUOUS":
+        mock_handle_msg.assert_called_once()
+    else:
+        mock_handle_msg.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "user_input, expected_classification",
+    [
+        # Affirmative cases
+        ("Yes", "AFFIRMATIVE"),
+        ("YES", "AFFIRMATIVE"),
+        ("yebo", "AFFIRMATIVE"),
+        ("ok sure", "AFFIRMATIVE"),
+        ("y", "AFFIRMATIVE"),
+        # Negative cases
+        ("No", "NEGATIVE"),
+        ("nope", "NEGATIVE"),
+        ("no thanks", "NEGATIVE"),
+        ("stop", "NEGATIVE"),
+        # Ambiguous cases
+        ("maybe", "AMBIGUOUS"),
+        ("I guess", "AMBIGUOUS"),
+        ("yes and no", "AMBIGUOUS"),  # Contains both keywords
+    ],
+)
+def test_classify_yes_no_response(user_input, expected_classification):
+    """
+    Tests the deterministic Yes/No classifier with various inputs.
+    """
+    assert classify_yes_no_response(user_input) == expected_classification

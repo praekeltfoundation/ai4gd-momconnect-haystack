@@ -583,6 +583,28 @@ JSON Response:
 }
 """
 
+
+DATA_UPDATE_PROMPT = """
+You are an AI assistant helping a user update their profile information for a maternal health service.
+
+Here is the user's current information:
+{% for key, value in user_context.items() %}
+- {{ key }}: {{ value }}
+{% endfor %}
+
+The user was just shown the information above and asked if it was correct.
+
+Here is their response:
+"{{ user_input }}"
+
+Your task is to analyze the user's response and identify any specific information they want to change.
+- If the user confirms the data is correct (e.g., "yes", "it's correct"), call the tool with no arguments.
+- If the user provides new information, extract the new values for the corresponding fields.
+- Map conversational language (e.g., "KZN") to the formal correct value (e.g., "KwaZulu-Natal").
+
+Use the `extract_updated_data` tool to return all the extracted changes in a single call.
+"""
+
 SURVEY_DATA_EXTRACTION_PROMPT = """
 You are an expert AI assistant for a maternal health survey. Your task is to analyze a user's free-text response and map it to one of the predefined "valid_responses". You must return a structured JSON object with your analysis.
 

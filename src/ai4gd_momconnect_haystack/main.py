@@ -42,6 +42,9 @@ from ai4gd_momconnect_haystack.tasks import (
     get_next_onboarding_question,
     handle_user_message,
     handle_intro_response,
+    handle_summary_confirmation_step,
+    format_user_data_summary_for_whatsapp,
+    handle_conversational_repair,
 )
 from ai4gd_momconnect_haystack.utilities import (
     assessment_map_to_their_pre,
@@ -417,6 +420,17 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     logger.warning(
                         f"Turn failed to update context. Consecutive failures: {consecutive_failures}"
                     )
+                    # --- Conversational repair on first failure ---
+                    if consecutive_failures == 1:
+                        print("--- TRIGGERING CONVERSATIONAL REPAIR ---")
+                        rephrased_question = handle_conversational_repair(
+                            flow_id=flow_id,
+                            question_identifier=question_number,
+                            previous_question=contextualized_question,
+                            invalid_input=final_user_response or "",
+                        )
+                        if rephrased_question:
+                            contextualized_question = rephrased_question
                 else:
                     consecutive_failures = 0
 
@@ -518,6 +532,59 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                                 ],
                             }
                         )
+
+            # --- Summary and confirmation step now loops for updates ---
+            in_summary_flow = True
+            summary_message = format_user_data_summary_for_whatsapp(user_context)
+
+            while in_summary_flow:
+                print("-" * 20)
+                print("Onboarding Summary Screen:")
+
+                # Get the user's confirmation or update request
+                summary_response, _ = await _get_user_response(
+                    gt_lookup=gt_lookup_by_flow,
+                    flow_id=flow_id,
+                    contextualized_question=summary_message,
+                    turn_identifier_key="question_name",
+                    turn_identifier_value="summary_confirmation",
+                )
+
+                if not summary_response:
+                    break
+
+                print(f"User Response to Summary: {summary_response}")
+
+                # Process the response using the reusable task
+                summary_result = handle_summary_confirmation_step(
+                    summary_response, user_context
+                )
+
+                # Print the final system acknowledgement or the next prompt
+                summary_message = summary_result["question"]
+                print(f"System Response: {summary_message}")
+
+                user_context = summary_result["user_context"]
+
+                # Log this interaction as a turn
+                onboarding_turns.append(
+                    {
+                        "question_name": "summary_confirmation",
+                        "llm_utterance": summary_message,
+                        "user_utterance": summary_response,
+                        "follow_up_utterance": summary_result["question"],
+                        "llm_extracted_user_response": summary_result[
+                            "results_to_save"
+                        ],
+                        "llm_initial_predicted_intent": summary_result["intent"],
+                        "llm_final_predicted_intent": summary_result["intent"],
+                    }
+                )
+
+                # If the intent is not REPAIR, the flow is over.
+                if summary_result["intent"] != "REPAIR":
+                    in_summary_flow = False
+
             run_results["turns"] = onboarding_turns
             simulation_results.append(run_results)
 
