@@ -26,6 +26,7 @@ from ai4gd_momconnect_haystack.tasks import (
     extract_anc_data_from_response,
     handle_summary_confirmation_step,
     format_user_data_summary_for_whatsapp,
+    classify_yes_no_response,
 )
 
 # --- Test Data Fixtures ---
@@ -375,52 +376,6 @@ def test_extract_onboarding_data_from_response_updates_context(
 
 
 @pytest.mark.parametrize(
-    "mock_intent, mock_validation, expected_action",
-    [
-        ("JOURNEY_RESPONSE", "Yes", "PROCEED"),
-        ("JOURNEY_RESPONSE", "No", "ABORT"),
-        ("JOURNEY_RESPONSE", None, "REPROMPT"),  # Ambiguous response
-        ("ASKING_TO_STOP_MESSAGES", None, "ABORT"),
-        ("QUESTION_ABOUT_STUDY", None, "REPROMPT_WITH_ANSWER"),
-        ("CHITCHAT", None, "ABORT"),
-    ],
-    ids=[
-        "Consents Yes",
-        "Consents No",
-        "Ambiguous Consent",
-        "Asks to Stop",
-        "Asks a Question",
-        "Chitchat",
-    ],
-)
-def test_handle_intro_response(mock_intent, mock_validation, expected_action):
-    """
-    Tests that the handle_intro_response task returns the correct action
-    based on the classified intent and validated response.
-    """
-    with (
-        mock.patch(
-            "ai4gd_momconnect_haystack.tasks.handle_user_message",
-            return_value=(mock_intent, "mock response"),
-        ) as mock_handle_msg,
-        mock.patch(
-            "ai4gd_momconnect_haystack.tasks.pipelines.run_clinic_visit_data_extraction_pipeline",
-            return_value=mock_validation,
-        ) as mock_run_pipeline,
-    ):
-        result = handle_intro_response(user_input="test input", flow_id="onboarding")
-
-        assert result["action"] == expected_action
-        mock_handle_msg.assert_called_once()
-
-        # The validation pipeline should only be called if the intent is JOURNEY_RESPONSE
-        if mock_intent == "JOURNEY_RESPONSE":
-            mock_run_pipeline.assert_called_once()
-        else:
-            mock_run_pipeline.assert_not_called()
-
-
-@pytest.mark.parametrize(
     "pipeline_return, expected_substring",
     [
         ("Rephrased question from LLM", "Rephrased question from LLM"),
@@ -635,48 +590,70 @@ def test_handle_summary_confirmation_step_with_denial(
 
 
 @pytest.mark.parametrize(
-    "user_input, mock_validation_return, expected_action",
+    "mock_intent, mock_classification, expected_action",
     [
-        # Affirmative cases
-        ("Yes", "Yes", "PROCEED"),
-        ("YES", "Yes", "PROCEED"),
-        ("yebo", "Yes", "PROCEED"),
-        ("ok", "Yes", "PROCEED"),
-        ("sure", "Yes", "PROCEED"),
-        # Negative cases
-        ("No", "No", "ABORT"),
-        ("NO", "No", "ABORT"),
-        ("nope", "No", "ABORT"),
-        ("no thanks", "No", "ABORT"),
-        # Ambiguous cases that should be re-prompted
-        ("maybe", None, "REPROMPT"),
-        ("I guess so", None, "REPROMPT"),
-        ("not sure", None, "REPROMPT"),
+        # Cases handled by the reliable classifier (handle_user_message is NOT called)
+        (None, "AFFIRMATIVE", "PROCEED"),
+        (None, "NEGATIVE", "ABORT"),
+        # Cases that fall back to the LLM-based intent detection
+        ("JOURNEY_RESPONSE", "AMBIGUOUS", "REPROMPT"),
+        ("QUESTION_ABOUT_STUDY", "AMBIGUOUS", "REPROMPT_WITH_ANSWER"),
+        # Chitchat should now trigger a REPROMPT to repair the conversation.
+        ("CHITCHAT", "AMBIGUOUS", "REPROMPT"),
+        ("ASKING_TO_STOP_MESSAGES", "AMBIGUOUS", "ABORT"),
     ],
 )
+@mock.patch("ai4gd_momconnect_haystack.tasks.classify_yes_no_response")
 @mock.patch("ai4gd_momconnect_haystack.tasks.handle_user_message")
-@mock.patch(
-    "ai4gd_momconnect_haystack.tasks.pipelines.run_clinic_visit_data_extraction_pipeline"
-)
-def test_handle_intro_response_consent_variations(
-    mock_run_pipeline,
-    mock_handle_user_message,
-    user_input,
-    mock_validation_return,
-    expected_action,
+def test_handle_intro_response_logic(
+    mock_handle_msg, mock_classify, mock_intent, mock_classification, expected_action
 ):
     """
-    Tests the handle_intro_response task with various user inputs for consent
-    to ensure robust handling of affirmations, denials, and ambiguity.
+    Tests the logic of handle_intro_response by mocking its dependencies.
     """
-    mock_handle_user_message.return_value = ("JOURNEY_RESPONSE", "mock response")
-    mock_run_pipeline.return_value = mock_validation_return
+    # Arrange: Set the return values for the mocked functions
+    mock_classify.return_value = mock_classification
+    mock_handle_msg.return_value = (mock_intent, "mock response")
 
-    result = handle_intro_response(user_input=user_input, flow_id="onboarding")
+    # Act
+    result = handle_intro_response(user_input="test input", flow_id="onboarding")
 
-    mock_run_pipeline.assert_called_once_with(
-        user_response=user_input,
-        previous_service_message=mock.ANY,  # The exact intro message doesn't matter for this test
-        valid_responses=["Yes", "No"],
-    )
+    # Assert
     assert result["action"] == expected_action
+
+    # The classifier is always called first.
+    mock_classify.assert_called_once_with("test input")
+
+    # The intent detection (handle_user_message) is ONLY called if the first
+    # classification is ambiguous.
+    if mock_classification == "AMBIGUOUS":
+        mock_handle_msg.assert_called_once()
+    else:
+        mock_handle_msg.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "user_input, expected_classification",
+    [
+        # Affirmative cases
+        ("Yes", "AFFIRMATIVE"),
+        ("YES", "AFFIRMATIVE"),
+        ("yebo", "AFFIRMATIVE"),
+        ("ok sure", "AFFIRMATIVE"),
+        ("y", "AFFIRMATIVE"),
+        # Negative cases
+        ("No", "NEGATIVE"),
+        ("nope", "NEGATIVE"),
+        ("no thanks", "NEGATIVE"),
+        ("stop", "NEGATIVE"),
+        # Ambiguous cases
+        ("maybe", "AMBIGUOUS"),
+        ("I guess", "AMBIGUOUS"),
+        ("yes and no", "AMBIGUOUS"),  # Contains both keywords
+    ],
+)
+def test_classify_yes_no_response(user_input, expected_classification):
+    """
+    Tests the deterministic Yes/No classifier with various inputs.
+    """
+    assert classify_yes_no_response(user_input) == expected_classification
