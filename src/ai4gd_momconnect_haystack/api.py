@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 from os import environ
 from pathlib import Path
@@ -29,6 +30,8 @@ from ai4gd_momconnect_haystack.crud import (
     save_assessment_end_message,
     save_assessment_question,
     save_chat_history,
+    get_user_journey_state,
+    save_user_journey_state,
 )
 from ai4gd_momconnect_haystack.database import run_migrations
 from ai4gd_momconnect_haystack.doc_store import (
@@ -46,6 +49,9 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     OnboardingResponse,
     SurveyRequest,
     SurveyResponse,
+    ReengagementInfo,
+    ResumeRequest,
+    ResumeResponse,
 )
 from ai4gd_momconnect_haystack.tasks import (
     extract_anc_data_from_response,
@@ -156,6 +162,51 @@ def verify_token(authorization: Annotated[str, Header()]):
 
 @app.post("/v1/onboarding")
 async def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
+    # --- RESUMPTION LOGIC ---
+    if request.user_context and request.user_context.get("resume") is True:
+        state = await get_user_journey_state(request.user_id)
+        if not state or not state.user_context:
+            raise HTTPException(
+                status_code=404, detail="Saved context for user not found."
+            )
+
+        restored_context = state.user_context
+        next_question_data = get_next_onboarding_question(user_context=restored_context)
+
+        if not next_question_data:
+            final_message = (
+                "Welcome back! It looks like you've already completed the onboarding."
+            )
+            return OnboardingResponse(
+                question=final_message,
+                user_context=restored_context,
+                intent="SYSTEM_RESUMPTION_COMPLETE",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=0,
+            )
+
+        question_text = next_question_data.get("contextualized_question", "")
+        question_number = next_question_data.get("question_number")
+        # Save the new state before returning
+        await save_user_journey_state(
+            user_id=request.user_id,
+            flow_id="onboarding",
+            step_identifier=str(question_number),
+            last_question=question_text,
+            user_context=restored_context,
+        )
+
+        return OnboardingResponse(
+            question=question_text,
+            user_context=restored_context,
+            intent="SYSTEM_RESUMPTION",
+            intent_related_response=None,
+            results_to_save=[],
+            failure_count=0,
+        )
+    # --- END OF RESUMPTION LOGIC ---
+
     user_id = request.user_id
     user_input = request.user_input
     flow_id = "onboarding"
@@ -210,6 +261,28 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
 
     if is_intro_response:
         result = handle_intro_response(user_input=user_input, flow_id=flow_id)
+        if result.get("action") == "PAUSE_AND_REMIND":
+            reengagement_info = ReengagementInfo(
+                type="USER_REQUESTED",
+                trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
+            )
+            intro_message = INTRO_MESSAGES["free_text_intro"]
+            await save_user_journey_state(
+                user_id=user_id,
+                flow_id=flow_id,
+                step_identifier="intro",
+                last_question=intro_message,
+                user_context=user_context,
+            )
+            return OnboardingResponse(
+                question=result["message"],
+                user_context=user_context,
+                intent=result["intent"],
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=0,
+                reengagement_info=reengagement_info,
+            )
 
         response = await _handle_consent_result(
             result=result,
@@ -356,6 +429,28 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
                 )
         else:
             failure_count = 0
+    elif intent == "REQUEST_TO_BE_REMINDED":
+        # User wants to pause, save their state and notify the frontend.
+        reengagement_info = ReengagementInfo(
+            type="USER_REQUESTED",
+            trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
+        )
+        await save_user_journey_state(
+            user_id=request.user_id,
+            flow_id=flow_id,
+            step_identifier=str(current_question_number),
+            last_question=last_question,
+            user_context=user_context,
+        )
+        return OnboardingResponse(
+            question="Of course. I will remind you later. Talk to you soon!",
+            user_context=user_context,
+            intent=intent,
+            intent_related_response=None,
+            results_to_save=[],
+            failure_count=0,
+            reengagement_info=reengagement_info,
+        )
     else:  # Handle other intents like CHITCHAT
         if intent == "CHITCHAT":
             rephrased_question = handle_conversational_repair(
@@ -389,6 +484,19 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         user_context["flow_state"] = "confirming_summary"
         question_text = format_user_data_summary_for_whatsapp(user_context)
         intent = "AWAITING_SUMMARY_CONFIRMATION"
+        step_identifier = "summary_confirmation"
+    else:
+        # Find the question number of the new question we are about to send
+        next_question_obj = next(
+            (
+                q
+                for q in all_onboarding_questions
+                if q.content and q.content in question_text
+            ),
+            None,
+        )
+        if next_question_obj:
+            step_identifier = str(next_question_obj.question_number)
 
     if question_text:
         chat_history.append(ChatMessage.from_assistant(text=question_text))
@@ -396,6 +504,15 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         user_id=request.user_id,
         messages=chat_history,
         history_type=HistoryType.onboarding,
+    )
+
+    # Save the current state of the user's journey
+    await save_user_journey_state(
+        user_id=request.user_id,
+        flow_id=flow_id,
+        step_identifier=step_identifier,
+        last_question=question_text,
+        user_context=user_context,
     )
 
     return OnboardingResponse(
@@ -410,6 +527,25 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
 
 @app.post("/v1/assessment")
 async def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
+    # --- RESUMPTION LOGIC ---
+    if request.user_context and request.user_context.get("resume") is True:
+        state = await get_user_journey_state(request.user_id)
+        if not state:
+            raise HTTPException(
+                status_code=404, detail="Saved state for user not found."
+            )
+
+        # For assessments, we can just resend the last question
+        return AssessmentResponse(
+            question=state.last_question_sent,
+            next_question=int(state.current_step_identifier),
+            intent="SYSTEM_RESUMPTION",
+            intent_related_response=None,
+            processed_answer=None,
+            failure_count=0,
+        )
+    # --- END OF RESUMPTION LOGIC ---
+
     # --- 1. HANDLE START OF A NEW ASSESSMENT ---
     if not request.user_input:
         await delete_assessment_history_for_user(request.user_id, request.flow_id)
@@ -435,6 +571,33 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
         result = handle_intro_response(
             user_input=request.user_input, flow_id=request.flow_id.value
         )
+        if result.get("action") == "PAUSE_AND_REMIND":
+            reengagement_info = ReengagementInfo(
+                type="USER_REQUESTED",
+                trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
+            )
+            intro_message = (
+                INTRO_MESSAGES["free_text_intro"]
+                if "behaviour" in request.flow_id.value
+                else INTRO_MESSAGES["multiple_choice_intro"]
+            )
+            await save_user_journey_state(
+                user_id=request.user_id,
+                flow_id=request.flow_id.value,
+                step_identifier="intro",
+                last_question=intro_message,
+                user_context=request.user_context,
+            )
+            return AssessmentResponse(
+                question=result["message"],
+                next_question=0,
+                intent=result["intent"],
+                intent_related_response=None,
+                processed_answer=None,
+                failure_count=0,
+                reengagement_info=reengagement_info,
+            )
+
         response = await _handle_consent_result(
             result=result,
             response_model=AssessmentResponse,
@@ -506,6 +669,27 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
                     "next_question_number", current_question_number + 1
                 )
                 failure_count = 0
+        elif intent == "REQUEST_TO_BE_REMINDED":
+            reengagement_info = ReengagementInfo(
+                type="USER_REQUESTED",
+                trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
+            )
+            await save_user_journey_state(
+                user_id=request.user_id,
+                flow_id=request.flow_id.value,
+                step_identifier=str(current_question_number),
+                last_question=request.previous_question,
+                user_context=request.user_context,
+            )
+            return AssessmentResponse(
+                question="No problem. We can continue this later. I'll remind you.",
+                next_question=current_question_number,
+                intent=intent,
+                intent_related_response=None,
+                processed_answer=None,
+                failure_count=0,
+                reengagement_info=reengagement_info,
+            )
         else:
             if intent == "CHITCHAT":
                 rephrased_question = handle_conversational_repair(
@@ -558,6 +742,14 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
     if question:
         contextualized_question = question.get("contextualized_question", "")
         if contextualized_question:
+            await save_user_journey_state(
+                user_id=request.user_id,
+                flow_id=request.flow_id.value,
+                step_identifier=str(next_question_number),
+                last_question=contextualized_question,
+                user_context=request.user_context,
+            )
+
             await save_assessment_question(
                 user_id=request.user_id,
                 assessment_type=request.flow_id,
@@ -706,16 +898,93 @@ async def assessment_end(
             # This case is unlikely, but as a fallback, end the flow.
             next_message = ""
 
+    reengagement_info = None
+
+    if task == "REMIND_ME_LATER":
+        trigger_time = datetime.now(timezone.utc) + timedelta(days=1)
+        reengagement_info = ReengagementInfo(
+            type="USER_REQUESTED", trigger_at_utc=trigger_time
+        )
+        # Set a confirmation message to send to the user
+        next_message = "No problem. We can continue this later. I'll remind you."
+
+        # Save the state of the *current* question they are pausing on
+        await save_user_journey_state(
+            user_id=request.user_id,
+            flow_id=request.flow_id.value,
+            step_identifier=str(previous_message_nr),
+            last_question=previous_message,  # The question they just saw
+            user_context={},
+        )
+    elif next_message:
+        # If the journey is continuing, save the state for the *next* question
+        await save_user_journey_state(
+            user_id=request.user_id,
+            flow_id=request.flow_id.value,
+            step_identifier=str(next_message_nr),
+            last_question=next_message,
+            user_context={},
+        )
+
     return AssessmentEndResponse(
         message=next_message,
         task=task or "",
         intent=intent,
         intent_related_response=intent_related_response,
+        reengagement_info=reengagement_info,
     )
 
 
 @app.post("/v1/survey", response_model=SurveyResponse)
 async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
+    # --- RESUMPTION LOGIC ---
+    if request.user_context and request.user_context.get("resume") is True:
+        state = await get_user_journey_state(request.user_id)
+        if not state or not state.user_context:
+            raise HTTPException(
+                status_code=404, detail="Saved context for user not found."
+            )
+
+        restored_context = state.user_context
+        question_result = await get_anc_survey_question(
+            user_id=request.user_id, user_context=restored_context
+        )
+
+        if not question_result:
+            final_message = (
+                "Welcome back! It looks like you've already completed this survey."
+            )
+            return SurveyResponse(
+                question=final_message,
+                user_context=restored_context,
+                survey_complete=True,
+                intent="SYSTEM_RESUMPTION_COMPLETE",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=0,
+            )
+
+        question = question_result.get("contextualized_question", "")
+        next_step = question_result.get("question_identifier", "")
+        await save_user_journey_state(
+            user_id=request.user_id,
+            flow_id="anc-survey",
+            step_identifier=next_step,
+            last_question=question,
+            user_context=restored_context,
+        )
+
+        return SurveyResponse(
+            question=question,
+            user_context=restored_context,
+            survey_complete=False,
+            intent="SYSTEM_RESUMPTION",
+            intent_related_response=None,
+            results_to_save=[],
+            failure_count=0,
+        )
+    # --- END OF RESUMPTION LOGIC ---
+
     user_id = request.user_id
     user_input = request.user_input
     flow_id = "anc-survey"
@@ -767,6 +1036,30 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
 
     if is_intro_response:
         result = handle_intro_response(user_input=user_input, flow_id=flow_id)
+        if result.get("action") == "PAUSE_AND_REMIND":
+            reengagement_info = ReengagementInfo(
+                type="USER_REQUESTED",
+                trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
+            )
+            await save_user_journey_state(
+                user_id=user_id,
+                flow_id=flow_id,
+                step_identifier="intro",
+                last_question=last_assistant_message.text
+                if last_assistant_message
+                else "",
+                user_context=user_context,
+            )
+            return SurveyResponse(
+                question=result["message"],
+                user_context=user_context,
+                survey_complete=False,
+                intent=result["intent"],
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=0,
+                reengagement_info=reengagement_info,
+            )
         response = await _handle_consent_result(
             result=result,
             response_model=SurveyResponse,
@@ -858,6 +1151,28 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
                     results_to_save=[],
                     failure_count=request.failure_count,
                 )
+        elif intent == "REQUEST_TO_BE_REMINDED":
+            reengagement_info = ReengagementInfo(
+                type="USER_REQUESTED",
+                trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
+            )
+            await save_user_journey_state(
+                user_id=user_id,
+                flow_id=flow_id,
+                step_identifier=last_step_title,
+                last_question=last_question,
+                user_context=user_context,
+            )
+            return SurveyResponse(
+                question="Understood. I'll remind you to complete this later. Chat soon!",
+                user_context=user_context,
+                survey_complete=False,
+                intent=intent,
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=0,
+                reengagement_info=reengagement_info,
+            )
         else:  # Handle chitchat or other non-journey intents
             rephrased_question = handle_conversational_repair(
                 flow_id=flow_id,
@@ -922,6 +1237,14 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
         k for k in user_context if user_context.get(k) != previous_context.get(k)
     ]
 
+    await save_user_journey_state(
+        user_id=user_id,
+        flow_id="anc-survey",
+        step_identifier=next_step,
+        last_question=question,
+        user_context=user_context,
+    )
+
     return SurveyResponse(
         question=question or "",
         user_context=user_context,
@@ -941,3 +1264,18 @@ async def catchall(request: CatchAllRequest, token: str = Depends(verify_token))
         intent=intent,
         intent_related_response=intent_related_response,
     )
+
+
+@app.post("/v1/resume", response_model=ResumeResponse)
+async def resume(request: ResumeRequest, token: str = Depends(verify_token)):
+    """
+    Looks up the user's last known flow to enable resumption.
+    """
+    state = await get_user_journey_state(request.user_id)
+
+    if not state:
+        raise HTTPException(
+            status_code=404, detail="No active journey found for this user."
+        )
+
+    return ResumeResponse(resume_flow_id=state.current_flow_id)

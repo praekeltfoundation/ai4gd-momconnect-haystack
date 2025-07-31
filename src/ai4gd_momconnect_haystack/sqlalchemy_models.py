@@ -97,3 +97,21 @@ class AssessmentEndMessagingHistory(Base):
 
     def __repr__(self):
         return f"<AssessmentEndMessagingHistory(user_id='{self.user_id}', updated_at='{self.updated_at}')>"
+
+
+class UserJourneyState(Base):
+    __tablename__ = "user_journey_state"
+
+    user_id: Mapped[str] = mapped_column(String, primary_key=True, index=True)
+    current_flow_id: Mapped[str] = mapped_column(String, nullable=False)
+    current_step_identifier: Mapped[str] = mapped_column(String, nullable=False)
+    last_question_sent: Mapped[str] = mapped_column(String, nullable=False)
+    user_context: Mapped[dict] = mapped_column(JSON, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), onupdate=datetime.now, default=datetime.now
+    )
+
+    __table_args__ = {"extend_existing": True}
+
+    def __repr__(self):
+        return f"<UserJourneyState(user_id='{self.user_id}', flow_id='{self.current_flow_id}', step='{self.current_step_identifier}')>"
