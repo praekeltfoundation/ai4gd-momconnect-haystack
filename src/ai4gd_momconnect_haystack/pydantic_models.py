@@ -140,9 +140,11 @@ class OnboardingRequest(BaseModel):
     user_context: dict[str, Any]
     failure_count: int = 0
 
+
 class ReengagementInfo(BaseModel):
     type: str
     trigger_at_utc: datetime
+
 
 class OnboardingResponse(BaseModel):
     question: str
@@ -172,6 +174,7 @@ class AssessmentResponse(BaseModel):
     processed_answer: str | None
     failure_count: int = 0
     reengagement_info: ReengagementInfo | None = None
+
 
 class AssessmentEndRequest(BaseModel):
     user_id: str

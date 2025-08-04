@@ -11,6 +11,10 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from haystack.dataclasses import ChatMessage
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from sqlalchemy.ext.asyncio import AsyncSession
+from .database import AsyncSessionLocal
+from typing import AsyncGenerator
+
 from ai4gd_momconnect_haystack.assessment_logic import (
     create_assessment_end_error_response,
     determine_task,
@@ -33,7 +37,6 @@ from ai4gd_momconnect_haystack.crud import (
     get_user_journey_state,
     save_user_journey_state,
 )
-from ai4gd_momconnect_haystack.database import run_migrations
 from ai4gd_momconnect_haystack.doc_store import (
     INTRO_MESSAGES,
     setup_document_store,
@@ -125,7 +128,6 @@ async def _handle_consent_result(
 async def lifespan(app: FastAPI):
     logger.info("Application startup...")
     setup_document_store(startup=True)
-    run_migrations()
     yield
     logger.info("Application shutdown...")
 
@@ -158,6 +160,12 @@ def verify_token(authorization: Annotated[str, Header()]):
         )
 
     return credential
+
+
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Dependency to get a database session."""
+    async with AsyncSessionLocal() as session:
+        yield session
 
 
 @app.post("/v1/onboarding")
@@ -480,6 +488,7 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         chat_history.append(ChatMessage.from_user(text=user_input))
 
     # After processing the last answer, question_text will be empty.
+    step_identifier = ""
     if not question_text:
         user_context["flow_state"] = "confirming_summary"
         question_text = format_user_data_summary_for_whatsapp(user_context)
