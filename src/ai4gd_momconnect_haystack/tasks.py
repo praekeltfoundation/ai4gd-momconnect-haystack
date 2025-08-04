@@ -803,54 +803,39 @@ def format_user_data_summary_for_whatsapp(user_context: dict) -> str:
 def handle_summary_confirmation_step(user_input: str, user_context: dict) -> dict:
     """
     Handles the user's response during the summary confirmation step.
-    This task runs the data update pipeline and returns a dictionary with the
-    next message and the final user context.
+    Signals when onboarding is complete and the next flow should begin.
     """
     updates = pipelines.run_data_update_pipeline(user_input, user_context)
 
-    # If the LLM found specific updates, process them and end the flow.
+    # If the LLM found specific updates, process them and signal to start DMA.
     if updates:
-        user_context.pop("flow_state", None)  # End the flow
+        user_context.pop("flow_state", None)
         for key, value in updates.items():
             user_context[key] = value
         return {
-            "question": "Thank you! I've updated your information.",
+            "question": "Thank you for the update! Now for the next section.",
             "user_context": user_context,
-            "intent": "ONBOARDING_UPDATE_COMPLETE",
+            "intent": "ONBOARDING_COMPLETE_START_DMA",  # Signal to start DMA
             "results_to_save": list(updates.keys()),
         }
 
-    # If no updates were found, check if the user was confirming or denying.
-    user_input_lower = user_input.lower().strip()
-    affirmative_words = ["yes", "correct", "yebo", "yup", "perfect"]
-    negative_words = ["no", "not", "n", "wrong", "incorrect"]
+    consent_intent = classify_yes_no_response(user_input)
 
-    # If the user's input is clearly affirmative, complete the onboarding.
-    if any(word in user_input_lower for word in affirmative_words):
-        user_context.pop("flow_state", None)  # End the flow
+    # If the user's input is clearly affirmative, complete onboarding and signal to start DMA.
+    if consent_intent == "AFFIRMATIVE":
+        user_context.pop("flow_state", None)
         return {
-            "question": "Perfect, thank you! Your onboarding is complete.",
+            "question": "Perfect, thank you! Now for the next section.",
             "user_context": user_context,
-            "intent": "ONBOARDING_COMPLETE",
+            "intent": "ONBOARDING_COMPLETE_START_DMA",  # Signal to start DMA
             "results_to_save": [],
         }
 
     # If the user's input is negative or ambiguous, ask for clarification.
-    if any(word in user_input_lower for word in negative_words):
-        # We keep the flow_state so the next response comes back to this logic.
-        return {
-            "question": "No problem. Please tell me what you would like to change. For example, 'My province is Western Cape'.",
-            "user_context": user_context,
-            "intent": "REPAIR",
-            "results_to_save": [],
-        }
-
-    # Fallback for ambiguous input (e.g., "ok") is to treat it as confirmation.
-    user_context.pop("flow_state", None)  # End the flow
     return {
-        "question": "Thank you for confirming. Your onboarding is complete.",
+        "question": "No problem. Please tell me what you would like to change. For example, 'My province is Western Cape'.",
         "user_context": user_context,
-        "intent": "ONBOARDING_COMPLETE",
+        "intent": "REPAIR",
         "results_to_save": [],
     }
 

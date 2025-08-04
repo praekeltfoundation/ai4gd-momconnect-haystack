@@ -210,23 +210,6 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
 
     if is_intro_response:
         result = handle_intro_response(user_input=user_input, flow_id=flow_id)
-        # If user chitchats on intro, trigger repair instead of aborting
-        if result["intent"] == "CHITCHAT":
-            rephrased_question = handle_conversational_repair(
-                flow_id=flow_id,
-                question_identifier=0,  # No specific question number for intro
-                previous_question=last_assistant_msg.text if last_assistant_msg else "",
-                invalid_input=user_input,
-            )
-            return OnboardingResponse(
-                question=rephrased_question
-                or (last_assistant_msg.text if last_assistant_msg else ""),
-                user_context=request.user_context,
-                intent="REPAIR",
-                intent_related_response=None,
-                results_to_save=[],
-                failure_count=request.failure_count + 1,
-            )
 
         response = await _handle_consent_result(
             result=result,
@@ -239,10 +222,32 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         )
         if response:
             return response
+
         # If 'response' is None, it means the user consented and we can proceed.
+        # We now fetch the first question and exit immediately to prevent falling through.
         chat_history.append(ChatMessage.from_user(text=user_input))
 
+        first_question_data = get_next_onboarding_question(user_context=user_context)
+        question_text = ""
+        if first_question_data:
+            question_text = first_question_data.get("contextualized_question", "")
+            chat_history.append(ChatMessage.from_assistant(text=question_text))
+
+        await save_chat_history(
+            user_id=user_id, messages=chat_history, history_type=HistoryType.onboarding
+        )
+
+        return OnboardingResponse(
+            question=question_text,
+            user_context=user_context,
+            intent="JOURNEY_RESPONSE",  # Start the journey
+            intent_related_response=None,
+            results_to_save=[],
+            failure_count=0,
+        )
+
     # --- REGULAR ONBOARDING LOGIC ---
+    # This code is now only reachable on the second and subsequent user messages.
     last_question = ""
     if last_assistant_msg:
         last_question = last_assistant_msg.text

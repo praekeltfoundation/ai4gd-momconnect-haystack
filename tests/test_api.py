@@ -1591,3 +1591,101 @@ async def test_onboarding_api_flow_transitions_to_summary(
     assert "Here's the information I have for you:" in response_data["question"]
     assert "_*Province*: Gauteng_" in response_data["question"]
     assert response_data["user_context"]["flow_state"] == "confirming_summary"
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch("ai4gd_momconnect_haystack.api.get_next_onboarding_question")
+@mock.patch("ai4gd_momconnect_haystack.api.process_onboarding_step")
+@mock.patch("ai4gd_momconnect_haystack.api.handle_intro_response")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
+    new_callable=mock.AsyncMock,
+)
+async def test_onboarding_consent_proceeds_directly_to_first_question(
+    mock_get_history, mock_handle_intro, mock_process_step, mock_get_next_q
+):
+    """
+    BUG FIX VERIFICATION:
+    Tests that after a user gives consent, the API immediately gets the first
+    real question and does NOT re-process the consent word ("yes") as a journey response.
+    This prevents the incorrect "conversation repair" from being triggered.
+    """
+    # Arrange
+    # Simulate the chat history right before the user gives consent
+    mock_get_history.return_value = [
+        ChatMessage.from_system("..."),
+        ChatMessage.from_assistant("Shall we begin? 😊"),
+    ]
+    # Simulate a successful consent action
+    mock_handle_intro.return_value = {"action": "PROCEED"}
+    # Mock the function that fetches the next question
+    mock_get_next_q.return_value = {
+        "contextualized_question": "This is the first real question."
+    }
+
+    client = TestClient(app)
+
+    # Act: The user sends a positive consent
+    response = client.post(
+        "/v1/onboarding",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "test-consent-bug",
+            "user_input": "yes",
+            "user_context": {},
+        },
+    )
+
+    # Assert
+    assert response.status_code == 200
+    json_response = response.json()
+
+    # 1. The user should receive the first real question, not a repair message.
+    assert json_response["question"] == "This is the first real question."
+    assert json_response["intent"] != "REPAIR"
+
+    # 2. Crucially, the main Q&A processor should NOT have been called with the consent word.
+    mock_process_step.assert_not_called()
+
+    # 3. The function to get the first question SHOULD have been called.
+    mock_get_next_q.assert_called_once()
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch("ai4gd_momconnect_haystack.api.handle_summary_confirmation_step")
+async def test_onboarding_summary_confirmation_signals_start_dma(mock_summary_handler):
+    """
+    BUG FIX VERIFICATION:
+    Tests that after the user confirms their data on the summary screen, the API
+    response includes the specific 'ONBOARDING_COMPLETE_START_DMA' intent,
+    signaling the caller to start the next flow.
+    """
+    # Arrange: Mock the summary task to return the specific DMA intent
+    mock_summary_handler.return_value = {
+        "question": "Perfect, thank you! Now for the next section.",
+        "user_context": {"province": "Gauteng", "flow_state": None},
+        "intent": "ONBOARDING_COMPLETE_START_DMA",
+        "results_to_save": [],
+    }
+
+    client = TestClient(app)
+    # Act: The user confirms their data
+    response = client.post(
+        "/v1/onboarding",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "test-dma-bug",
+            "user_input": "yes",
+            "user_context": {"flow_state": "confirming_summary", "province": "Gauteng"},
+        },
+    )
+
+    # Assert
+    assert response.status_code == 200
+    json_response = response.json()
+
+    # The intent MUST be the specific signal for the caller to start the DMA assessment.
+    assert json_response["intent"] == "ONBOARDING_COMPLETE_START_DMA"
+    assert json_response["question"] == "Perfect, thank you! Now for the next section."

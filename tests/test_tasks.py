@@ -530,8 +530,8 @@ def test_handle_summary_confirmation_step_with_update(
     result = handle_summary_confirmation_step(user_input, context_copy)
 
     mock_run_pipeline.assert_called_once_with(user_input, context_copy)
-    assert result["intent"] == "ONBOARDING_UPDATE_COMPLETE"
-    assert "Thank you! I've updated your information." in result["question"]
+    assert result["intent"] == "ONBOARDING_COMPLETE_START_DMA"
+    assert "Thank you for the update! Now for the next section." in result["question"]
     assert result["results_to_save"] == ["province"]
 
     updated_context = result["user_context"]
@@ -554,8 +554,8 @@ def test_handle_summary_confirmation_step_with_confirmation(
     result = handle_summary_confirmation_step(user_input, context_copy)
 
     mock_run_pipeline.assert_called_once_with(user_input, context_copy)
-    assert result["intent"] == "ONBOARDING_COMPLETE"
-    assert "Perfect, thank you! Your onboarding is complete." in result["question"]
+    assert result["intent"] == "ONBOARDING_COMPLETE_START_DMA"
+    assert "Perfect, thank you! Now for the next section." in result["question"]
     assert "flow_state" not in result["user_context"]
 
 
