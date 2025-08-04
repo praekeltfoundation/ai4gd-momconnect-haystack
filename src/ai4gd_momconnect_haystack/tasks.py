@@ -897,6 +897,7 @@ async def handle_reminder_request(
     reengagement_info = ReengagementInfo(
         type="USER_REQUESTED",
         trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
+        flow_id=flow_id,
     )
     await save_user_journey_state(
         user_id=user_id,

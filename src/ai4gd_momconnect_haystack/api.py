@@ -273,6 +273,7 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
             reengagement_info = ReengagementInfo(
                 type="USER_REQUESTED",
                 trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
+                flow_id=flow_id,
             )
             intro_message = INTRO_MESSAGES["free_text_intro"]
             await save_user_journey_state(
@@ -442,6 +443,7 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         reengagement_info = ReengagementInfo(
             type="USER_REQUESTED",
             trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
+            flow_id=flow_id,
         )
         await save_user_journey_state(
             user_id=request.user_id,
@@ -584,6 +586,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
             reengagement_info = ReengagementInfo(
                 type="USER_REQUESTED",
                 trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
+                flow_id=request.flow_id.value,
             )
             intro_message = (
                 INTRO_MESSAGES["free_text_intro"]
@@ -682,6 +685,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
             reengagement_info = ReengagementInfo(
                 type="USER_REQUESTED",
                 trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
+                flow_id=request.flow_id.value,
             )
             await save_user_journey_state(
                 user_id=request.user_id,
@@ -912,7 +916,9 @@ async def assessment_end(
     if task == "REMIND_ME_LATER":
         trigger_time = datetime.now(timezone.utc) + timedelta(days=1)
         reengagement_info = ReengagementInfo(
-            type="USER_REQUESTED", trigger_at_utc=trigger_time
+            type="USER_REQUESTED",
+            trigger_at_utc=trigger_time,
+            flow_id=request.flow_id.value,
         )
         # Set a confirmation message to send to the user
         next_message = "No problem. We can continue this later. I'll remind you."
@@ -1049,6 +1055,7 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
             reengagement_info = ReengagementInfo(
                 type="USER_REQUESTED",
                 trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
+                flow_id=flow_id,
             )
             await save_user_journey_state(
                 user_id=user_id,
@@ -1164,6 +1171,7 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
             reengagement_info = ReengagementInfo(
                 type="USER_REQUESTED",
                 trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
+                flow_id=flow_id,
             )
             await save_user_journey_state(
                 user_id=user_id,

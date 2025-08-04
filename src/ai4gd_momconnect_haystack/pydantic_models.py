@@ -144,6 +144,7 @@ class OnboardingRequest(BaseModel):
 class ReengagementInfo(BaseModel):
     type: str
     trigger_at_utc: datetime
+    flow_id: str
 
 
 class OnboardingResponse(BaseModel):
