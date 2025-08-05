@@ -915,6 +915,7 @@ async def test_handle_reminder_response_ambiguous():
     assert "Hello 👋🏽" in response.question
     assert "You started telling us about" in response.question
 
+
 @pytest.mark.asyncio
 @mock.patch("ai4gd_momconnect_haystack.tasks.run_anc_survey_contextualization_pipeline")
 @mock.patch("ai4gd_momconnect_haystack.tasks.get_next_anc_survey_step")
