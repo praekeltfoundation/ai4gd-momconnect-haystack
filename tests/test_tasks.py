@@ -36,6 +36,7 @@ from ai4gd_momconnect_haystack.tasks import (
     handle_reminder_request,
     classify_ussd_intro_response,
     handle_reminder_response,
+    get_anc_survey_question,
 )
 
 # --- Test Data Fixtures ---
@@ -913,3 +914,46 @@ async def test_handle_reminder_response_ambiguous():
     assert response.intent == "REPAIR"
     assert "Hello 👋🏽" in response.question
     assert "You started telling us about" in response.question
+
+@pytest.mark.asyncio
+@mock.patch("ai4gd_momconnect_haystack.tasks.run_anc_survey_contextualization_pipeline")
+@mock.patch("ai4gd_momconnect_haystack.tasks.get_next_anc_survey_step")
+@mock.patch(
+    "ai4gd_momconnect_haystack.tasks.get_or_create_chat_history",
+    new_callable=mock.AsyncMock,
+)
+async def test_get_anc_survey_question_appends_ussd_options(
+    mock_get_history,
+    mock_get_next_step,
+    mock_contextualize,
+):
+    """
+    Tests that for questions that require them (like Q_experience), the USSD-style
+    multiple-choice options are correctly formatted and appended to the question text.
+    """
+    # Arrange
+    # 1. Force the logic to select the "Q_experience" step, which requires USSD options.
+    mock_get_next_step.return_value = "Q_experience"
+
+    # 2. Mock the AI contextualizer to return a predictable base question.
+    mock_contextualize.return_value = "How was your overall experience at the check-up?"
+
+    # 3. Provide a minimal chat history.
+    mock_get_history.return_value = []
+
+    # Act
+    result = await get_anc_survey_question(user_id="test-user", user_context={})
+
+    # Assert
+    assert result is not None
+    final_question = result["contextualized_question"]
+
+    # 4. Check that the final question contains both the base text from the AI
+    #    AND the correctly formatted USSD-style options.
+    assert "How was your overall experience at the check-up?" in final_question
+    assert "\na. Very good" in final_question
+    assert "\nb. Good" in final_question
+    assert "\nc. OK" in final_question
+    assert "\nd. Bad" in final_question
+
+    assert "\ne. Very bad" in final_question

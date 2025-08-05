@@ -12,7 +12,7 @@
         },
         {
             "title": "Q_seen",
-            "content": "Did a health worker see you?",
+            "content": "Good to hear. Before we continue, here are a few things to know:\n\nYou can answer *in your own words* — there’s no right or wrong!\nYou can *ask us questions about this study* any time.\nDon’t want to answer something? Just type *skip*.\n\nDid a health worker see you?",
             "content_type": "follow_up_question",
             "valid_responses": [
                 "Yes",
@@ -26,7 +26,7 @@
         },
         {
             "title": "seen_yes",
-            "content": "That's good to hear 🌟\n\nWe'd love to know how it went.  \n\nDo you have 2 minutes to tell us about it?",
+            "content": "That’s good to hear 🌟\n\nWe’d love to know how your check-up went..  \n\nDo you have 2 minutes to tell us about it?",
             "content_type": "follow_up_question",
             "valid_responses": [
                 "Yes",
@@ -57,7 +57,7 @@
         },
         {
             "title": "bad",
-            "content": "We're sorry to hear you had a bad experience.\n\nBy telling us a bit more, you can help us understand how to improve services for pregnant women in South Africa.",
+            "content": "We’re sorry to hear you had a bad experience.\n\nBy telling us a bit more,  you can help us understand how to improve services for pregnant women in South Africa.\n\nReady to tell us?",
             "content_type": "follow_up_question",
             "valid_responses": [
                 "OK"
@@ -65,7 +65,7 @@
         },
         {
             "title": "good",
-            "content": "Thank you for telling us.\n\nThere are just 2 more questions. Your answers to these will help us understand how we can make services better for pregnant women in South Africa.",
+            "content": "Thank you for telling us.\n\nThere are just 2 more questions. Your answers to these will help us understand how we can make services better for pregnant women in South Africa.\n\nReady to go?",
             "content_type": "follow_up_question",
             "valid_responses": [
                 "Continue"
@@ -126,7 +126,7 @@
         },
         {
             "title": "Q_seen_no",
-            "content": "We're sorry to hear that. Do you have time to tell us what happened?",
+            "content": "We’re sorry to hear that. Do you have time to tell us what happened?\n\nDo you have 2 minutes to tell us about it?",
             "content_type": "follow_up_question",
             "valid_responses": [
                 "Yes",

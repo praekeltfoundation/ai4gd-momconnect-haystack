@@ -39,6 +39,7 @@ from .utilities import (
     prepare_valid_responses_to_display_to_assessment_user,
     prepare_valid_responses_to_display_to_onboarding_user,
     create_response_to_key_map,
+    prepare_valid_responses_to_display_to_anc_survey_user,
 )
 
 from fastapi import HTTPException
@@ -492,7 +493,12 @@ async def get_anc_survey_question(user_id: str, user_context: dict) -> dict | No
         valid_responses,
     )
 
-    final_question_text = text_to_prepend + contextualized_question
+    final_question_text = prepare_valid_responses_to_display_to_anc_survey_user(
+        text_to_prepend=text_to_prepend,
+        question=contextualized_question,
+        valid_responses=valid_responses or [],
+        step_title=next_step,
+    )
 
     return {
         "contextualized_question": final_question_text.strip(),
