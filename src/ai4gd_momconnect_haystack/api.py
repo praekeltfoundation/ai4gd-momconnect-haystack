@@ -68,6 +68,7 @@ from ai4gd_momconnect_haystack.tasks import (
     process_onboarding_step,
     handle_summary_confirmation_step,
     format_user_data_summary_for_whatsapp,
+    handle_reminder_request,
 )
 from ai4gd_momconnect_haystack.utilities import (
     FLOWS_WITH_INTRO,
@@ -270,21 +271,22 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     if is_intro_response:
         result = handle_intro_response(user_input=user_input, flow_id=flow_id)
         if result.get("action") == "PAUSE_AND_REMIND":
-            reengagement_info = ReengagementInfo(
-                type="USER_REQUESTED",
-                trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
-                flow_id=flow_id,
-            )
-            intro_message = INTRO_MESSAGES["free_text_intro"]
-            await save_user_journey_state(
+            state = await get_user_journey_state(user_id)
+            current_reminder_count = state.reminder_count if state else 0
+            new_reminder_count = current_reminder_count + 1
+            reminder_type = 2 if new_reminder_count >= 2 else 1
+            user_context["reminder_count"] = new_reminder_count
+
+            message, reengagement_info = await handle_reminder_request(
                 user_id=user_id,
                 flow_id=flow_id,
                 step_identifier="intro",
-                last_question=intro_message,
+                last_question=last_assistant_msg.text if last_assistant_msg else "",
                 user_context=user_context,
+                reminder_type=reminder_type,
             )
             return OnboardingResponse(
-                question=result["message"],
+                question=message,
                 user_context=user_context,
                 intent=result["intent"],
                 intent_related_response=None,
@@ -439,21 +441,22 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         else:
             failure_count = 0
     elif intent == "REQUEST_TO_BE_REMINDED":
-        # User wants to pause, save their state and notify the frontend.
-        reengagement_info = ReengagementInfo(
-            type="USER_REQUESTED",
-            trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
-            flow_id=flow_id,
-        )
-        await save_user_journey_state(
+        state = await get_user_journey_state(request.user_id)
+        current_reminder_count = state.reminder_count if state else 0
+        new_reminder_count = current_reminder_count + 1
+        reminder_type = 2 if new_reminder_count >= 2 else 1
+        user_context["reminder_count"] = new_reminder_count
+
+        message, reengagement_info = await handle_reminder_request(
             user_id=request.user_id,
             flow_id=flow_id,
             step_identifier=str(current_question_number),
             last_question=last_question,
             user_context=user_context,
+            reminder_type=reminder_type,
         )
         return OnboardingResponse(
-            question="Of course. I will remind you later. Talk to you soon!",
+            question=message,
             user_context=user_context,
             intent=intent,
             intent_related_response=None,
@@ -583,32 +586,36 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
             user_input=request.user_input, flow_id=request.flow_id.value
         )
         if result.get("action") == "PAUSE_AND_REMIND":
-            reengagement_info = ReengagementInfo(
-                type="USER_REQUESTED",
-                trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
-                flow_id=request.flow_id.value,
-            )
-            intro_message = (
-                INTRO_MESSAGES["free_text_intro"]
-                if "behaviour" in request.flow_id.value
-                else INTRO_MESSAGES["multiple_choice_intro"]
-            )
-            await save_user_journey_state(
-                user_id=request.user_id,
-                flow_id=request.flow_id.value,
-                step_identifier="intro",
-                last_question=intro_message,
-                user_context=request.user_context,
-            )
-            return AssessmentResponse(
-                question=result["message"],
-                next_question=0,
-                intent=result["intent"],
-                intent_related_response=None,
-                processed_answer=None,
-                failure_count=0,
-                reengagement_info=reengagement_info,
-            )
+            state = await get_user_journey_state(request.user_id)
+            current_reminder_count = state.reminder_count if state else 0
+            new_reminder_count = current_reminder_count + 1
+            reminder_type = 2 if new_reminder_count >= 2 else 1
+            request.user_context["reminder_count"] = new_reminder_count
+
+            if result.get("action") == "PAUSE_AND_REMIND":
+                state = await get_user_journey_state(request.user_id)
+                current_reminder_count = state.reminder_count if state else 0
+                new_reminder_count = current_reminder_count + 1
+                reminder_type = 2 if new_reminder_count >= 2 else 1
+                request.user_context["reminder_count"] = new_reminder_count
+
+                message, reengagement_info = await handle_reminder_request(
+                    user_id=request.user_id,
+                    flow_id=request.flow_id.value,
+                    step_identifier="intro",
+                    last_question=INTRO_MESSAGES.get("multiple_choice_intro", ""),
+                    user_context=request.user_context,
+                    reminder_type=reminder_type,
+                )
+                return AssessmentResponse(
+                    question=message,
+                    next_question=0,
+                    intent=result["intent"],
+                    intent_related_response=None,
+                    processed_answer=None,
+                    failure_count=0,
+                    reengagement_info=reengagement_info,
+                )
 
         response = await _handle_consent_result(
             result=result,
@@ -682,20 +689,22 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
                 )
                 failure_count = 0
         elif intent == "REQUEST_TO_BE_REMINDED":
-            reengagement_info = ReengagementInfo(
-                type="USER_REQUESTED",
-                trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
-                flow_id=request.flow_id.value,
-            )
-            await save_user_journey_state(
+            state = await get_user_journey_state(request.user_id)
+            current_reminder_count = state.reminder_count if state else 0
+            new_reminder_count = current_reminder_count + 1
+            reminder_type = 2 if new_reminder_count >= 2 else 1
+            request.user_context["reminder_count"] = new_reminder_count
+
+            message, reengagement_info = await handle_reminder_request(
                 user_id=request.user_id,
                 flow_id=request.flow_id.value,
                 step_identifier=str(current_question_number),
                 last_question=request.previous_question,
                 user_context=request.user_context,
+                reminder_type=reminder_type,
             )
             return AssessmentResponse(
-                question="No problem. We can continue this later. I'll remind you.",
+                question=message,
                 next_question=current_question_number,
                 intent=intent,
                 intent_related_response=None,
@@ -912,24 +921,24 @@ async def assessment_end(
             next_message = ""
 
     reengagement_info = None
+    response_message = next_message 
 
     if task == "REMIND_ME_LATER":
-        trigger_time = datetime.now(timezone.utc) + timedelta(days=1)
-        reengagement_info = ReengagementInfo(
-            type="USER_REQUESTED",
-            trigger_at_utc=trigger_time,
-            flow_id=request.flow_id.value,
-        )
-        # Set a confirmation message to send to the user
-        next_message = "No problem. We can continue this later. I'll remind you."
+        state = await get_user_journey_state(request.user_id)
+        current_reminder_count = state.reminder_count if state else 0
+        new_reminder_count = current_reminder_count + 1
+        reminder_type = 2 if new_reminder_count >= 2 else 1
 
-        # Save the state of the *current* question they are pausing on
-        await save_user_journey_state(
+        # For assessment-end, context is simple
+        user_context = {"reminder_count": new_reminder_count}
+
+        response_message, reengagement_info = await handle_reminder_request(
             user_id=request.user_id,
             flow_id=request.flow_id.value,
             step_identifier=str(previous_message_nr),
-            last_question=previous_message,  # The question they just saw
-            user_context={},
+            last_question=previous_message,
+            user_context=user_context,
+            reminder_type=reminder_type,
         )
     elif next_message:
         # If the journey is continuing, save the state for the *next* question
@@ -938,11 +947,11 @@ async def assessment_end(
             flow_id=request.flow_id.value,
             step_identifier=str(next_message_nr),
             last_question=next_message,
-            user_context={},
+            user_context={"reminder_count": 0},
         )
 
     return AssessmentEndResponse(
-        message=next_message,
+        message=response_message,
         task=task or "",
         intent=intent,
         intent_related_response=intent_related_response,
@@ -1052,12 +1061,13 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
     if is_intro_response:
         result = handle_intro_response(user_input=user_input, flow_id=flow_id)
         if result.get("action") == "PAUSE_AND_REMIND":
-            reengagement_info = ReengagementInfo(
-                type="USER_REQUESTED",
-                trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
-                flow_id=flow_id,
-            )
-            await save_user_journey_state(
+            state = await get_user_journey_state(user_id)
+            current_reminder_count = state.reminder_count if state else 0
+            new_reminder_count = current_reminder_count + 1
+            reminder_type = 2 if new_reminder_count >= 2 else 1
+            user_context["reminder_count"] = new_reminder_count
+
+            message, reengagement_info = await handle_reminder_request(
                 user_id=user_id,
                 flow_id=flow_id,
                 step_identifier="intro",
@@ -1065,9 +1075,10 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
                 if last_assistant_message
                 else "",
                 user_context=user_context,
+                reminder_type=reminder_type,
             )
             return SurveyResponse(
-                question=result["message"],
+                question=message,
                 user_context=user_context,
                 survey_complete=False,
                 intent=result["intent"],
@@ -1168,20 +1179,22 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
                     failure_count=request.failure_count,
                 )
         elif intent == "REQUEST_TO_BE_REMINDED":
-            reengagement_info = ReengagementInfo(
-                type="USER_REQUESTED",
-                trigger_at_utc=datetime.now(timezone.utc) + timedelta(days=1),
-                flow_id=flow_id,
-            )
-            await save_user_journey_state(
+            state = await get_user_journey_state(user_id)
+            current_reminder_count = state.reminder_count if state else 0
+            new_reminder_count = current_reminder_count + 1
+            reminder_type = 2 if new_reminder_count >= 2 else 1
+            user_context["reminder_count"] = new_reminder_count
+
+            message, reengagement_info = await handle_reminder_request(
                 user_id=user_id,
                 flow_id=flow_id,
                 step_identifier=last_step_title,
                 last_question=last_question,
                 user_context=user_context,
+                reminder_type=reminder_type,
             )
             return SurveyResponse(
-                question="Understood. I'll remind you to complete this later. Chat soon!",
+                question=message,
                 user_context=user_context,
                 survey_complete=False,
                 intent=intent,

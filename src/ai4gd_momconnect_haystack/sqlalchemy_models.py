@@ -107,6 +107,7 @@ class UserJourneyState(Base):
     current_step_identifier: Mapped[str] = mapped_column(String, nullable=False)
     last_question_sent: Mapped[str] = mapped_column(String, nullable=False)
     user_context: Mapped[dict] = mapped_column(JSON, nullable=True)
+    reminder_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), onupdate=datetime.now, default=datetime.now
     )

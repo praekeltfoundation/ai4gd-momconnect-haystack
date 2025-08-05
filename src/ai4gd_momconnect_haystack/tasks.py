@@ -883,6 +883,7 @@ async def handle_reminder_request(
     step_identifier: str,
     last_question: str,
     user_context: dict,
+    reminder_type: int,
 ) -> tuple[str, ReengagementInfo]:
     """
     Central function to handle pausing a journey for a reminder.
@@ -898,6 +899,7 @@ async def handle_reminder_request(
         type="USER_REQUESTED",
         trigger_at_utc=datetime.now(timezone.utc) + timedelta(hours=23),
         flow_id=flow_id,
+        reminder_type=reminder_type,
     )
     await save_user_journey_state(
         user_id=user_id,
@@ -906,5 +908,5 @@ async def handle_reminder_request(
         last_question=last_question,
         user_context=user_context,
     )
-    confirmation_message = "Of course. I will remind you later. Talk to you soon!"
+    confirmation_message = "Great! We’ll remind you tomorrow 🗓️\n\nChat soon 👋🏾"
     return confirmation_message, reengagement_info
