@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import re
 import json
 import logging
 from pathlib import Path
@@ -122,8 +123,8 @@ REMINDER_CONFIG: dict[str, list[ReminderConfig]] = {
     "survey": [
         {
             "delay": timedelta(days=3),
-            "acknowledgement_message": "OK, that’s great! We’ll check in a few days to see how it went 💕",
-            "resume_message": None,
+            "acknowledgement_message": "OK, we’ll remind you tomorrow 🗓️",
+            "resume_message": "Hello 👋🏽\n\nYou started telling us about your recent pregnancy check-up 🗓️\n\nDo you have a few minutes to finish telling us about it now?\n\na.Yes\nb.Remind me tomorrow",
         }
     ],
     "default": [  # A fallback for any other flows
@@ -473,3 +474,44 @@ def prepare_valid_responses_to_display_to_onboarding_user(
             options = "\n\n" + "\n".join(valid_responses)
             final_question_text += options
     return final_question_text
+
+
+def create_response_to_key_map(valid_responses: list[str]) -> dict[str, str]:
+    """
+    Creates a mapping from a user-facing response string to a
+    standardized, robust key for internal use.
+    Example: {"Yes, I went": "VISIT_YES", "No, I'm not going": "VISIT_NO"}
+    """
+    key_map = {}
+    for response in valid_responses:
+        # Create a key by taking the first few words, making them uppercase,
+        # and joining with underscores. This is a robust way to generate unique keys.
+        words = re.sub(r"[^\w\s]", "", response).split()[:2]
+        key = "_".join(words).upper()
+
+        # Handle specific known responses for better clarity
+        if "yes" in response.lower():
+            key = "YES"
+        if "no" in response.lower():
+            key = "NO"
+        if "remind" in response.lower():
+            key = "REMIND_TOMORROW"
+        if "something else" in response.lower():
+            key = "SOMETHING_ELSE"
+        if "i don't know" in response.lower():
+            key = "DONT_KNOW"
+        if "very good" in response.lower():
+            key = "EXP_VERY_GOOD"
+        if response.lower() == "good":
+            key = "EXP_GOOD"
+        if response.lower() == "ok":
+            key = "EXP_OK"
+        if response.lower() == "bad":
+            key = "EXP_BAD"
+        if "very bad" in response.lower():
+            key = "EXP_VERY_BAD"
+        if "continue" in response.lower():
+            key = "CONTINUE"
+
+        key_map[response] = key
+    return key_map
