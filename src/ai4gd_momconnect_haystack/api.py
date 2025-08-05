@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 from os import environ
 from pathlib import Path
@@ -52,7 +51,6 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     OnboardingResponse,
     SurveyRequest,
     SurveyResponse,
-    ReengagementInfo,
     ResumeRequest,
     ResumeResponse,
 )
@@ -921,7 +919,7 @@ async def assessment_end(
             next_message = ""
 
     reengagement_info = None
-    response_message = next_message 
+    response_message = next_message
 
     if task == "REMIND_ME_LATER":
         state = await get_user_journey_state(request.user_id)
