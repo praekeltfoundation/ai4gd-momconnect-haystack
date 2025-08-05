@@ -67,6 +67,8 @@ from ai4gd_momconnect_haystack.tasks import (
     handle_summary_confirmation_step,
     format_user_data_summary_for_whatsapp,
     handle_reminder_request,
+    handle_journey_resumption_prompt,
+    handle_intro_reminder,
 )
 from ai4gd_momconnect_haystack.utilities import (
     FLOWS_WITH_INTRO,
@@ -171,46 +173,8 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 async def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
     # --- RESUMPTION LOGIC ---
     if request.user_context and request.user_context.get("resume") is True:
-        state = await get_user_journey_state(request.user_id)
-        if not state or not state.user_context:
-            raise HTTPException(
-                status_code=404, detail="Saved context for user not found."
-            )
-
-        restored_context = state.user_context
-        next_question_data = get_next_onboarding_question(user_context=restored_context)
-
-        if not next_question_data:
-            final_message = (
-                "Welcome back! It looks like you've already completed the onboarding."
-            )
-            return OnboardingResponse(
-                question=final_message,
-                user_context=restored_context,
-                intent="SYSTEM_RESUMPTION_COMPLETE",
-                intent_related_response=None,
-                results_to_save=[],
-                failure_count=0,
-            )
-
-        question_text = next_question_data.get("contextualized_question", "")
-        question_number = next_question_data.get("question_number")
-        # Save the new state before returning
-        await save_user_journey_state(
-            user_id=request.user_id,
-            flow_id="onboarding",
-            step_identifier=str(question_number),
-            last_question=question_text,
-            user_context=restored_context,
-        )
-
-        return OnboardingResponse(
-            question=question_text,
-            user_context=restored_context,
-            intent="SYSTEM_RESUMPTION",
-            intent_related_response=None,
-            results_to_save=[],
-            failure_count=0,
+        return await handle_journey_resumption_prompt(
+            user_id=request.user_id, flow_id="onboarding"
         )
     # --- END OF RESUMPTION LOGIC ---
 
@@ -269,28 +233,13 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     if is_intro_response:
         result = handle_intro_response(user_input=user_input, flow_id=flow_id)
         if result.get("action") == "PAUSE_AND_REMIND":
-            state = await get_user_journey_state(user_id)
-            current_reminder_count = state.reminder_count if state else 0
-            new_reminder_count = current_reminder_count + 1
-            reminder_type = 2 if new_reminder_count >= 2 else 1
-            user_context["reminder_count"] = new_reminder_count
-
-            message, reengagement_info = await handle_reminder_request(
+            last_question = last_assistant_msg.text if last_assistant_msg else ""
+            return await handle_intro_reminder(
                 user_id=user_id,
                 flow_id=flow_id,
-                step_identifier="intro",
-                last_question=last_assistant_msg.text if last_assistant_msg else "",
                 user_context=user_context,
-                reminder_type=reminder_type,
-            )
-            return OnboardingResponse(
-                question=message,
-                user_context=user_context,
-                intent=result["intent"],
-                intent_related_response=None,
-                results_to_save=[],
-                failure_count=0,
-                reengagement_info=reengagement_info,
+                last_question=last_question,
+                result=result,
             )
 
         response = await _handle_consent_result(
@@ -541,20 +490,8 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
 async def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
     # --- RESUMPTION LOGIC ---
     if request.user_context and request.user_context.get("resume") is True:
-        state = await get_user_journey_state(request.user_id)
-        if not state:
-            raise HTTPException(
-                status_code=404, detail="Saved state for user not found."
-            )
-
-        # For assessments, we can just resend the last question
-        return AssessmentResponse(
-            question=state.last_question_sent,
-            next_question=int(state.current_step_identifier),
-            intent="SYSTEM_RESUMPTION",
-            intent_related_response=None,
-            processed_answer=None,
-            failure_count=0,
+        return await handle_journey_resumption_prompt(
+            user_id=request.user_id, flow_id=request.flow_id.value
         )
     # --- END OF RESUMPTION LOGIC ---
 
@@ -584,36 +521,18 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
             user_input=request.user_input, flow_id=request.flow_id.value
         )
         if result.get("action") == "PAUSE_AND_REMIND":
-            state = await get_user_journey_state(request.user_id)
-            current_reminder_count = state.reminder_count if state else 0
-            new_reminder_count = current_reminder_count + 1
-            reminder_type = 2 if new_reminder_count >= 2 else 1
-            request.user_context["reminder_count"] = new_reminder_count
-
-            if result.get("action") == "PAUSE_AND_REMIND":
-                state = await get_user_journey_state(request.user_id)
-                current_reminder_count = state.reminder_count if state else 0
-                new_reminder_count = current_reminder_count + 1
-                reminder_type = 2 if new_reminder_count >= 2 else 1
-                request.user_context["reminder_count"] = new_reminder_count
-
-                message, reengagement_info = await handle_reminder_request(
-                    user_id=request.user_id,
-                    flow_id=request.flow_id.value,
-                    step_identifier="intro",
-                    last_question=INTRO_MESSAGES.get("multiple_choice_intro", ""),
-                    user_context=request.user_context,
-                    reminder_type=reminder_type,
-                )
-                return AssessmentResponse(
-                    question=message,
-                    next_question=0,
-                    intent=result["intent"],
-                    intent_related_response=None,
-                    processed_answer=None,
-                    failure_count=0,
-                    reengagement_info=reengagement_info,
-                )
+            intro_message = (
+                INTRO_MESSAGES["free_text_intro"]
+                if "behaviour" in request.flow_id.value
+                else INTRO_MESSAGES["multiple_choice_intro"]
+            )
+            return await handle_intro_reminder(
+                user_id=request.user_id,
+                flow_id=request.flow_id.value,
+                user_context=request.user_context,
+                last_question=intro_message,
+                result=result,
+            )
 
         response = await _handle_consent_result(
             result=result,
@@ -961,49 +880,8 @@ async def assessment_end(
 async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
     # --- RESUMPTION LOGIC ---
     if request.user_context and request.user_context.get("resume") is True:
-        state = await get_user_journey_state(request.user_id)
-        if not state or not state.user_context:
-            raise HTTPException(
-                status_code=404, detail="Saved context for user not found."
-            )
-
-        restored_context = state.user_context
-        question_result = await get_anc_survey_question(
-            user_id=request.user_id, user_context=restored_context
-        )
-
-        if not question_result:
-            final_message = (
-                "Welcome back! It looks like you've already completed this survey."
-            )
-            return SurveyResponse(
-                question=final_message,
-                user_context=restored_context,
-                survey_complete=True,
-                intent="SYSTEM_RESUMPTION_COMPLETE",
-                intent_related_response=None,
-                results_to_save=[],
-                failure_count=0,
-            )
-
-        question = question_result.get("contextualized_question", "")
-        next_step = question_result.get("question_identifier", "")
-        await save_user_journey_state(
-            user_id=request.user_id,
-            flow_id="anc-survey",
-            step_identifier=next_step,
-            last_question=question,
-            user_context=restored_context,
-        )
-
-        return SurveyResponse(
-            question=question,
-            user_context=restored_context,
-            survey_complete=False,
-            intent="SYSTEM_RESUMPTION",
-            intent_related_response=None,
-            results_to_save=[],
-            failure_count=0,
+        return await handle_journey_resumption_prompt(
+            user_id=request.user_id, flow_id="anc-survey"
         )
     # --- END OF RESUMPTION LOGIC ---
 
@@ -1059,32 +937,17 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
     if is_intro_response:
         result = handle_intro_response(user_input=user_input, flow_id=flow_id)
         if result.get("action") == "PAUSE_AND_REMIND":
-            state = await get_user_journey_state(user_id)
-            current_reminder_count = state.reminder_count if state else 0
-            new_reminder_count = current_reminder_count + 1
-            reminder_type = 2 if new_reminder_count >= 2 else 1
-            user_context["reminder_count"] = new_reminder_count
-
-            message, reengagement_info = await handle_reminder_request(
+            last_question = (
+                last_assistant_message.text if last_assistant_message else ""
+            )
+            return await handle_intro_reminder(
                 user_id=user_id,
                 flow_id=flow_id,
-                step_identifier="intro",
-                last_question=last_assistant_message.text
-                if last_assistant_message
-                else "",
                 user_context=user_context,
-                reminder_type=reminder_type,
+                last_question=last_question,
+                result=result,
             )
-            return SurveyResponse(
-                question=message,
-                user_context=user_context,
-                survey_complete=False,
-                intent=result["intent"],
-                intent_related_response=None,
-                results_to_save=[],
-                failure_count=0,
-                reengagement_info=reengagement_info,
-            )
+
         response = await _handle_consent_result(
             result=result,
             response_model=SurveyResponse,

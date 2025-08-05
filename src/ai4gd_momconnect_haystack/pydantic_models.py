@@ -1,7 +1,7 @@
 # models.py
 
-from datetime import datetime
-from typing import Any, TypeVar
+from datetime import datetime, timedelta
+from typing import Any, TypeVar, TypedDict
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -232,3 +232,9 @@ class ResumeRequest(BaseModel):
 
 class ResumeResponse(BaseModel):
     resume_flow_id: str
+
+
+class ReminderConfig(TypedDict):
+    delay: timedelta
+    acknowledgement_message: str
+    resume_message: str | None

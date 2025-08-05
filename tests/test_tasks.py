@@ -1,5 +1,6 @@
 from typing import Any
 from unittest import mock
+from datetime import datetime, timezone, timedelta
 
 import pytest
 
@@ -27,6 +28,8 @@ from ai4gd_momconnect_haystack.tasks import (
     handle_summary_confirmation_step,
     format_user_data_summary_for_whatsapp,
     classify_yes_no_response,
+    handle_reminder_request,
+    classify_ussd_intro_response,
 )
 
 # --- Test Data Fixtures ---
@@ -590,43 +593,61 @@ def test_handle_summary_confirmation_step_with_denial(
 
 
 @pytest.mark.parametrize(
-    "mock_intent, mock_classification, expected_action",
+    "mock_intent, mock_ussd_class, mock_yes_no_class, expected_action, flow_id",
     [
-        # Cases handled by the reliable classifier (handle_user_message is NOT called)
-        (None, "AFFIRMATIVE", "PROCEED"),
-        (None, "NEGATIVE", "ABORT"),
-        # Cases that fall back to the LLM-based intent detection
-        ("JOURNEY_RESPONSE", "AMBIGUOUS", "REPROMPT"),
-        ("QUESTION_ABOUT_STUDY", "AMBIGUOUS", "REPROMPT_WITH_ANSWER"),
-        # Chitchat should now trigger a REPROMPT to repair the conversation.
-        ("CHITCHAT", "AMBIGUOUS", "REPROMPT"),
-        ("ASKING_TO_STOP_MESSAGES", "AMBIGUOUS", "ABORT"),
+        # Onboarding flow (uses USSD classifier first)
+        (None, "AFFIRMATIVE", "AMBIGUOUS", "PROCEED", "onboarding"),
+        (None, "REMIND_LATER", "AMBIGUOUS", "PAUSE_AND_REMIND", "onboarding"),
+        (None, "AMBIGUOUS", "NEGATIVE", "PAUSE_AND_REMIND", "onboarding"),
+        ("CHITCHAT", "AMBIGUOUS", "AMBIGUOUS", "REPROMPT", "onboarding"),
+        # A non-free-text flow (skips USSD classifier)
+        (None, "AMBIGUOUS", "AFFIRMATIVE", "PROCEED", "dma-pre-assessment"),
+        (None, "AMBIGUOUS", "NEGATIVE", "PAUSE_AND_REMIND", "dma-pre-assessment"),
     ],
 )
 @mock.patch("ai4gd_momconnect_haystack.tasks.classify_yes_no_response")
+@mock.patch("ai4gd_momconnect_haystack.tasks.classify_ussd_intro_response")
 @mock.patch("ai4gd_momconnect_haystack.tasks.handle_user_message")
 def test_handle_intro_response_logic(
-    mock_handle_msg, mock_classify, mock_intent, mock_classification, expected_action
+    mock_handle_msg,
+    mock_ussd_classify,
+    mock_classify,
+    mock_intent,
+    mock_ussd_class,
+    mock_yes_no_class,
+    expected_action,
+    flow_id,
 ):
     """
-    Tests the logic of handle_intro_response by mocking its dependencies.
+    Tests the logic of handle_intro_response by mocking its dependencies and
+    verifying the internal call behavior.
     """
-    # Arrange: Set the return values for the mocked functions
-    mock_classify.return_value = mock_classification
+    # Arrange
+    mock_ussd_classify.return_value = mock_ussd_class
+    mock_classify.return_value = mock_yes_no_class
     mock_handle_msg.return_value = (mock_intent, "mock response")
+    is_free_text_flow = "onboarding" in flow_id or "behaviour" in flow_id
 
     # Act
-    result = handle_intro_response(user_input="test input", flow_id="onboarding")
+    result = handle_intro_response(user_input="test input", flow_id=flow_id)
 
-    # Assert
+    # Assert the final outcome
     assert result["action"] == expected_action
 
-    # The classifier is always called first.
-    mock_classify.assert_called_once_with("test input")
+    # --- NEW: Assert the internal behavior ---
+    if is_free_text_flow:
+        mock_ussd_classify.assert_called_once_with("test input")
+    else:
+        mock_ussd_classify.assert_not_called()
 
-    # The intent detection (handle_user_message) is ONLY called if the first
-    # classification is ambiguous.
-    if mock_classification == "AMBIGUOUS":
+    # The general Yes/No classifier is called if the USSD one is skipped or is ambiguous
+    if not is_free_text_flow or mock_ussd_class == "AMBIGUOUS":
+        mock_classify.assert_called_once_with("test input")
+    else:
+        mock_classify.assert_not_called()
+
+    # The AI is only called if BOTH deterministic classifiers are ambiguous
+    if mock_ussd_class == "AMBIGUOUS" and mock_yes_no_class == "AMBIGUOUS":
         mock_handle_msg.assert_called_once()
     else:
         mock_handle_msg.assert_not_called()
@@ -704,3 +725,79 @@ def test_validate_dma_answer_prepares_aligned_prompts(mock_run_pipeline):
         expected_canonical_responses,
         expected_prompt_context,
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "flow_id, reminder_count, expected_delay_hours",
+    [
+        ("onboarding", 1, 1),
+        ("onboarding", 2, 23),
+        ("behaviour-pre-assessment", 1, 1),
+        ("anc-survey", 1, 72),
+    ],
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.tasks.save_user_journey_state",
+    new_callable=mock.AsyncMock,
+)
+@mock.patch("ai4gd_momconnect_haystack.tasks.datetime")  # NEW: Mock the datetime object
+async def test_handle_reminder_request_dynamic_schedule(
+    mock_datetime,  # NEW: Add the mock as an argument
+    mock_save_state,
+    flow_id,
+    reminder_count,
+    expected_delay_hours,
+):
+    """
+    Tests that handle_reminder_request correctly selects the reminder delay
+    from the REMINDER_CONFIG based on the flow_id and reminder_count.
+    """
+    # Arrange:
+    # Set a fixed, predictable time for datetime.now() to return
+    fake_now = datetime(2025, 8, 5, 12, 0, 0, tzinfo=timezone.utc)
+    mock_datetime.now.return_value = fake_now
+
+    user_context = {"reminder_count": reminder_count}
+
+    # Act
+    _, reengagement_info = await handle_reminder_request(
+        user_id="test-user",
+        flow_id=flow_id,
+        step_identifier="intro",
+        last_question="Some question",
+        user_context=user_context,
+        reminder_type=1,
+    )
+
+    # Assert:
+    # The expected time is now completely predictable and will not have race conditions.
+    expected_trigger_time = fake_now + timedelta(hours=expected_delay_hours)
+    assert reengagement_info.trigger_at_utc == expected_trigger_time
+
+
+@pytest.mark.parametrize(
+    "user_input, expected_classification",
+    [
+        # Affirmative Cases
+        ("a", "AFFIRMATIVE"),
+        ("A", "AFFIRMATIVE"),
+        ("a. Yes", "AFFIRMATIVE"),
+        ("Yes, let’s start", "AFFIRMATIVE"),
+        ("start", "AFFIRMATIVE"),
+        ("yes", "AFFIRMATIVE"),
+        # Reminder Cases
+        ("b", "REMIND_LATER"),
+        ("B. Remind me later", "REMIND_LATER"),
+        ("remind me tomorrow", "REMIND_LATER"),
+        # Ambiguous Cases (this classifier doesn't handle negatives)
+        ("no", "AMBIGUOUS"),
+        ("maybe", "AMBIGUOUS"),
+    ],
+)
+def test_classify_ussd_intro_response(user_input, expected_classification):
+    """
+    Tests the new deterministic classifier for USSD-style intro responses
+    with a variety of user input formats.
+    """
+    assert classify_ussd_intro_response(user_input) == expected_classification

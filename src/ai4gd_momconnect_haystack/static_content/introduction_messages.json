@@ -2,15 +2,11 @@
   "static-messages": [
     {
       "id": "free_text_intro",
-      "content": "Hi Mama! Before we start, here are a few things to know:\n\nYou can answer *in your own words* — there’s no right or wrong!\nYou can *ask us questions about this study* any time.\nDon’t want to answer something? Just type and send the word *skip*.\n\nShall we begin? 😊"
+      "content": "Hi Mama! Before we start, here are a few things to know:\n\n* You can answer *in your own words* — there’s no right or wrong!\n* You can *ask us questions about this study* any time.\n* Don’t want to answer something? Just type *skip*.\n\nShall we begin? 😊\n\na. Yes, let’s start  ✅\nb. Remind me later"
     },
     {
       "id": "multiple_choice_intro",
-      "content": "Hi Mama! Before we start, here are a few things to know:\n\nI'll ask some questions with a list of options. Please reply with the letter for the option you choose.\nYou can *ask us questions about this study* any time.\nDon’t want to answer something? Just type and send the word *skip*.\n\nShall we begin? 😊"
-    },
-    {
-      "id": "abort_message",
-      "content": "No problem. Feel free to reach out if you change your mind. Have a good day!"
+      "content": "Hi Mama! Before we start, here are a few things to know:\n\n* You will be asked a few questions with multiple choice answers. Please reply with the letter that matches your answer (e.g. 'a').\n* You can *ask us questions about this study* any time.\n* Don’t want to answer something? Just type *skip*.\n\nShall we begin? 😊"
     }
   ]
 }

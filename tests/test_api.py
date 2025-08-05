@@ -17,6 +17,7 @@ from ai4gd_momconnect_haystack.sqlalchemy_models import (
     UserJourneyState,
 )
 
+
 from ai4gd_momconnect_haystack.database import AsyncSessionLocal
 
 SERVICE_PERSONA_TEXT = "Test Persona"
@@ -1213,7 +1214,6 @@ async def test_repair_on_intro_consent(mock_handle_intro, mock_get_q):
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.extract_anc_data_from_response",
-    # CORRECTED MOCK: Return a tuple to simulate failed extraction (context is unchanged)
     side_effect=lambda user_response, user_context, step_title: (user_context, None),
 )
 @mock.patch(
@@ -1761,7 +1761,7 @@ async def test_resume_endpoint_success(client: TestClient):
 async def test_onboarding_full_resumption_flow(mock_get_next_q, client: TestClient):
     """
     Tests the full resumption flow: API receives resume flag, fetches saved context,
-    and returns the correct next question.
+    and returns the correct resume message prompt.
     """
     # Arrange: Save a state for a user who has answered the first question
     async with AsyncSessionLocal() as session:
@@ -1772,7 +1772,7 @@ async def test_onboarding_full_resumption_flow(mock_get_next_q, client: TestClie
                     current_flow_id="onboarding",
                     current_step_identifier="1",
                     last_question_sent="Which province do you live in?",
-                    user_context={"province": "Gauteng"},
+                    user_context={"province": "Gauteng", "reminder_count": 0},
                 )
             )
             await session.commit()
@@ -1792,10 +1792,14 @@ async def test_onboarding_full_resumption_flow(mock_get_next_q, client: TestClie
     # Assert
     assert response.status_code == 200
     json_response = response.json()
-    assert json_response["question"] == "What kind of area do you live in?"
-    assert json_response["intent"] == "SYSTEM_RESUMPTION"
-    assert json_response["user_context"] == {"province": "Gauteng"}
-    mock_get_next_q.assert_called_once_with(user_context={"province": "Gauteng"})
+
+    # UPDATED ASSERTION: The first resumption call should now return the resume message,
+    # not the next question directly.
+    assert "Hi! Ready to pick up where you left off" in json_response["question"]
+    assert json_response["intent"] == "SYSTEM_REMINDER_PROMPT"
+
+    # The get_next_onboarding_question function should NOT be called yet.
+    mock_get_next_q.assert_not_called()
 
 
 @pytest.mark.asyncio
