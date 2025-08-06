@@ -1,3 +1,4 @@
+import sys
 import logging
 from contextlib import asynccontextmanager
 from os import environ
@@ -10,9 +11,6 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from haystack.dataclasses import ChatMessage
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from .database import AsyncSessionLocal
-from typing import AsyncGenerator
 
 from ai4gd_momconnect_haystack.assessment_logic import (
     create_assessment_end_error_response,
@@ -77,6 +75,7 @@ from ai4gd_momconnect_haystack.utilities import (
     load_json_and_validate,
     ANC_SURVEY_MAP,
 )
+from ai4gd_momconnect_haystack.database import run_migrations
 
 from .enums import HistoryType
 
@@ -125,10 +124,26 @@ async def _handle_consent_result(
     return response_model(**response_args)
 
 
+def is_running_in_pytest():
+    """Checks if the current execution environment is within a pytest test run."""
+    return "pytest" in sys.modules
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    Handles application startup logic. Migrations are run on startup
+    unless the application is being run by pytest.
+    """
     logger.info("Application startup...")
     setup_document_store(startup=True)
+
+    if not is_running_in_pytest():
+        logger.info("Running database migrations...")
+        run_migrations()
+    else:
+        logger.info("Skipping migrations: running in pytest environment.")
+
     yield
     logger.info("Application shutdown...")
 
@@ -161,12 +176,6 @@ def verify_token(authorization: Annotated[str, Header()]):
         )
 
     return credential
-
-
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency to get a database session."""
-    async with AsyncSessionLocal() as session:
-        yield session
 
 
 @app.post("/v1/onboarding")
