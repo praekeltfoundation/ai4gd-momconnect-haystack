@@ -600,64 +600,56 @@ def test_handle_summary_confirmation_step_with_denial(
 
 
 @pytest.mark.parametrize(
-    "mock_intent, mock_ussd_class, mock_yes_no_class, expected_action, flow_id",
+    "user_input, flow_id, mock_intent, expected_action",
     [
-        # Onboarding flow (uses USSD classifier first)
-        (None, "AFFIRMATIVE", "AMBIGUOUS", "PROCEED", "onboarding"),
-        (None, "REMIND_LATER", "AMBIGUOUS", "PAUSE_AND_REMIND", "onboarding"),
-        (None, "AMBIGUOUS", "NEGATIVE", "PAUSE_AND_REMIND", "onboarding"),
-        ("CHITCHAT", "AMBIGUOUS", "AMBIGUOUS", "REPROMPT", "onboarding"),
-        # A non-free-text flow (skips USSD classifier)
-        (None, "AMBIGUOUS", "AFFIRMATIVE", "PROCEED", "dma-pre-assessment"),
-        (None, "AMBIGUOUS", "NEGATIVE", "PAUSE_AND_REMIND", "dma-pre-assessment"),
+        # Free-text flow (onboarding) using the USSD-style classifier
+        ("a", "onboarding", None, "PROCEED"),
+        ("start", "onboarding", None, "PROCEED"),
+        ("b", "onboarding", None, "PAUSE_AND_REMIND"),
+        ("remind me", "onboarding", None, "PAUSE_AND_REMIND"),
+        # Non-free-text flow (dma) using the general Yes/No classifier
+        ("yebo", "dma-pre-assessment", None, "PROCEED"),
+        ("no", "dma-pre-assessment", None, "PAUSE_AND_REMIND"),
+        # Fallback to AI-based intent detection for ambiguous cases
+        ("what is this?", "onboarding", "QUESTION_ABOUT_STUDY", "REPROMPT_WITH_ANSWER"),
+        ("hello", "dma-pre-assessment", "CHITCHAT", "REPROMPT"),
     ],
 )
-@mock.patch("ai4gd_momconnect_haystack.tasks.classify_yes_no_response")
-@mock.patch("ai4gd_momconnect_haystack.tasks.classify_ussd_intro_response")
 @mock.patch("ai4gd_momconnect_haystack.tasks.handle_user_message")
 def test_handle_intro_response_logic(
     mock_handle_msg,
-    mock_ussd_classify,
-    mock_classify,
     mock_intent,
-    mock_ussd_class,
-    mock_yes_no_class,
     expected_action,
     flow_id,
+    user_input,
 ):
     """
-    Tests the logic of handle_intro_response by mocking its dependencies and
-    verifying the internal call behavior.
+    Tests the logic of handle_intro_response by mocking mocking only the external LLM call
+    for ambiguous cases and verifying the internal call behavior.
     """
     # Arrange
-    mock_ussd_classify.return_value = mock_ussd_class
-    mock_classify.return_value = mock_yes_no_class
     mock_handle_msg.return_value = (mock_intent, "mock response")
     is_free_text_flow = "onboarding" in flow_id or "behaviour" in flow_id
 
     # Act
-    result = handle_intro_response(user_input="test input", flow_id=flow_id)
+    result = handle_intro_response(user_input=user_input, flow_id=flow_id)
 
     # Assert the final outcome
     assert result["action"] == expected_action
 
     # --- NEW: Assert the internal behavior ---
     if is_free_text_flow:
-        mock_ussd_classify.assert_called_once_with("test input")
+        # For free text, the AI is called if the USSD classifier is ambiguous.
+        if classify_ussd_intro_response(user_input) == "AMBIGUOUS":
+            mock_handle_msg.assert_called_once()
+        else:
+            mock_handle_msg.assert_not_called()
     else:
-        mock_ussd_classify.assert_not_called()
-
-    # The general Yes/No classifier is called if the USSD one is skipped or is ambiguous
-    if not is_free_text_flow or mock_ussd_class == "AMBIGUOUS":
-        mock_classify.assert_called_once_with("test input")
-    else:
-        mock_classify.assert_not_called()
-
-    # The AI is only called if BOTH deterministic classifiers are ambiguous
-    if mock_ussd_class == "AMBIGUOUS" and mock_yes_no_class == "AMBIGUOUS":
-        mock_handle_msg.assert_called_once()
-    else:
-        mock_handle_msg.assert_not_called()
+        # For other flows, the AI is called if the general classifier is ambiguous.
+        if classify_yes_no_response(user_input) == "AMBIGUOUS":
+            mock_handle_msg.assert_called_once()
+        else:
+            mock_handle_msg.assert_not_called()
 
 
 @pytest.mark.parametrize(

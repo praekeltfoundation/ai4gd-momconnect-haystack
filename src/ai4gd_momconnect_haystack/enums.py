@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, IntEnum
 
 
 class AssessmentType(str, Enum):
@@ -15,3 +15,8 @@ class AssessmentType(str, Enum):
 class HistoryType(str, Enum):
     anc = "anc"
     onboarding = "onboarding"
+
+
+class ReminderType(IntEnum):
+    FIRST = 1
+    SECOND = 2

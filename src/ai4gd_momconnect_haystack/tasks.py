@@ -10,7 +10,7 @@ from ai4gd_momconnect_haystack.crud import (
     save_user_journey_state,
     get_user_journey_state,
 )
-from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType
+from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType, ReminderType
 from ai4gd_momconnect_haystack.pipelines import (
     get_next_anc_survey_step,
     run_anc_survey_contextualization_pipeline,
@@ -944,14 +944,11 @@ def classify_ussd_intro_response(user_input: str) -> str:
     Returns: "AFFIRMATIVE", "REMIND_LATER", or "AMBIGUOUS".
     """
     user_input_lower = user_input.lower().strip()
-    affirmative_pattern = r"\b(a|yes|yebo|start|let's start|lets start)\b"
-    reminder_pattern = r"\b(b|remind)\b"
+    affirmative_pattern = r"\b(a|yes|yebo|start)\b"
+    reminder_pattern = r"\b(b|remind|late)\b"
 
     is_affirmative = bool(re.search(affirmative_pattern, user_input_lower))
-    is_reminder = (
-        bool(re.search(reminder_pattern, user_input_lower))
-        or "remind me" in user_input_lower
-    )
+    is_reminder = bool(re.search(reminder_pattern, user_input_lower))
 
     if is_affirmative and not is_reminder:
         return "AFFIRMATIVE"
@@ -1076,7 +1073,9 @@ async def handle_intro_reminder(
     state = await get_user_journey_state(user_id)
     current_reminder_count = state.reminder_count if state else 0
     new_reminder_count = current_reminder_count + 1
-    reminder_type = 2 if new_reminder_count >= 2 else 1
+    reminder_type = (
+        ReminderType.SECOND if new_reminder_count >= 2 else ReminderType.FIRST
+    )
     user_context["reminder_count"] = new_reminder_count
 
     message, reengagement_info = await handle_reminder_request(
