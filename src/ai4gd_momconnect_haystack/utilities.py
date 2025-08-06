@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import logging
 from pathlib import Path
@@ -10,7 +10,7 @@ from pydantic import BaseModel, ValidationError
 
 from ai4gd_momconnect_haystack import doc_store
 from ai4gd_momconnect_haystack.enums import AssessmentType
-from ai4gd_momconnect_haystack.pydantic_models import AssessmentQuestion
+from ai4gd_momconnect_haystack.pydantic_models import AssessmentQuestion, ReminderConfig
 
 
 logger = logging.getLogger(__name__)
@@ -91,6 +91,49 @@ assessment_map_to_assessment_types = {
 }
 
 ANC_SURVEY_MAP = {item.title: item for item in all_anc_survey_questions}
+
+
+# NEW: The central configuration for all reminder sequences
+REMINDER_CONFIG: dict[str, list[ReminderConfig]] = {
+    "onboarding": [
+        {  # First reminder for onboarding
+            "delay": timedelta(hours=1),
+            "acknowledgement_message": "",  # No acknowledgement
+            "resume_message": "Hi! Ready to pick up where you left off on our MomConnect study?\n\na. Yes, let’s start  ✅\nb. Remind me tomorrow",
+        },
+        {  # Second reminder for onboarding
+            "delay": timedelta(hours=23),
+            "acknowledgement_message": "Great! We’ll remind you tomorrow 🗓️\n\nChat soon 👋🏾",
+            "resume_message": "Hi mom!\n\nGot time to tell us a little bit more about yourself and help make MomConnect better for moms across South Africa? 👇🏽\n\na. Yes, let’s start  ✅\nb. Remind me tomorrow",
+        },
+    ],
+    "kab": [  # KAB flows can share the same schedule as onboarding
+        {
+            "delay": timedelta(hours=1),
+            "acknowledgement_message": "",
+            "resume_message": "Hi! Ready to pick up where you left off on our MomConnect study?\n\na. Yes, let’s start  ✅\nb. Remind me tomorrow",
+        },
+        {
+            "delay": timedelta(hours=23),
+            "acknowledgement_message": "Great! We’ll remind you tomorrow 🗓️\n\nChat soon 👋🏾",
+            "resume_message": "Hi mom!\n\nGot time to tell us a little bit more about yourself and help make MomConnect better for moms across South Africa? 👇🏽\n\na. Yes, let’s start  ✅\nb. Remind me tomorrow",
+        },
+    ],
+    "survey": [
+        {
+            "delay": timedelta(days=3),
+            "acknowledgement_message": "OK, that’s great! We’ll check in a few days to see how it went 💕",
+            "resume_message": None,
+        }
+    ],
+    "default": [  # A fallback for any other flows
+        {
+            "delay": timedelta(hours=23),
+            "acknowledgement_message": "Great! We’ll remind you tomorrow 🗓️\n\nChat soon 👋🏾",
+            "resume_message": "Hi! Ready to pick up where you left off?\n\na. Yes, let’s start  ✅\nb. Remind me tomorrow",
+        }
+    ],
+}
 
 
 def generate_scenario_id(flow_type: str, username: str) -> str:

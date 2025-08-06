@@ -1,22 +1,28 @@
 import re
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 
 from ai4gd_momconnect_haystack.crud import (
     get_assessment_history,
     get_or_create_chat_history,
     save_user_journey_state,
+    get_user_journey_state,
 )
-from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType
+from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType, ReminderType
 from ai4gd_momconnect_haystack.pipelines import (
     get_next_anc_survey_step,
     run_anc_survey_contextualization_pipeline,
     run_rephrase_question_pipeline,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import AssessmentHistory
-from .pydantic_models import ReengagementInfo
+from .pydantic_models import (
+    ReengagementInfo,
+    OnboardingResponse,
+    AssessmentResponse,
+    SurveyResponse,
+)
 
 from . import doc_store, pipelines
 from .utilities import (
@@ -26,10 +32,12 @@ from .utilities import (
     assessment_map_to_their_pre,
     kab_b_post_flow_id,
     kab_b_pre_flow_id,
+    REMINDER_CONFIG,
     prepare_valid_responses_to_display_to_assessment_user,
     prepare_valid_responses_to_display_to_onboarding_user,
 )
 
+from fastapi import HTTPException
 
 # --- Configuration ---
 logger = logging.getLogger(__name__)
@@ -629,9 +637,8 @@ def handle_user_message(
 
 def handle_intro_response(user_input: str, flow_id: str) -> dict:
     """
-    Handles a user's response to an introductory consent message by determining
-    their intent and validating their answer. This version prioritizes a
-    deterministic check for Yes/No before falling back to intent detection.
+    Handles a user's response to an introductory message, treating negative
+    responses as a request to be reminded later.
     """
     is_free_text_flow = (
         "onboarding" in flow_id or "behaviour" in flow_id or "survey" in flow_id
@@ -642,9 +649,24 @@ def handle_intro_response(user_input: str, flow_id: str) -> dict:
         else doc_store.INTRO_MESSAGES["multiple_choice_intro"]
     )
 
-    # First, perform the reliable, deterministic check for a clear Yes/No.
-    consent_intent = classify_yes_no_response(user_input)
+    if is_free_text_flow:
+        ussd_intent = classify_ussd_intro_response(user_input)
+        if ussd_intent == "AFFIRMATIVE":
+            return {
+                "action": "PROCEED",
+                "message": None,
+                "intent": "JOURNEY_RESPONSE",
+                "intent_related_response": None,
+            }
+        if ussd_intent == "REMIND_LATER":
+            return {
+                "action": "PAUSE_AND_REMIND",
+                "message": "Great! We’ll remind you tomorrow 🗓️\n\nChat soon 👋🏾",
+                "intent": "REQUEST_TO_BE_REMINDED",
+                "intent_related_response": None,
+            }
 
+    consent_intent = classify_yes_no_response(user_input)
     if consent_intent == "AFFIRMATIVE":
         return {
             "action": "PROCEED",
@@ -652,16 +674,14 @@ def handle_intro_response(user_input: str, flow_id: str) -> dict:
             "intent": "JOURNEY_RESPONSE",
             "intent_related_response": None,
         }
-
     if consent_intent == "NEGATIVE":
         return {
-            "action": "ABORT",
-            "message": doc_store.INTRO_MESSAGES["abort_message"],
-            "intent": "ASKING_TO_STOP_MESSAGES",
+            "action": "PAUSE_AND_REMIND",
+            "message": "No problem. We can try again later. Chat soon!",
+            "intent": "REQUEST_TO_BE_REMINDED",
             "intent_related_response": None,
         }
 
-    # If the response is ambiguous, THEN use the AI for general intent detection.
     intent, intent_related_response = handle_user_message(
         previous_intro_message, user_input
     )
@@ -678,22 +698,12 @@ def handle_intro_response(user_input: str, flow_id: str) -> dict:
         action_result["message"] = (
             f"{intent_related_response}\n\n{previous_intro_message}"
         )
-    # --- This block is added to handle the reminder intent ---
     elif intent == "REQUEST_TO_BE_REMINDED":
         action_result["action"] = "PAUSE_AND_REMIND"
         action_result["message"] = (
             "Of course. I will remind you later. Talk to you soon!"
         )
-    # If the user is asking to stop, abort the conversation.
-    elif intent in [
-        "ASKING_TO_STOP_MESSAGES",
-        "ASKING_TO_DELETE_DATA",
-        "REPORTING_AIRTIME_NOT_RECEIVED",
-    ]:
-        action_result["action"] = "ABORT"
-        action_result["message"] = doc_store.INTRO_MESSAGES["abort_message"]
-    # For chitchat or an ambiguous journey response, repair by re-prompting.
-    else:
+    else:  # Covers CHITCHAT and other ambiguous cases
         action_result["action"] = "REPROMPT"
         action_result["message"] = (
             f"Sorry, I didn't quite understand. Please reply with 'Yes' to begin or 'No' to stop.\n\n{previous_intro_message}"
@@ -886,21 +896,31 @@ async def handle_reminder_request(
     reminder_type: int,
 ) -> tuple[str, ReengagementInfo]:
     """
-    Central function to handle pausing a journey for a reminder.
-
-    This function saves the user's current state and creates the
-    re-engagement information for the front-end.
-
-    Returns:
-        A tuple containing the confirmation message to send to the user
-        and the ReengagementInfo object.
+    Central function to handle pausing a journey. It now uses a dynamic schedule
+    and returns a conditional confirmation message.
     """
+    schedule_key = "default"
+    if "onboarding" in flow_id:
+        schedule_key = "onboarding"
+    elif "behaviour" in flow_id:
+        schedule_key = "kab"
+    elif "survey" in flow_id:
+        schedule_key = "survey"
+
+    schedule = REMINDER_CONFIG[schedule_key]
+    reminder_count = user_context.get("reminder_count", 1)
+
+    config_index = min(reminder_count - 1, len(schedule) - 1)
+    reminder_config = schedule[config_index]
+    time_delta = reminder_config["delay"]
+
     reengagement_info = ReengagementInfo(
         type="USER_REQUESTED",
-        trigger_at_utc=datetime.now(timezone.utc) + timedelta(hours=23),
+        trigger_at_utc=datetime.now(timezone.utc) + time_delta,
         flow_id=flow_id,
         reminder_type=reminder_type,
     )
+
     await save_user_journey_state(
         user_id=user_id,
         flow_id=flow_id,
@@ -908,5 +928,189 @@ async def handle_reminder_request(
         last_question=last_question,
         user_context=user_context,
     )
-    confirmation_message = "Great! We’ll remind you tomorrow 🗓️\n\nChat soon 👋🏾"
-    return confirmation_message, reengagement_info
+
+    # Use the specific acknowledgement message from the config
+    return reminder_config["acknowledgement_message"], reengagement_info
+
+
+def classify_ussd_intro_response(user_input: str) -> str:
+    """
+    Classifies a user's response to the USSD-style intro message.
+    Returns: "AFFIRMATIVE", "REMIND_LATER", or "AMBIGUOUS".
+    """
+    user_input_lower = user_input.lower().strip()
+    affirmative_pattern = r"\b(a|yes|yebo|start)\b"
+    reminder_pattern = r"\b(b|remind|late)\b"
+
+    is_affirmative = bool(re.search(affirmative_pattern, user_input_lower))
+    is_reminder = bool(re.search(reminder_pattern, user_input_lower))
+
+    if is_affirmative and not is_reminder:
+        return "AFFIRMATIVE"
+    if is_reminder and not is_affirmative:
+        return "REMIND_LATER"
+
+    return "AMBIGUOUS"
+
+
+async def handle_journey_resumption_prompt(
+    user_id: str,
+    flow_id: str,
+) -> OnboardingResponse | AssessmentResponse | SurveyResponse:
+    """
+    Handles the logic for a `resume: true` request.
+
+    Determines whether to send a "Ready to continue?" meta-prompt or to
+    resume a flow (like ANC survey) directly with the next question.
+    """
+    state = await get_user_journey_state(user_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="Saved state for user not found.")
+
+    # Determine which schedule to use from the central config
+    schedule_key = "default"
+    if "onboarding" in flow_id:
+        schedule_key = "onboarding"
+    elif "behaviour" in flow_id:
+        schedule_key = "kab"
+    elif "survey" in flow_id:
+        schedule_key = "survey"
+
+    schedule = REMINDER_CONFIG.get(schedule_key, REMINDER_CONFIG["default"])
+    reminder_count = state.user_context.get("reminder_count", 0)
+
+    config_index = min(reminder_count, len(schedule) - 1)
+    reminder_config = schedule[config_index]
+    resume_message = reminder_config.get("resume_message")
+
+    # --- Conditional Resumption Logic ---
+
+    if resume_message is None:
+        # ANC SURVEY CASE: No resume message, go directly to the next question.
+        restored_context = state.user_context
+        question_result = await get_anc_survey_question(
+            user_id=user_id, user_context=restored_context
+        )
+
+        if not question_result:
+            return SurveyResponse(
+                question="Welcome back! It looks like you've already completed this survey. Thanks!",
+                user_context=restored_context,
+                survey_complete=True,
+                intent="SYSTEM_RESUMPTION_COMPLETE",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=0,
+            )
+
+        question = question_result.get("contextualized_question", "")
+        next_step = question_result.get("question_identifier", "")
+
+        await save_user_journey_state(
+            user_id=user_id,
+            flow_id="anc-survey",
+            step_identifier=next_step,
+            last_question=question,
+            user_context=restored_context,
+        )
+        return SurveyResponse(
+            question=question,
+            user_context=restored_context,
+            survey_complete=False,
+            intent="SYSTEM_RESUMPTION",
+            intent_related_response=None,
+            results_to_save=[],
+            failure_count=0,
+        )
+    else:
+        # ONBOARDING/KAB CASE: Send the resume meta-prompt.
+        await save_user_journey_state(
+            user_id=user_id,
+            flow_id=state.current_flow_id,
+            step_identifier="awaiting_reminder_response",
+            last_question=resume_message,
+            user_context=state.user_context,
+        )
+
+        # --- THIS IS THE FIX ---
+        # Use separate, explicit blocks for each response type
+        if "onboarding" in state.current_flow_id:
+            return OnboardingResponse(
+                question=resume_message,
+                user_context=state.user_context,
+                intent="SYSTEM_REMINDER_PROMPT",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=0,
+            )
+        else:  # Default to AssessmentResponse for KAB flows
+            return AssessmentResponse(
+                question=resume_message,
+                next_question=int(state.current_step_identifier),
+                intent="SYSTEM_REMINDER_PROMPT",
+                intent_related_response=None,
+                processed_answer=None,
+                failure_count=0,
+            )
+
+
+async def handle_intro_reminder(
+    user_id: str,
+    flow_id: str,
+    user_context: dict,
+    last_question: str,
+    result: dict,
+) -> OnboardingResponse | AssessmentResponse | SurveyResponse:
+    """
+    Handles the specific case where a user asks for a reminder during an
+    introductory message.
+    """
+    state = await get_user_journey_state(user_id)
+    current_reminder_count = state.reminder_count if state else 0
+    new_reminder_count = current_reminder_count + 1
+    reminder_type = (
+        ReminderType.SECOND if new_reminder_count >= 2 else ReminderType.FIRST
+    )
+    user_context["reminder_count"] = new_reminder_count
+
+    message, reengagement_info = await handle_reminder_request(
+        user_id=user_id,
+        flow_id=flow_id,
+        step_identifier="intro",
+        last_question=last_question,
+        user_context=user_context,
+        reminder_type=reminder_type,
+    )
+
+    # Determine which response model to use based on the flow_id
+    if "onboarding" in flow_id:
+        return OnboardingResponse(
+            question=message,
+            user_context=user_context,
+            intent=result["intent"],
+            intent_related_response=None,
+            results_to_save=[],
+            failure_count=0,
+            reengagement_info=reengagement_info,
+        )
+    elif "survey" in flow_id:
+        return SurveyResponse(
+            question=message,
+            user_context=user_context,
+            survey_complete=False,
+            intent=result["intent"],
+            intent_related_response=None,
+            results_to_save=[],
+            failure_count=0,
+            reengagement_info=reengagement_info,
+        )
+    else:  # Default to AssessmentResponse
+        return AssessmentResponse(
+            question=message,
+            next_question=0,  # Stay on the intro step
+            intent=result["intent"],
+            intent_related_response=None,
+            processed_answer=None,
+            failure_count=0,
+            reengagement_info=reengagement_info,
+        )
