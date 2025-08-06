@@ -1,5 +1,6 @@
 # models.py
 
+from datetime import datetime
 from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field, model_validator
@@ -140,6 +141,13 @@ class OnboardingRequest(BaseModel):
     failure_count: int = 0
 
 
+class ReengagementInfo(BaseModel):
+    type: str
+    trigger_at_utc: datetime
+    flow_id: str
+    reminder_type: int
+
+
 class OnboardingResponse(BaseModel):
     question: str
     user_context: dict[str, Any]
@@ -147,6 +155,7 @@ class OnboardingResponse(BaseModel):
     intent_related_response: str | None
     results_to_save: list[str]
     failure_count: int
+    reengagement_info: ReengagementInfo | None = None
 
 
 class AssessmentRequest(BaseModel):
@@ -166,6 +175,7 @@ class AssessmentResponse(BaseModel):
     intent_related_response: str | None
     processed_answer: str | None
     failure_count: int = 0
+    reengagement_info: ReengagementInfo | None = None
 
 
 class AssessmentEndRequest(BaseModel):
@@ -179,6 +189,7 @@ class AssessmentEndResponse(BaseModel):
     task: str | None
     intent: str | None
     intent_related_response: str | None
+    reengagement_info: ReengagementInfo | None = None
 
 
 class SurveyRequest(BaseModel):
@@ -197,6 +208,7 @@ class SurveyResponse(BaseModel):
     intent_related_response: str | None
     results_to_save: list[str]
     failure_count: int = 0
+    reengagement_info: ReengagementInfo | None = None
 
 
 class IntroductionMessage(BaseModel):
@@ -212,3 +224,11 @@ class CatchAllRequest(BaseModel):
 class CatchAllResponse(BaseModel):
     intent: str | None
     intent_related_response: str | None
+
+
+class ResumeRequest(BaseModel):
+    user_id: str
+
+
+class ResumeResponse(BaseModel):
+    resume_flow_id: str

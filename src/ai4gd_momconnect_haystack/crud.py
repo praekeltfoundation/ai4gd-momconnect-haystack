@@ -1,6 +1,8 @@
 import logging
+from typing import Any
 from sqlalchemy import delete, update
 from sqlalchemy.future import select
+from .sqlalchemy_models import UserJourneyState
 from haystack.dataclasses import ChatMessage
 
 from ai4gd_momconnect_haystack.assessment_logic import (
@@ -399,3 +401,58 @@ async def truncate_assessment_end_messaging_history():
     async with AsyncSessionLocal() as session:
         async with session.begin():
             await session.execute(delete(AssessmentEndMessagingHistory))
+
+
+async def save_user_journey_state(
+    user_id: str,
+    flow_id: str,
+    step_identifier: str,
+    last_question: str,
+    user_context: dict[str, Any],
+):
+    """
+    Creates or updates the user's last known state in the database.
+    This performs an 'upsert' operation.
+    """
+    if not last_question:
+        logger.warning(
+            f"Attempted to save journey state for user {user_id} with an empty last_question. Skipping."
+        )
+        return
+
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            # Try to get the existing state
+            result = await session.execute(
+                select(UserJourneyState).where(UserJourneyState.user_id == user_id)
+            )
+            existing_state = result.scalar_one_or_none()
+
+            if existing_state:
+                # Update existing record
+                existing_state.current_flow_id = flow_id
+                existing_state.current_step_identifier = str(step_identifier)
+                existing_state.last_question_sent = last_question
+                existing_state.user_context = user_context
+                logger.info(f"Updated journey state for user {user_id}.")
+            else:
+                # Create new record
+                new_state = UserJourneyState(
+                    user_id=user_id,
+                    current_flow_id=flow_id,
+                    current_step_identifier=str(step_identifier),
+                    last_question_sent=last_question,
+                    user_context=user_context,
+                )
+                session.add(new_state)
+                logger.info(f"Created new journey state for user {user_id}.")
+            await session.commit()
+
+
+async def get_user_journey_state(user_id: str) -> UserJourneyState | None:
+    """Retrieves the last known journey state for a given user."""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(UserJourneyState).where(UserJourneyState.user_id == user_id)
+        )
+        return result.scalar_one_or_none()

@@ -458,6 +458,7 @@ Here are the possible intents:
 - 'ASKING_TO_DELETE_DATA': The user explicitly asks to have their data deleted.
 - 'REPORTING_AIRTIME_NOT_RECEIVED': The user is reporting they have not received their airtime incentive.
 - 'SKIP_QUESTION': The user indicates they do not want to answer by using words like 'skip', 'pass', 'next', or saying they don't want to answer. This includes common misspellings.
+- 'REQUEST_TO_BE_REMINDED': The user explicitly asks to continue later, be reminded, or says they are busy now (e.g., "remind me tomorrow", "I can't now", "later please").
 
 ---
 **Example 1: User asks about the process**
@@ -525,6 +526,19 @@ The user's response "skipp" is a clear misspelling of "skip". This indicates a d
 <json>
 {
     "intent": "SKIP_QUESTION"
+}
+</json>
+---
+**Example 6: User asks to be reminded**
+Last question that was sent to the user: "In the last week, how many days did you miss a meal because there wasn’t money for food?"
+User's response: "Can you ask me this tomorrow morning?"
+
+<reasoning>
+The user was asked a direct question. Their response "Can you ask me this tomorrow morning?" is an explicit request to postpone the conversation. This matches the REQUEST_TO_BE_REMINDED intent.
+</reasoning>
+<json>
+{
+    "intent": "REQUEST_TO_BE_REMINDED"
 }
 </json>
 ---

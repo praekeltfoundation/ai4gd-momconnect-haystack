@@ -7,20 +7,17 @@ from haystack.dataclasses import ChatMessage
 from sentry_sdk import get_client as get_sentry_client
 
 from ai4gd_momconnect_haystack.api import app, setup_sentry
-from ai4gd_momconnect_haystack.database import run_migrations
 from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentEndScoreBasedMessage,
     AssessmentResult,
 )
-from ai4gd_momconnect_haystack.sqlalchemy_models import AssessmentEndMessagingHistory
+from ai4gd_momconnect_haystack.sqlalchemy_models import (
+    AssessmentEndMessagingHistory,
+    UserJourneyState,
+)
 
-
-@pytest.fixture(scope="session", autouse=True)
-def setup_test_database():
-    """Ensure migrations are run for the test database."""
-    run_migrations()
-
+from ai4gd_momconnect_haystack.database import AsyncSessionLocal
 
 SERVICE_PERSONA_TEXT = "Test Persona"
 
@@ -52,6 +49,17 @@ def test_onboarding_invalid_auth_scheme():
     response = client.post(
         "/v1/onboarding", headers={"Authorization": "Bearer testtoken"}
     )
+    assert response.status_code == 401
+
+
+@pytest.mark.parametrize(
+    "endpoint", ["/v1/onboarding", "/v1/assessment", "/v1/survey", "/v1/resume"]
+)
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+def test_invalid_auth(endpoint, client: TestClient):
+    response = client.post(endpoint, headers={"Authorization": "Bearer testtoken"})
+    assert response.status_code == 401
+    response = client.post(endpoint, headers={"Authorization": "Token invalid"})
     assert response.status_code == 401
 
 
@@ -312,6 +320,7 @@ async def test_assessment_initial_message(
         "intent_related_response": "",
         "processed_answer": None,
         "failure_count": 0,
+        "reengagement_info": None,
     }
 
     handle_user_message.assert_not_called()
@@ -396,6 +405,7 @@ async def test_assessment_valid_journey_response(
         "intent_related_response": "",
         "processed_answer": "very confident",
         "failure_count": 0,
+        "reengagement_info": None,
     }
 
     # Assert that the core logic functions were called with the correct arguments
@@ -515,6 +525,7 @@ async def test_assessment_end_initial_message(
         "task": "",
         "intent": "JOURNEY_RESPONSE",
         "intent_related_response": "",
+        "reengagement_info": None,
     }
 
     mock_get_result.assert_awaited_once()
@@ -621,6 +632,7 @@ async def test_assessment_end_valid_response_to_required_question(
         "task": "SEND_SUMMARY",
         "intent": "JOURNEY_RESPONSE",
         "intent_related_response": "",
+        "reengagement_info": None,
     }
 
     mock_validate_response.assert_called_once()
@@ -1689,3 +1701,136 @@ async def test_onboarding_summary_confirmation_signals_start_dma(mock_summary_ha
     # The intent MUST be the specific signal for the caller to start the DMA assessment.
     assert json_response["intent"] == "ONBOARDING_COMPLETE_START_DMA"
     assert json_response["question"] == "Perfect, thank you! Now for the next section."
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+async def test_resume_endpoint_user_not_found(client: TestClient):
+    """
+    Tests that the /v1/resume endpoint returns a 404 if no journey state is found.
+    """
+    response = client.post(
+        "/v1/resume",
+        headers={"Authorization": "Token testtoken"},
+        json={"user_id": "nonexistent-user"},
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+async def test_resume_endpoint_success(client: TestClient):
+    """
+    Tests that the /v1/resume endpoint successfully returns the flow_id for a user with a saved state.
+    """
+    # Arrange: Manually save a state for a user directly to the test DB
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            session.add(
+                UserJourneyState(
+                    user_id="resumable-user",
+                    current_flow_id="onboarding",
+                    current_step_identifier="2",
+                    last_question_sent="What is your area type?",
+                    user_context={"province": "Gauteng"},
+                )
+            )
+            await session.commit()
+
+    # Act
+    response = client.post(
+        "/v1/resume",
+        headers={"Authorization": "Token testtoken"},
+        json={"user_id": "resumable-user"},
+    )
+
+    # Assert
+    assert response.status_code == 200
+    assert response.json() == {"resume_flow_id": "onboarding"}
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_next_onboarding_question",
+    return_value={
+        "contextualized_question": "What kind of area do you live in?",
+        "question_number": 2,
+    },
+)
+async def test_onboarding_full_resumption_flow(mock_get_next_q, client: TestClient):
+    """
+    Tests the full resumption flow: API receives resume flag, fetches saved context,
+    and returns the correct next question.
+    """
+    # Arrange: Save a state for a user who has answered the first question
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            session.add(
+                UserJourneyState(
+                    user_id="onboarding-resume-user",
+                    current_flow_id="onboarding",
+                    current_step_identifier="1",
+                    last_question_sent="Which province do you live in?",
+                    user_context={"province": "Gauteng"},
+                )
+            )
+            await session.commit()
+
+    # Act
+    response = client.post(
+        "/v1/onboarding",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "onboarding-resume-user",
+            "user_input": "",
+            "user_context": {"resume": True},
+            "failure_count": 0,
+        },
+    )
+
+    # Assert
+    assert response.status_code == 200
+    json_response = response.json()
+    assert json_response["question"] == "What kind of area do you live in?"
+    assert json_response["intent"] == "SYSTEM_RESUMPTION"
+    assert json_response["user_context"] == {"province": "Gauteng"}
+    mock_get_next_q.assert_called_once_with(user_context={"province": "Gauteng"})
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.handle_user_message",
+    return_value=("REQUEST_TO_BE_REMINDED", None),
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
+    new_callable=mock.AsyncMock,
+    return_value=[ChatMessage.from_assistant("Some question")],
+)
+async def test_reminder_request_returns_reengagement_info(
+    mock_get_history, mock_handle_message, client: TestClient
+):
+    """
+    Tests that when a user asks for a reminder, the API response includes the reengagement_info object.
+    """
+    response = client.post(
+        "/v1/assessment",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "reminder-user",
+            "user_input": "remind me tomorrow",
+            "user_context": {},
+            "flow_id": "dma-pre-assessment",
+            "question_number": 1,
+            "previous_question": "Some question",
+            "failure_count": 0,
+        },
+    )
+
+    assert response.status_code == 200
+    json_response = response.json()
+    assert "reengagement_info" in json_response
+    assert json_response["reengagement_info"]["type"] == "USER_REQUESTED"
+    assert "trigger_at_utc" in json_response["reengagement_info"]

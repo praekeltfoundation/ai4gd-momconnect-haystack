@@ -1,11 +1,13 @@
 import re
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 
 
 from ai4gd_momconnect_haystack.crud import (
     get_assessment_history,
     get_or_create_chat_history,
+    save_user_journey_state,
 )
 from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType
 from ai4gd_momconnect_haystack.pipelines import (
@@ -14,6 +16,7 @@ from ai4gd_momconnect_haystack.pipelines import (
     run_rephrase_question_pipeline,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import AssessmentHistory
+from .pydantic_models import ReengagementInfo
 
 from . import doc_store, pipelines
 from .utilities import (
@@ -675,6 +678,12 @@ def handle_intro_response(user_input: str, flow_id: str) -> dict:
         action_result["message"] = (
             f"{intent_related_response}\n\n{previous_intro_message}"
         )
+    # --- This block is added to handle the reminder intent ---
+    elif intent == "REQUEST_TO_BE_REMINDED":
+        action_result["action"] = "PAUSE_AND_REMIND"
+        action_result["message"] = (
+            "Of course. I will remind you later. Talk to you soon!"
+        )
     # If the user is asking to stop, abort the conversation.
     elif intent in [
         "ASKING_TO_STOP_MESSAGES",
@@ -866,3 +875,38 @@ def classify_yes_no_response(user_input: str) -> str:
 
     # If neither is found, the intent is ambiguous.
     return "AMBIGUOUS"
+
+
+async def handle_reminder_request(
+    user_id: str,
+    flow_id: str,
+    step_identifier: str,
+    last_question: str,
+    user_context: dict,
+    reminder_type: int,
+) -> tuple[str, ReengagementInfo]:
+    """
+    Central function to handle pausing a journey for a reminder.
+
+    This function saves the user's current state and creates the
+    re-engagement information for the front-end.
+
+    Returns:
+        A tuple containing the confirmation message to send to the user
+        and the ReengagementInfo object.
+    """
+    reengagement_info = ReengagementInfo(
+        type="USER_REQUESTED",
+        trigger_at_utc=datetime.now(timezone.utc) + timedelta(hours=23),
+        flow_id=flow_id,
+        reminder_type=reminder_type,
+    )
+    await save_user_journey_state(
+        user_id=user_id,
+        flow_id=flow_id,
+        step_identifier=step_identifier,
+        last_question=last_question,
+        user_context=user_context,
+    )
+    confirmation_message = "Great! We’ll remind you tomorrow 🗓️\n\nChat soon 👋🏾"
+    return confirmation_message, reengagement_info
