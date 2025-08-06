@@ -10,9 +10,6 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from haystack.dataclasses import ChatMessage
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from .database import AsyncSessionLocal
-from typing import AsyncGenerator
 
 from ai4gd_momconnect_haystack.assessment_logic import (
     create_assessment_end_error_response,
@@ -159,12 +156,6 @@ def verify_token(authorization: Annotated[str, Header()]):
         )
 
     return credential
-
-
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency to get a database session."""
-    async with AsyncSessionLocal() as session:
-        yield session
 
 
 @app.post("/v1/onboarding")
