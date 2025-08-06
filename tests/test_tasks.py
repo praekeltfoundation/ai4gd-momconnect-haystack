@@ -12,12 +12,17 @@ from ai4gd_momconnect_haystack.assessment_logic import (
     validate_assessment_answer,
 )
 from ai4gd_momconnect_haystack.enums import AssessmentType
+from ai4gd_momconnect_haystack.utilities import create_response_to_key_map
+from ai4gd_momconnect_haystack.sqlalchemy_models import UserJourneyState
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentQuestion,
     AssessmentRun,
     ResponseScore,
     Turn,
+    SurveyResponse,
+    ReengagementInfo,
 )
+
 from ai4gd_momconnect_haystack.tasks import (
     extract_onboarding_data_from_response,
     get_assessment_question,
@@ -30,6 +35,8 @@ from ai4gd_momconnect_haystack.tasks import (
     classify_yes_no_response,
     handle_reminder_request,
     classify_ussd_intro_response,
+    handle_reminder_response,
+    get_anc_survey_question,
 )
 
 # --- Test Data Fixtures ---
@@ -494,7 +501,7 @@ def test_extract_anc_data_no_match_handles_other(mock_run_pipeline):
         user_response="I was too sick", user_context={}, step_title="Q_challenges"
     )
 
-    assert context["Q_challenges"] == "Something else 😞"
+    assert context["Q_challenges"] == "SOMETHING_ELSE"
     assert context["Q_challenges_other_text"] == "I was too sick"
     assert action_dict is None
 
@@ -793,3 +800,153 @@ def test_classify_ussd_intro_response(user_input, expected_classification):
     with a variety of user input formats.
     """
     assert classify_ussd_intro_response(user_input) == expected_classification
+
+
+def test_create_response_to_key_map_generates_correct_keys():
+    """
+    Tests that the helper function correctly generates a map of response text to standardized keys.
+    """
+
+    valid_responses = [
+        "Yes, I went",
+        "No, I'm not going",
+        "Something else 😞",
+        "Very good",
+    ]
+
+    expected_map = {
+        "Yes, I went": "YES",
+        "No, I'm not going": "NO",
+        "Something else 😞": "SOMETHING_ELSE",
+        "Very good": "EXP_VERY_GOOD",
+    }
+
+    key_map = create_response_to_key_map(valid_responses)
+    assert key_map == expected_map
+
+
+@pytest.mark.asyncio
+async def test_handle_reminder_response_affirmative():
+    """
+    Tests that when a user affirmatively responds to a reminder, the original question is returned.
+    """
+    mock_state = UserJourneyState(
+        user_id="test-user",
+        current_flow_id="anc-survey",
+        current_step_identifier="start",
+        last_question_sent="This was the original question.",
+        user_context={},
+    )
+
+    response = await handle_reminder_response(
+        user_id="test-user", user_input="a. Yes", state=mock_state
+    )
+
+    assert isinstance(response, SurveyResponse)
+    assert response.question == "This was the original question."
+    assert response.intent == "JOURNEY_RESUMED"
+
+
+@pytest.mark.asyncio
+@mock.patch(
+    "ai4gd_momconnect_haystack.tasks.handle_reminder_request",
+    new_callable=mock.AsyncMock,
+)
+async def test_handle_reminder_response_remind_later(mock_reminder_request):
+    """
+    Tests that when a user asks for another reminder, the request is handled correctly.
+    """
+    # FIX: Return a real ReengagementInfo object, not a generic mock
+    reengagement_info = ReengagementInfo(
+        type="USER_REQUESTED",
+        trigger_at_utc=datetime.now(timezone.utc),
+        flow_id="anc-survey",
+        reminder_type=2,
+    )
+    mock_reminder_request.return_value = (
+        "OK, we'll remind you again.",
+        reengagement_info,
+    )
+
+    mock_state = UserJourneyState(
+        user_id="test-user",
+        current_flow_id="anc-survey",
+        current_step_identifier="start",
+        last_question_sent="Original question.",
+        user_context={"reminder_count": 1},
+    )
+
+    response = await handle_reminder_response(
+        user_id="test-user", user_input="b. Remind me tomorrow", state=mock_state
+    )
+
+    mock_reminder_request.assert_awaited_once()
+    assert response.intent == "REQUEST_TO_BE_REMINDED"
+    assert response.question == "OK, we'll remind you again."
+    assert response.reengagement_info == reengagement_info
+
+
+@pytest.mark.asyncio
+async def test_handle_reminder_response_ambiguous():
+    """
+    Tests that an ambiguous response to a reminder re-sends the reminder prompt.
+    """
+    mock_state = UserJourneyState(
+        user_id="test-user",
+        current_flow_id="anc-survey",
+        current_step_identifier="start",
+        last_question_sent="Original question.",
+        user_context={},
+    )
+
+    response = await handle_reminder_response(
+        user_id="test-user", user_input="maybe later", state=mock_state
+    )
+
+    assert response.intent == "REPAIR"
+    assert "Hello 👋🏽" in response.question
+    assert "You started telling us about" in response.question
+
+
+@pytest.mark.asyncio
+@mock.patch("ai4gd_momconnect_haystack.tasks.run_anc_survey_contextualization_pipeline")
+@mock.patch("ai4gd_momconnect_haystack.tasks.get_next_anc_survey_step")
+@mock.patch(
+    "ai4gd_momconnect_haystack.tasks.get_or_create_chat_history",
+    new_callable=mock.AsyncMock,
+)
+async def test_get_anc_survey_question_appends_ussd_options(
+    mock_get_history,
+    mock_get_next_step,
+    mock_contextualize,
+):
+    """
+    Tests that for questions that require them (like Q_experience), the USSD-style
+    multiple-choice options are correctly formatted and appended to the question text.
+    """
+    # Arrange
+    # 1. Force the logic to select the "Q_experience" step, which requires USSD options.
+    mock_get_next_step.return_value = "Q_experience"
+
+    # 2. Mock the AI contextualizer to return a predictable base question.
+    mock_contextualize.return_value = "How was your overall experience at the check-up?"
+
+    # 3. Provide a minimal chat history.
+    mock_get_history.return_value = []
+
+    # Act
+    result = await get_anc_survey_question(user_id="test-user", user_context={})
+
+    # Assert
+    assert result is not None
+    final_question = result["contextualized_question"]
+
+    # 4. Check that the final question contains both the base text from the AI
+    #    AND the correctly formatted USSD-style options.
+    assert "How was your overall experience at the check-up?" in final_question
+    assert "\na. Very good" in final_question
+    assert "\nb. Good" in final_question
+    assert "\nc. OK" in final_question
+    assert "\nd. Bad" in final_question
+
+    assert "\ne. Very bad" in final_question

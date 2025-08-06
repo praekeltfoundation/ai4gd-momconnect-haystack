@@ -67,6 +67,7 @@ from ai4gd_momconnect_haystack.tasks import (
     handle_reminder_request,
     handle_journey_resumption_prompt,
     handle_intro_reminder,
+    handle_reminder_response,
 )
 from ai4gd_momconnect_haystack.utilities import (
     FLOWS_WITH_INTRO,
@@ -902,6 +903,15 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
     )
     user_context = request.user_context.copy()
     previous_context = request.user_context.copy()
+
+    # Check if the user's last state was awaiting a response to a reminder
+    saved_state = await get_user_journey_state(user_id)
+    if (
+        saved_state
+        and saved_state.current_step_identifier == "awaiting_reminder_response"
+    ):
+        # If so, hand off to the dedicated reminder response handler
+        return await handle_reminder_response(user_id, user_input, saved_state)
 
     # --- 1. INTRO LOGIC ---
     if not user_input:

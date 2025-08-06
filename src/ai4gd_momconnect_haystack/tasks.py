@@ -16,7 +16,10 @@ from ai4gd_momconnect_haystack.pipelines import (
     run_anc_survey_contextualization_pipeline,
     run_rephrase_question_pipeline,
 )
-from ai4gd_momconnect_haystack.sqlalchemy_models import AssessmentHistory
+from ai4gd_momconnect_haystack.sqlalchemy_models import (
+    AssessmentHistory,
+    UserJourneyState,
+)
 from .pydantic_models import (
     ReengagementInfo,
     OnboardingResponse,
@@ -35,6 +38,8 @@ from .utilities import (
     REMINDER_CONFIG,
     prepare_valid_responses_to_display_to_assessment_user,
     prepare_valid_responses_to_display_to_onboarding_user,
+    create_response_to_key_map,
+    prepare_valid_responses_to_display_to_anc_survey_user,
 )
 
 from fastapi import HTTPException
@@ -488,7 +493,12 @@ async def get_anc_survey_question(user_id: str, user_context: dict) -> dict | No
         valid_responses,
     )
 
-    final_question_text = text_to_prepend + contextualized_question
+    final_question_text = prepare_valid_responses_to_display_to_anc_survey_user(
+        text_to_prepend=text_to_prepend,
+        question=contextualized_question,
+        valid_responses=valid_responses or [],
+        step_title=next_step,
+    )
 
     return {
         "contextualized_question": final_question_text.strip(),
@@ -503,28 +513,30 @@ def extract_anc_data_from_response(
     step_title: str,
 ) -> tuple[dict, dict | None]:
     """
-    Extracts data from a user's response to an ANC survey question using a
-    confidence-based pipeline.
+    Extracts data from a user's response to an ANC survey question by mapping
+    the response to a standardized key.
     Returns the updated context and an optional action dictionary for the API.
     """
     logger.info("Running confidence-based ANC survey data extraction...")
     question_data = ANC_SURVEY_MAP.get(step_title)
-    action_dict = None  # To hold special instructions for the API
+    action_dict = None
 
     if not question_data:
         logger.error(f"Could not find question content for step_id: '{step_title}'")
         return user_context, None
 
-    # Default to raw user response if there are no predefined options
     if not question_data.valid_responses:
         user_context[step_title] = user_response
         return user_context, None
 
-    # Call our new, more intelligent pipeline
+    # Step 1: Create the mapping from response text to a standardized key
+    response_key_map = create_response_to_key_map(question_data.valid_responses)
+
+    # Step 2: Call the pipeline, passing the key map for the AI to use
     extraction_result = pipelines.run_survey_data_extraction_pipeline(
-        user_response,
-        question_data.content,
-        question_data.valid_responses,
+        user_response=user_response,
+        previous_service_message=question_data.content,
+        response_key_map=response_key_map,  # Pass the map as a keyword argument
     )
 
     if not extraction_result:
@@ -534,49 +546,44 @@ def extract_anc_data_from_response(
     print(f"[Extracted ANC Data]:\n{json.dumps(extraction_result, indent=2)}\n")
 
     match_type = extraction_result.get("match_type")
-    validated_response = extraction_result.get("validated_response")
+    validated_response_key = extraction_result.get("validated_response")
     confidence = extraction_result.get("confidence")
 
-    if confidence == "low":
-        # RECOMMENDATION 1: This is the clarification loop.
-        # Signal the API to ask the user for confirmation.
+    if confidence == "low" and isinstance(
+        validated_response_key, str
+    ):  # FIX: Check key is a string
+        # For the confirmation message, we need the full text, not the key.
+        # We can look it up from our generated map.
+        key_to_response_map = {v: k for k, v in response_key_map.items()}
+        potential_answer_text = key_to_response_map.get(validated_response_key, "")
+
         action_dict = {
             "status": "needs_confirmation",
-            "message": f"It sounds like you meant '{validated_response}'. Is that correct?",
-            "potential_answer": validated_response,
+            "message": f"It sounds like you meant '{potential_answer_text}'. Is that correct?",
+            "potential_answer": validated_response_key,  # We confirm the key
             "step_title_to_confirm": step_title,
         }
         logger.info(
-            f"Low confidence match. Triggering confirmation for: {validated_response}"
+            f"Low confidence match. Triggering confirmation for: {validated_response_key}"
         )
 
     elif match_type == "no_match":
-        # RECOMMENDATION 2: Handle the "Other" category gracefully.
-        other_option = next(
-            (
-                resp
-                for resp in question_data.valid_responses
-                if "Something else" in resp
-            ),
-            None,
+        # Find the standardized key for the "Something else" option.
+        other_option_key = next(
+            (v for k, v in response_key_map.items() if "Something else" in k), "OTHER"
         )
-        if other_option:
-            user_context[step_title] = other_option
-            user_context[f"{step_title}_other_text"] = (
-                validated_response  # Store the verbatim text
-            )
-            logger.info(
-                f"Handled as 'other'. Storing '{validated_response}' in '{step_title}_other_text'"
-            )
-        else:
-            user_context[step_title] = (
-                validated_response  # Fallback if no "other" option exists
-            )
 
-    elif validated_response:
-        # High-confidence, direct match.
-        user_context[step_title] = validated_response
-        logger.info(f"Updated user_context for {step_title}: {validated_response}")
+        user_context[step_title] = other_option_key
+        # Save the user's raw, unaltered text in a separate field.
+        user_context[f"{step_title}_other_text"] = user_response
+        logger.info(
+            f"Handled as 'other'. Storing '{user_response}' in '{step_title}_other_text'"
+        )
+
+    elif validated_response_key:
+        # High-confidence, direct match. Store the KEY in the context.
+        user_context[step_title] = validated_response_key
+        logger.info(f"Updated user_context for {step_title}: {validated_response_key}")
 
     return user_context, action_dict
 
@@ -1113,4 +1120,89 @@ async def handle_intro_reminder(
             processed_answer=None,
             failure_count=0,
             reengagement_info=reengagement_info,
+        )
+
+
+async def handle_reminder_response(
+    user_id: str,
+    user_input: str,
+    state: UserJourneyState,  # The user's saved state
+) -> SurveyResponse:
+    """
+    Processes a user's response to a "Ready to continue?" reminder prompt.
+
+    Returns:
+        A SurveyResponse object with the next question or another reminder.
+    """
+    # Use the robust classifier for the user's "Yes" or "Remind me tomorrow"
+    intent = classify_ussd_intro_response(user_input)
+
+    if intent == "AFFIRMATIVE":
+        # User wants to continue.
+        # We fetch the original question they missed and send it again.
+        restored_context = state.user_context
+        question_to_send = state.last_question_sent
+
+        # If for some reason the last question was empty, get the next logical one
+        if not question_to_send:
+            question_result = await get_anc_survey_question(
+                user_id=user_id, user_context=restored_context
+            )
+            if question_result:
+                question_to_send = question_result.get("contextualized_question", "")
+
+        return SurveyResponse(
+            question=question_to_send,
+            user_context=restored_context,
+            survey_complete=False,
+            intent="JOURNEY_RESUMED",
+            intent_related_response=None,
+            results_to_save=[],
+            failure_count=0,
+        )
+
+    elif intent == "REMIND_LATER":
+        # User wants another reminder. Schedule it.
+        # This re-uses the existing reminder logic for DRYness.
+        message, reengagement_info = await handle_reminder_request(
+            user_id=user_id,
+            flow_id=state.current_flow_id,
+            step_identifier=state.current_step_identifier,
+            last_question=state.last_question_sent,
+            user_context=state.user_context,
+            reminder_type=2,  # This is at least the second reminder
+        )
+        return SurveyResponse(
+            question=message,
+            user_context=state.user_context,
+            survey_complete=False,
+            intent="REQUEST_TO_BE_REMINDED",
+            intent_related_response=None,
+            results_to_save=[],
+            failure_count=0,
+            reengagement_info=reengagement_info,
+        )
+
+    else:  # Ambiguous response
+        # Re-send the reminder prompt to clarify
+        # FIX: Correctly determine the schedule key to get the right resume message
+        schedule_key = "default"
+        if "survey" in state.current_flow_id:
+            schedule_key = "survey"
+        elif "onboarding" in state.current_flow_id:
+            schedule_key = "onboarding"
+        elif "behaviour" in state.current_flow_id:
+            schedule_key = "kab"
+
+        schedule = REMINDER_CONFIG.get(schedule_key, REMINDER_CONFIG["default"])
+        rephrased_question = schedule[0].get("resume_message")
+
+        return SurveyResponse(
+            question=rephrased_question,
+            user_context=state.user_context,
+            survey_complete=False,
+            intent="REPAIR",
+            intent_related_response=None,
+            results_to_save=[],
+            failure_count=0,
         )

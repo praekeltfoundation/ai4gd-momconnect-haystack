@@ -620,57 +620,33 @@ Use the `extract_updated_data` tool to return all the extracted changes in a sin
 """
 
 SURVEY_DATA_EXTRACTION_PROMPT = """
-You are an expert AI assistant for a maternal health survey. Your task is to analyze a user's free-text response and map it to one of the predefined "valid_responses". You must return a structured JSON object with your analysis.
+You are an expert AI assistant for a maternal health survey. Your task is to analyze a user's free-text response and map it to one of the predefined options based on its meaning.
 
 **Analysis Steps:**
-1.  **Compare**: Compare the user's response against the list of valid responses.
-2.  **Match Type**: Determine the type of match.
-    - `exact`: The user's response is a direct keyword match or a very close synonym (e.g., "yes", "yebo", "yeah" for "Yes").
-    - `inferred`: The user's response does not contain keywords but its meaning can be reasonably inferred to match one of the options.
-    - `no_match`: The user's response is a valid answer to the question but does not align with any of the predefined options.
-3.  **Confidence**: Assess your confidence in the mapping.
-    - `high`: You are certain of the match. This is always the case for an `exact` or `no_match` type.
-    - `low`: The match is a plausible inference but is ambiguous or could be interpreted differently (e.g., user says "Not yet" when an option is "I'm going soon").
-4.  **Validated Response**:
-    - For `exact` or `inferred` matches, this MUST be the exact string of the matched valid response.
-    - For `no_match`, this MUST be the user's original, unaltered free-text response.
+1.  **Analyze**: Understand the user's intent based on their message.
+2.  **Map to Key**: Map the intent to the single most appropriate `standardized_key` from the provided "Response to Key Mapping". The key you return MUST be one of the values from the mapping.
+3.  **Confidence**: Assess your confidence in the mapping (`high` or `low`).
+4.  **Match Type**: Determine the match type (`exact`, `inferred`, `no_match`). If the user's response is a valid answer but does not fit any of the provided options, use `no_match`.
 
 **JSON Output Structure:**
 You MUST respond with a valid JSON object with exactly these three keys:
-- `validated_response`: (string) The matched valid response string, or the user's original text if no match was found.
+- `validated_response`: (string) The `standardized_key` you chose from the mapping. If  `match_type` is `no_match`, return an empty string.
 - `match_type`: (string) One of "exact", "inferred", or "no_match".
 - `confidence`: (string) One of "high" or "low".
 
 ---
-**Example 1: Ambiguous Inference (Low Confidence)**
+**Example:**
 - Question: "Did you go to your pregnancy check-up this week?"
-- Valid Responses: ["Yes, I went", "No, I'm not going", "I'm going soon"]
-- User Response: "Not yet"
-- JSON Response:
+- Response to Key Mapping:
 {
-    "validated_response": "I'm going soon",
-    "match_type": "inferred",
-    "confidence": "low"
+    "Yes, I went": "YES",
+    "No, I'm not going": "NO",
+    "I'm going soon": "SOON"
 }
----
-**Example 2 : No Match (Creating an "Other")**
-- Question: "What was the number 1 reason you didn't get to this one?"
-- Valid Responses: ["Transport 🚌", "No support 🤝", "Something else 😞"]
-- User Response: "I was too sick that day"
+- User Response: "I went"
 - JSON Response:
 {
-    "validated_response": "I was too sick that day",
-    "match_type": "no_match",
-    "confidence": "high"
-}
----
-**Example 3: Conversational Affirmative**
-- Question: "We'd love to know how it went. Do you have 2 minutes to tell us about it?"
-- Valid Responses: ["Yes", "Remind me tomorrow"]
-- User Response: "I can"
-- JSON Response:
-{
-    "validated_response": "Yes",
+    "validated_response": "YES",
     "match_type": "inferred",
     "confidence": "high"
 }
@@ -678,7 +654,7 @@ You MUST respond with a valid JSON object with exactly these three keys:
 
 **Your Task:**
 - Previous Question: "{{ previous_service_message }}"
-- Valid Responses: {{ valid_responses }}
+- Response to Key Mapping: {{ response_key_map }}
 - User's Response: "{{ user_response }}"
 
 JSON Response:

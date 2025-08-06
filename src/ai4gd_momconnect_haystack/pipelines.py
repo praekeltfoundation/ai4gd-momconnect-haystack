@@ -112,126 +112,61 @@ REPHRASED_QUESTION_SCHEMA = {
 ANC_SURVEY_FLOW_LOGIC = {
     "intro": lambda ctx: "start",
     "start": lambda ctx: "Q_seen"
-    if ctx.get("start") == "Yes, I went"
+    if ctx.get("start") == "VISIT_YES"
     else "start_not_going"
-    if ctx.get("start") == "No, I'm not going"
+    if ctx.get("start") == "VISIT_NO"
     else "start_going_soon"
-    if ctx.get("start") == "I'm going soon"
-    else "Q_seen",  # ADDED DEFAULT PATH
-    # I'm going soon
+    if ctx.get("start") == "VISIT_SOON"
+    else "Q_seen",
     "start_going_soon": lambda ctx: "__GOING_SOON_REMINDER_3_DAYS__",
-    # Yes, I went
-    "Q_seen": lambda ctx: "seen_yes"
-    if ctx.get("Q_seen") == "Yes"
-    else "Q_seen_no"
-    if ctx.get("Q_seen") == "No"
-    else "Q_challenges",  # ADDED DEFAULT PATH (skips to a common subsequent question)
+    "Q_seen": lambda ctx: "seen_yes" if ctx.get("Q_seen") == "YES" else "Q_seen_no",
     "seen_yes": lambda ctx: "Q_bp"
-    if ctx.get("seen_yes") == "Yes"
-    else "mom_ANC_remind_me_01"
-    if ctx.get("seen_yes") == "Remind me tomorrow"
-    else "Q_bp",  # ADDED DEFAULT PATH
+    if ctx.get("seen_yes") == "YES"
+    else "mom_ANC_remind_me_01",
     "Q_seen_no": lambda ctx: "Q_why_no_visit"
-    if ctx.get("Q_seen_no") == "Yes"
-    else "mom_ANC_remind_me_01"
-    if ctx.get("Q_seen_no") == "Remind me tomorrow"
-    else "Q_why_no_visit",  # ADDED DEFAULT PATH
-    "Q_why_no_visit": lambda ctx: "intent"
-    if ctx.get("Q_why_no_visit")
-    in [
-        "Clinic was closed ⛔",
-        "Wait time too long ⌛",
-        "No maternity record 📝",
-        "Asked to pay 💰",
-        "Told to come back 📅",
-        "Staff disrespectful 🤬",
-    ]
-    else "Q_why_no_visit_other"
-    if ctx.get("Q_why_no_visit") == "Something else 😞"
-    else "intent",  # ADDED DEFAULT PATH
-    "Q_why_no_visit_other": lambda ctx: "intent",
+    if ctx.get("Q_seen_no") == "YES"
+    else "mom_ANC_remind_me_01",
     "mom_ANC_remind_me_01": lambda ctx: "__NOT_GOING_REMINDER_1_DAY__",
     "Q_bp": lambda ctx: "Q_experience",
     "Q_experience": lambda ctx: "bad"
-    if ctx.get("Q_experience") in ["Bad", "Very bad"]
-    else "good"
-    if ctx.get("Q_experience") in ["Very good", "Good", "OK"]
-    else "Q_visit_good",  # ADDED DEFAULT PATH
+    if ctx.get("Q_experience") in ["EXP_BAD", "EXP_VERY_BAD"]
+    else "good",
     "bad": lambda ctx: "Q_visit_bad",
     "good": lambda ctx: "Q_visit_good",
-    "Q_visit_good": lambda ctx: "Q_challenges"
-    if ctx.get("Q_visit_good")
-    in [
-        "No problems 👌",
-        "No maternity record 📝",
-        "Shamed/embarrassed 😳",
-        "No privacy 🤐",
-        "Not enough info ℹ️",
-        "Staff disespectful 🤬",
-        "Asked to pay 💰",
-        "Waited a long time ⌛",
-    ]
-    else "Q_visit_other"
-    if ctx.get("Q_visit_good") == "Something else 😞"
-    else "Q_challenges",  # ADDED DEFAULT PATH
-    "Q_visit_bad": lambda ctx: "Q_challenges"
-    if ctx.get("Q_visit_bad")
-    in [
-        "No maternity record 📝",
-        "Shamed/embarrassed 😳",
-        "No privacy 🤐",
-        "Not enough info ℹ️",
-        "Staff disrespectful 🤬",
-        "Asked to pay 💰",
-        "Waited a long time ⌛",
-    ]
-    else "Q_visit_other"
-    if ctx.get("Q_visit_bad") == "Something else 😞"
-    else "Q_challenges",  # ADDED DEFAULT PATH
+    "Q_visit_good": lambda ctx: "Q_visit_other"
+    if ctx.get("Q_visit_good") == "SOMETHING_ELSE"
+    else "Q_challenges",
+    "Q_visit_bad": lambda ctx: "Q_visit_other"
+    if ctx.get("Q_visit_bad") == "SOMETHING_ELSE"
+    else "Q_challenges",
     "Q_visit_other": lambda ctx: "Q_challenges",
-    "Q_challenges": lambda ctx: "intent"
-    if ctx.get("Q_challenges")
-    in ["No challenges 👌", "Transport 🚌", "No support 🤝", "Clinic opening hours 🏥"]
-    else "Q_challenges_other"
-    if ctx.get("Q_challenges") == "Something else 😞"
-    else "intent",  # ADDED DEFAULT PATH
+    "Q_challenges": lambda ctx: "Q_challenges_other"
+    if ctx.get("Q_challenges") == "SOMETHING_ELSE"
+    else "intent",
     "Q_challenges_other": lambda ctx: "intent",
-    # No, I'm not going
+    "Q_why_no_visit": lambda ctx: "Q_why_no_visit_other"
+    if ctx.get("Q_why_no_visit") == "SOMETHING_ELSE"
+    else "intent",
+    "Q_why_no_visit_other": lambda ctx: "intent",
     "start_not_going": lambda ctx: "Q_why_not_go"
-    if ctx.get("start_not_going") == "Yes"
-    else "mom_ANC_remind_me_02"
-    if ctx.get("start_not_going") == "Remind me tomorrow"
-    else "Q_why_not_go",  # ADDED DEFAULT PATH
+    if ctx.get("start_not_going") == "YES"
+    else "mom_ANC_remind_me_02",
     "mom_ANC_remind_me_02": lambda ctx: "__WENT_REMINDER_1_DAY__",
-    "Q_why_not_go": lambda ctx: "intent"
-    if ctx.get("Q_why_not_go")
-    in [
-        "Didn't know about it 📅",
-        "Didn't know where 📍",
-        "Don't want check-ups ⛔",
-        "Can't go when open 🏥",
-        "Asked to pay 💰",
-        "Wait times too long ⌛",
-        "No support 🤝",
-        "Getting there is hard 🚌",
-        "I forgot 😧",
-    ]
-    else "Q_why_not_go_other"
-    if ctx.get("Q_why_not_go") == "Something else 😞"
-    else "intent",  # ADDED DEFAULT PATH
+    "Q_why_not_go": lambda ctx: "Q_why_not_go_other"
+    if ctx.get("Q_why_not_go") == "SOMETHING_ELSE"
+    else "intent",
     "Q_why_not_go_other": lambda ctx: "intent",
-    "intent": lambda ctx: "end"
-    if (not ctx.get("first_survey")) and ctx.get("intent") == "Yes, I will"
+    "intent": lambda ctx: "not_going_next_one"
+    if ctx.get("intent") == "WONT_GO"  # Key for "No, I won't"
     else "feedback_if_first_survey"
-    if ctx.get("first_survey") and ctx.get("intent") == "Yes, I will"
-    else "not_going_next_one"
-    if ctx.get("intent") == "No, I won't"
-    else "feedback_if_first_survey",  # ADDED DEFAULT PATH
-    "not_going_next_one": lambda ctx: "end"
-    if not ctx.get("first_survey")
-    else "feedback_if_first_survey",
-    # Feedback and thanks after the user's first survey completion
+    if ctx.get("first_survey")
+    else "end",
+    "not_going_next_one": lambda ctx: "feedback_if_first_survey"
+    if ctx.get("first_survey")
+    else "end",
     "feedback_if_first_survey": lambda ctx: "end_if_feedback",
+    "end_if_feedback": lambda ctx: None,
+    "end": lambda ctx: None,
 }
 
 
@@ -1698,7 +1633,7 @@ def run_rephrase_question_pipeline(
 def run_survey_data_extraction_pipeline(
     user_response: str,
     previous_service_message: str,
-    valid_responses: list[str],
+    response_key_map: dict[str, str],
 ) -> dict | None:
     """
     Runs the confidence-based survey data extraction pipeline.
@@ -1717,7 +1652,7 @@ def run_survey_data_extraction_pipeline(
                     "template_variables": {
                         "user_response": user_response,
                         "previous_service_message": previous_service_message,
-                        "valid_responses": valid_responses,
+                        "response_key_map": response_key_map,
                     },
                 }
             }
