@@ -568,15 +568,17 @@ def extract_anc_data_from_response(
         )
 
     elif match_type == "no_match":
-        other_option_key = response_key_map.get("Something else 😞")
-        if other_option_key:
-            user_context[step_title] = other_option_key
-            user_context[f"{step_title}_other_text"] = validated_response_key
-            logger.info(
-                f"Handled as 'other'. Storing '{validated_response_key}' in '{step_title}_other_text'"
-            )
-        else:
-            user_context[step_title] = validated_response_key
+        # Find the standardized key for the "Something else" option.
+        other_option_key = next(
+            (v for k, v in response_key_map.items() if "Something else" in k), "OTHER"
+        )
+
+        user_context[step_title] = other_option_key
+        # Save the user's raw, unaltered text in a separate field.
+        user_context[f"{step_title}_other_text"] = user_response
+        logger.info(
+            f"Handled as 'other'. Storing '{user_response}' in '{step_title}_other_text'"
+        )
 
     elif validated_response_key:
         # High-confidence, direct match. Store the KEY in the context.

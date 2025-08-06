@@ -484,7 +484,7 @@ def create_response_to_key_map(valid_responses: list[str]) -> dict[str, str]:
     """
     key_map = {}
     for response in valid_responses:
-        # Create a key by taking the first few words, making them uppercase,
+        # Create a key by taking the first two words, making them uppercase,
         # and joining with underscores. This is a robust way to generate unique keys.
         words = re.sub(r"[^\w\s]", "", response).split()[:2]
         key = "_".join(words).upper()
