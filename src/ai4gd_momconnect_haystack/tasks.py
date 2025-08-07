@@ -1039,7 +1039,6 @@ async def handle_journey_resumption_prompt(
             user_context=state.user_context,
         )
 
-        # --- THIS IS THE FIX ---
         # Use separate, explicit blocks for each response type
         if "onboarding" in state.current_flow_id:
             return OnboardingResponse(
@@ -1051,9 +1050,16 @@ async def handle_journey_resumption_prompt(
                 failure_count=0,
             )
         else:  # Default to AssessmentResponse for KAB flows
+            # Check if the step identifier is a digit before converting to int.
+            # If not (e.g., it's 'awaiting_reminder_response'), we can't determine a
+            # specific next question number, so we default to None.
+            next_q_num = None
+            if state.current_step_identifier.isdigit():
+                next_q_num = int(state.current_step_identifier)
+
             return AssessmentResponse(
                 question=resume_message,
-                next_question=int(state.current_step_identifier),
+                next_question=next_q_num,
                 intent="SYSTEM_REMINDER_PROMPT",
                 intent_related_response=None,
                 processed_answer=None,
