@@ -445,7 +445,10 @@ def test_extract_anc_data_high_confidence(mock_run_pipeline):
     }
 
     context, action_dict = extract_anc_data_from_response(
-        user_response="yebo", user_context={}, step_title="start"
+        user_response="yebo",
+        user_context={},
+        step_title="start",
+        contextualized_question="Test Question",
     )
 
     assert context["start"] == "Yes, I went"
@@ -462,19 +465,25 @@ def test_extract_anc_data_high_confidence(mock_run_pipeline):
 def test_extract_anc_data_low_confidence_triggers_clarification(mock_run_pipeline):
     """Tests that a low-confidence match returns an action_dict to trigger the clarification loop."""
     mock_run_pipeline.return_value = {
-        "validated_response": "I'm going soon",
+        "validated_response": "IM_GOING",
         "match_type": "inferred",
         "confidence": "low",
     }
 
     context, action_dict = extract_anc_data_from_response(
-        user_response="not yet", user_context={}, step_title="start"
+        user_response="not yet",
+        user_context={},
+        step_title="start",
+        contextualized_question="Test Question",
     )
 
     assert "start" not in context
     assert action_dict is not None
     assert action_dict["status"] == "needs_confirmation"
-    assert action_dict["potential_answer"] == "I'm going soon"
+    # 1. The user-facing 'message' should contain the full, readable text.
+    assert "It sounds like you meant 'I'm going soon'" in action_dict["message"]
+    # 2. The internal 'potential_answer' should contain the standardized key for saving.
+    assert action_dict["potential_answer"] == "IM_GOING"
 
 
 @mock.patch.dict(
@@ -498,7 +507,10 @@ def test_extract_anc_data_no_match_handles_other(mock_run_pipeline):
     }
 
     context, action_dict = extract_anc_data_from_response(
-        user_response="I was too sick", user_context={}, step_title="Q_challenges"
+        user_response="I was too sick",
+        user_context={},
+        step_title="Q_challenges",
+        contextualized_question="Test Question",
     )
 
     assert context["Q_challenges"] == "SOMETHING_ELSE"
@@ -733,7 +745,7 @@ def test_validate_dma_answer_prepares_aligned_prompts(mock_run_pipeline):
         ("onboarding", 1, 1),
         ("onboarding", 2, 23),
         ("behaviour-pre-assessment", 1, 1),
-        ("anc-survey", 1, 72),
+        ("anc-survey", 1, 23),
     ],
 )
 @mock.patch(
@@ -905,7 +917,7 @@ async def test_handle_reminder_response_ambiguous():
 
     assert response.intent == "REPAIR"
     assert "Hello 👋🏽" in response.question
-    assert "You started telling us about" in response.question
+    assert "asked us to remind you" in response.question
 
 
 @pytest.mark.asyncio
@@ -948,5 +960,46 @@ async def test_get_anc_survey_question_appends_ussd_options(
     assert "\nb. Good" in final_question
     assert "\nc. OK" in final_question
     assert "\nd. Bad" in final_question
-
     assert "\ne. Very bad" in final_question
+
+
+@pytest.mark.asyncio
+@mock.patch(
+    "ai4gd_momconnect_haystack.tasks.get_next_anc_survey_step",
+    return_value="start_going_soon",
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.tasks.save_user_journey_state",
+    new_callable=mock.AsyncMock,
+)
+@mock.patch("ai4gd_momconnect_haystack.tasks.datetime")
+async def test_get_anc_survey_question_sets_3_day_reminder(
+    mock_datetime, mock_save_state, mock_get_next_step
+):
+    """
+    Tests that when the next step is 'start_going_soon', the function
+    correctly returns the confirmation message AND the 3-day reminder info.
+    """
+    # 1. Arrange: Set up a predictable "now" so we can check the 3-day delay
+    fake_now = datetime(2025, 8, 8, 14, 0, 0, tzinfo=timezone.utc)
+    mock_datetime.now.return_value = fake_now
+    expected_trigger_time = fake_now + timedelta(days=3)
+
+    # 2. Act: Call the function we want to test
+    result = await get_anc_survey_question(user_id="test-user", user_context={})
+
+    # 3. Assert: Check that the result is correct
+    assert result is not None
+    reengagement_info = result.get("reengagement_info")
+
+    # Assert that the correct message was returned
+    assert "OK, that's great!" in result["contextualized_question"]
+    assert result["is_final_step"] is True
+
+    # Assert that the 3-day reminder info was created correctly
+    assert isinstance(reengagement_info, ReengagementInfo)
+    assert reengagement_info.trigger_at_utc == expected_trigger_time
+    assert reengagement_info.type == "SYSTEM_SCHEDULED"
+
+    # Assert that the user's state was saved
+    mock_save_state.assert_awaited_once()

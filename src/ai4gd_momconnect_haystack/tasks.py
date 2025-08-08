@@ -1,7 +1,7 @@
 import re
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 
 from ai4gd_momconnect_haystack.crud import (
@@ -25,6 +25,7 @@ from .pydantic_models import (
     OnboardingResponse,
     AssessmentResponse,
     SurveyResponse,
+    AssessmentQuestion,
 )
 
 from . import doc_store, pipelines
@@ -412,24 +413,83 @@ async def get_anc_survey_question(user_id: str, user_context: dict) -> dict | No
     user_context["first_survey"] = True
     chat_history = await get_or_create_chat_history(user_id, HistoryType.anc)
 
-    current_step = "start"
-    if chat_history:
-        # Find the last message from the assistant that has a step title.
-        last_assistant_msg = next(
-            (
-                msg
-                for msg in reversed(chat_history)
-                if msg.role.value == "assistant" and msg.meta.get("step_title")
-            ),
-            None,
-        )
-        if last_assistant_msg:
-            current_step = last_assistant_msg.meta.get("step_title")
+    # Find the last message from the assistant that has a step title.
+    last_assistant_msg = next(
+        (
+            msg
+            for msg in reversed(chat_history)
+            if msg.role.value == "assistant" and msg.meta.get("step_title")
+        ),
+        None,
+    )
 
+    current_step = "intro"
+    if last_assistant_msg and last_assistant_msg.meta.get("step_title"):
+        current_step = last_assistant_msg.meta.get("step_title")
     next_step = get_next_anc_survey_step(current_step, user_context)
 
+    # --- Consolidated "Going Soon" Logic with 3-Day Reminder ---
+    if next_step == "start_going_soon":
+        logger.info(
+            "Handling 'start_going_soon' step: sending message and scheduling 3-day reminder."
+        )
+        question_data = ANC_SURVEY_MAP.get("start_going_soon")
+        message = question_data.content if question_data else ""
+
+        # Manually set the 3-day reminder delay for this specific path
+        time_delta = timedelta(days=3)
+
+        reengagement_info = ReengagementInfo(
+            type="SYSTEM_SCHEDULED",
+            trigger_at_utc=datetime.now(timezone.utc) + time_delta,
+            flow_id="anc-survey",
+            reminder_type=ReminderType.SYSTEM_SCHEDULED_THREE_DAY,
+        )
+
+        await save_user_journey_state(
+            user_id=user_id,
+            flow_id="anc-survey",
+            step_identifier="start_going_soon",
+            last_question=message,
+            user_context=user_context,
+        )
+
+        return {
+            "contextualized_question": message,
+            "question_identifier": "start_going_soon",
+            "is_final_step": True,
+            "reengagement_info": reengagement_info,
+        }
+    elif next_step == "__USER_REQUESTED_REMINDER__":
+        logger.info("Handling user-requested reminder.")
+        last_step = current_step  # The step the user was on
+        last_question = last_assistant_msg.text if last_assistant_msg else ""
+
+        state = await get_user_journey_state(user_id)
+        current_reminder_count = state.reminder_count if state else 0
+        new_reminder_count = current_reminder_count + 1
+        reminder_type = ReminderType.USER_REQUESTED
+        user_context["reminder_count"] = new_reminder_count
+
+        message, reengagement_info = await handle_reminder_request(
+            user_id=user_id,
+            flow_id="anc-survey",
+            step_identifier=last_step,
+            last_question=last_question,
+            user_context=user_context,
+            reminder_type=reminder_type,
+        )
+        return {
+            "contextualized_question": message,
+            "question_identifier": next_step,
+            "is_final_step": True,
+            "reengagement_info": reengagement_info,
+        }
+
     if not next_step:
-        logger.warning(f"End of survey reached! Last step was: {current_step}")
+        logger.warning(
+            f"End of survey reached! Last step was: {current_step if last_assistant_msg else 'None'}"
+        )
         return None
 
     # --- Check for special action steps before treating it as a question ---
@@ -485,13 +545,19 @@ async def get_anc_survey_question(user_id: str, user_context: dict) -> dict | No
         else:
             valid_responses = []
 
-    logger.info(f"Running contextualization pipeline for step: '{next_step}'...")
-    contextualized_question = run_anc_survey_contextualization_pipeline(
-        user_context,
-        chat_history,
-        original_question_content,
-        valid_responses,
-    )
+    # Check if the content type is a reminder; if so, bypass the LLM.
+    if question_data.content_type in ["reminder_confirmation", "follow_up_message"]:
+        contextualized_question = original_question_content
+        logger.info(f"Bypassing contextualization for reminder step: '{next_step}'")
+    else:
+        # For all other message types, run the contextualization pipeline.
+        logger.info(f"Running contextualization pipeline for step: '{next_step}'...")
+        contextualized_question = run_anc_survey_contextualization_pipeline(
+            user_context,
+            chat_history,
+            original_question_content,
+            valid_responses,
+        )
 
     final_question_text = prepare_valid_responses_to_display_to_anc_survey_user(
         text_to_prepend=text_to_prepend,
@@ -511,6 +577,7 @@ def extract_anc_data_from_response(
     user_response: str,
     user_context: dict,
     step_title: str,
+    contextualized_question: str,
 ) -> tuple[dict, dict | None]:
     """
     Extracts data from a user's response to an ANC survey question by mapping
@@ -535,7 +602,7 @@ def extract_anc_data_from_response(
     # Step 2: Call the pipeline, passing the key map for the AI to use
     extraction_result = pipelines.run_survey_data_extraction_pipeline(
         user_response=user_response,
-        previous_service_message=question_data.content,
+        previous_service_message=contextualized_question,
         response_key_map=response_key_map,  # Pass the map as a keyword argument
     )
 
@@ -549,23 +616,18 @@ def extract_anc_data_from_response(
     validated_response_key = extraction_result.get("validated_response")
     confidence = extraction_result.get("confidence")
 
-    if confidence == "low" and isinstance(
-        validated_response_key, str
-    ):  # FIX: Check key is a string
-        # For the confirmation message, we need the full text, not the key.
-        # We can look it up from our generated map.
+    if confidence == "low" and isinstance(validated_response_key, str):
         key_to_response_map = {v: k for k, v in response_key_map.items()}
         potential_answer_text = key_to_response_map.get(validated_response_key, "")
 
-        action_dict = {
-            "status": "needs_confirmation",
-            "message": f"It sounds like you meant '{potential_answer_text}'. Is that correct?",
-            "potential_answer": validated_response_key,  # We confirm the key
-            "step_title_to_confirm": step_title,
-        }
-        logger.info(
-            f"Low confidence match. Triggering confirmation for: {validated_response_key}"
-        )
+        # Only trigger confirmation if there is a valid potential answer to confirm
+        if potential_answer_text:
+            action_dict = {
+                "status": "needs_confirmation",
+                "message": f"It sounds like you meant '{potential_answer_text}'. Is that correct?",
+                "potential_answer": validated_response_key,
+                "step_title_to_confirm": step_title,
+            }
 
     elif match_type == "no_match":
         # Find the standardized key for the "Something else" option.
@@ -615,7 +677,7 @@ def handle_user_message(
     Orchestrates the process of handling a new user message.
     """
     intent = detect_user_intent(previous_question, user_message, valid_responses)
-    response = None
+    response: str | None = None
 
     if intent == "QUESTION_ABOUT_STUDY":
         response = get_faq_answer(user_question=user_message)
@@ -726,19 +788,64 @@ def handle_conversational_repair(
     invalid_input: str,
 ) -> str | None:
     """
-    Handles conversational repair by calling an LLM to rephrase a confusing question.
-    This function is generalized to work across 'assessment', 'onboarding', and 'anc-survey' flows.
+    Handles conversational repair. For USSD-style questions, it uses a fixed
+    template. For others, it uses an LLM to rephrase.
     """
-    logger.info(
-        f"Handling conversational repair for flow '{flow_id}', question '{question_identifier}'."
-    )
+    # 1. Define which questions are USSD-style (multiple choice)
+    is_dma = "dma" in flow_id
+    is_kab_mcq = "knowledge" in flow_id or "attitude" in flow_id
+    is_anc_mcq = flow_id == "anc-survey" and question_identifier in [
+        "start",
+        "Q_experience",
+        "feedback_if_first_survey",
+    ]
 
-    valid_responses: list[str] = []
+    is_ussd_style_question = is_dma or is_kab_mcq or is_anc_mcq
 
-    # 1. Look up the canonical question data based on the flow_id
-    if flow_id in assessment_flow_map:
-        question_list = assessment_flow_map.get(flow_id)
-        if question_list:
+    # 2. Handle the two different repair paths
+    if is_ussd_style_question:
+        logger.info(
+            f"Using template-based repair for USSD-style question: {flow_id} - {question_identifier}"
+        )
+        ack = "Sorry, we don’t understand your answer! Please try again.\n\n"
+        instruction = "\n\nPlease reply with the letter corresponding to your answer."
+        # The `previous_question` already contains the formatted a,b,c options
+        return ack + previous_question + instruction
+    else:
+        # For free-text questions, use the LLM to rephrase
+        logger.info(
+            f"Using LLM-based repair for free-text question: {flow_id} - {question_identifier}"
+        )
+        valid_responses: list[str] = []
+
+        # Logic to get valid responses for free-text flows (e.g., Onboarding, KAB-B)
+        if flow_id == "onboarding":
+            onboarding_question_data = next(
+                (
+                    q
+                    for q in all_onboarding_questions
+                    if q.question_number == question_identifier
+                ),
+                None,
+            )
+            if onboarding_question_data and onboarding_question_data.valid_responses:
+                valid_responses = onboarding_question_data.valid_responses
+        elif "behaviour" in flow_id:
+            question_list = assessment_flow_map.get(flow_id, [])
+            assessment_question_data: AssessmentQuestion | None = next(
+                (q for q in question_list if q.question_number == question_identifier),
+                None,
+            )
+            if (
+                assessment_question_data
+                and assessment_question_data.valid_responses_and_scores
+            ):
+                valid_responses = [
+                    item.response
+                    for item in assessment_question_data.valid_responses_and_scores
+                ]
+        elif flow_id in assessment_flow_map:
+            question_list = assessment_flow_map.get(flow_id, [])
             assessment_question_data = next(
                 (q for q in question_list if q.question_number == question_identifier),
                 None,
@@ -752,55 +859,17 @@ def handle_conversational_repair(
                     for item in assessment_question_data.valid_responses_and_scores
                 ]
 
-    elif flow_id == "onboarding":
-        onboarding_question_list = all_onboarding_questions
-        onboarding_question_data = next(
-            (
-                q
-                for q in onboarding_question_list
-                if q.question_number == question_identifier
-            ),
-            None,
+        rephrased_question = run_rephrase_question_pipeline(
+            previous_question=previous_question,
+            invalid_input=invalid_input,
+            valid_responses=valid_responses,
         )
-        if onboarding_question_data and onboarding_question_data.valid_responses:
-            valid_responses = onboarding_question_data.valid_responses
 
-    elif flow_id == "anc-survey":
-        # Check if the identifier is a valid key before accessing.
-        if isinstance(question_identifier, str):
-            anc_question_data = ANC_SURVEY_MAP.get(question_identifier)
-            if anc_question_data and anc_question_data.valid_responses:
-                valid_responses = anc_question_data.valid_responses
-    # This `else` block was removed as it was not present in the provided file. A check for `valid_responses` handles all cases.
+        if not rephrased_question:
+            logger.warning("LLM rephrasing failed. Using simple fallback.")
+            return f"Sorry, I didn't understand. Please try answering again:\n\n{previous_question}"
 
-    # Check if we found valid responses. If not, we cannot rephrase with options.
-    if not valid_responses:
-        logger.error(
-            f"Could not find valid responses for question '{question_identifier}' in flow '{flow_id}'. Cannot perform conversational repair."
-        )
-        # Fallback to a generic message without options, as we don't have any.
-        return f"Sorry, I didn't understand. Please try answering the previous question again:\n\n{previous_question}"
-
-    # 2. Call the rephrasing pipeline
-    rephrased_question = run_rephrase_question_pipeline(
-        previous_question=previous_question,
-        invalid_input=invalid_input,
-        valid_responses=valid_responses,
-    )
-
-    # 3. Fallback if the pipeline fails
-    if not rephrased_question:
-        logger.warning("LLM rephrasing failed. Using simple fallback.")
-        options = "\\n".join(
-            [
-                f"{chr(97 + idx)}. {resp}"
-                for idx, resp in enumerate(valid_responses)
-                if resp != "Skip"
-            ]
-        )
-        return f"Sorry, I didn't understand. Please try again.\n\n{previous_question}\n{options}"
-
-    return rephrased_question
+        return rephrased_question
 
 
 def format_user_data_summary_for_whatsapp(user_context: dict) -> str:
@@ -903,9 +972,10 @@ async def handle_reminder_request(
     reminder_type: int,
 ) -> tuple[str, ReengagementInfo]:
     """
-    Central function to handle pausing a journey. It now uses a dynamic schedule
-    and returns a conditional confirmation message.
+    Central function to handle pausing a journey. It now uses a dynamic,
+    dictionary-based schedule to select the correct reminder.
     """
+    # 1. Determine which schedule to use from the central config
     schedule_key = "default"
     if "onboarding" in flow_id:
         schedule_key = "onboarding"
@@ -915,12 +985,19 @@ async def handle_reminder_request(
         schedule_key = "survey"
 
     schedule = REMINDER_CONFIG[schedule_key]
+
+    # 2. Determine which specific reminder config to use from that schedule
     reminder_count = user_context.get("reminder_count", 1)
 
-    config_index = min(reminder_count - 1, len(schedule) - 1)
-    reminder_config = schedule[config_index]
-    time_delta = reminder_config["delay"]
+    # This logic now explicitly chooses the reminder type based on the flow
+    config_key = "DEFAULT"
+    if schedule_key in ["onboarding", "kab"] and reminder_count >= 2:
+        config_key = "FOLLOW_UP"
 
+    reminder_config = schedule[config_key]
+
+    # 3. Create the reminder and save the user's state
+    time_delta = reminder_config["delay"]
     reengagement_info = ReengagementInfo(
         type="USER_REQUESTED",
         trigger_at_utc=datetime.now(timezone.utc) + time_delta,
@@ -936,7 +1013,7 @@ async def handle_reminder_request(
         user_context=user_context,
     )
 
-    # Use the specific acknowledgement message from the config
+    # 4. Return the specific acknowledgement message from the config
     return reminder_config["acknowledgement_message"], reengagement_info
 
 
@@ -986,9 +1063,14 @@ async def handle_journey_resumption_prompt(
     schedule = REMINDER_CONFIG.get(schedule_key, REMINDER_CONFIG["default"])
     reminder_count = state.user_context.get("reminder_count", 0)
 
-    config_index = min(reminder_count, len(schedule) - 1)
-    reminder_config = schedule[config_index]
-    resume_message = reminder_config.get("resume_message")
+    config_key = "DEFAULT"
+    if (
+        schedule_key in ["onboarding", "kab"] and reminder_count >= 1
+    ):  # Use FOLLOW_UP for 2nd+ reminder
+        config_key = "FOLLOW_UP"
+
+    reminder_config = schedule.get(config_key)
+    resume_message = reminder_config.get("resume_message") if reminder_config else None
 
     # --- Conditional Resumption Logic ---
 
@@ -1039,7 +1121,6 @@ async def handle_journey_resumption_prompt(
             user_context=state.user_context,
         )
 
-        # --- THIS IS THE FIX ---
         # Use separate, explicit blocks for each response type
         if "onboarding" in state.current_flow_id:
             return OnboardingResponse(
@@ -1050,10 +1131,17 @@ async def handle_journey_resumption_prompt(
                 results_to_save=[],
                 failure_count=0,
             )
-        else:  # Default to AssessmentResponse for KAB flows
+        else:
+            # Check if the step identifier is a digit before converting to int.
+            # If not (e.g., it's 'awaiting_reminder_response'), we can't determine a
+            # specific next question number, so we default to None.
+            next_q_num = None
+            if state.current_step_identifier.isdigit():
+                next_q_num = int(state.current_step_identifier)
+
             return AssessmentResponse(
                 question=resume_message,
-                next_question=int(state.current_step_identifier),
+                next_question=next_q_num,
                 intent="SYSTEM_REMINDER_PROMPT",
                 intent_related_response=None,
                 processed_answer=None,
@@ -1075,9 +1163,7 @@ async def handle_intro_reminder(
     state = await get_user_journey_state(user_id)
     current_reminder_count = state.reminder_count if state else 0
     new_reminder_count = current_reminder_count + 1
-    reminder_type = (
-        ReminderType.SECOND if new_reminder_count >= 2 else ReminderType.FIRST
-    )
+    reminder_type = ReminderType.USER_REQUESTED
     user_context["reminder_count"] = new_reminder_count
 
     message, reengagement_info = await handle_reminder_request(
@@ -1195,7 +1281,8 @@ async def handle_reminder_response(
             schedule_key = "kab"
 
         schedule = REMINDER_CONFIG.get(schedule_key, REMINDER_CONFIG["default"])
-        rephrased_question = schedule[0].get("resume_message")
+        # Always use the DEFAULT resume message when re-prompting
+        rephrased_question = schedule["DEFAULT"].get("resume_message")
 
         return SurveyResponse(
             question=rephrased_question,

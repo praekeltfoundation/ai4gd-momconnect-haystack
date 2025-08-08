@@ -1216,7 +1216,10 @@ async def test_repair_on_intro_consent(mock_handle_intro, mock_get_q):
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.extract_anc_data_from_response",
-    side_effect=lambda user_response, user_context, step_title: (user_context, None),
+    side_effect=lambda user_response,
+    user_context,
+    step_title,
+    contextualized_question: (user_context, None),
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.process_onboarding_step", return_value=({}, None)
@@ -1314,7 +1317,10 @@ async def test_flow_repair_on_invalid_answer(
 @mock.patch("ai4gd_momconnect_haystack.api.handle_conversational_repair")
 @mock.patch(
     "ai4gd_momconnect_haystack.api.extract_anc_data_from_response",
-    side_effect=lambda user_response, user_context, step_title: (user_context, None),
+    side_effect=lambda user_response,
+    user_context,
+    step_title,
+    contextualized_question: (user_context, None),
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.process_onboarding_step", return_value=({}, None)

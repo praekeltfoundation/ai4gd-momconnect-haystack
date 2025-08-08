@@ -202,6 +202,7 @@ class SurveyRequest(BaseModel):
 
 class SurveyResponse(BaseModel):
     question: str | None
+    question_identifier: str | None = None
     user_context: dict[str, Any]
     survey_complete: bool
     intent: str | None

@@ -11,7 +11,7 @@ from pydantic import BaseModel, ValidationError
 
 from ai4gd_momconnect_haystack import doc_store
 from ai4gd_momconnect_haystack.enums import AssessmentType
-from ai4gd_momconnect_haystack.pydantic_models import AssessmentQuestion, ReminderConfig
+from ai4gd_momconnect_haystack.pydantic_models import AssessmentQuestion
 
 
 logger = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ FLOWS_WITH_INTRO = [
     onboarding_flow_id,
     kab_b_pre_flow_id,
     kab_b_post_flow_id,
-    anc_survey_flow_id,
+    # anc_survey_flow_id, introduction is handled in the q_seen question
 ]
 
 assessment_end_flow_map = {
@@ -95,45 +95,47 @@ ANC_SURVEY_MAP = {item.title: item for item in all_anc_survey_questions}
 
 
 # NEW: The central configuration for all reminder sequences
-REMINDER_CONFIG: dict[str, list[ReminderConfig]] = {
-    "onboarding": [
-        {  # First reminder for onboarding
+REMINDER_CONFIG: dict[str, dict] = {
+    "onboarding": {
+        "DEFAULT": {
+            # First reminder for onboarding
             "delay": timedelta(hours=1),
             "acknowledgement_message": "",  # No acknowledgement
             "resume_message": "Hi! Ready to pick up where you left off on our MomConnect study?\n\na. Yes, let’s start  ✅\nb. Remind me tomorrow",
         },
-        {  # Second reminder for onboarding
+        "FOLLOW_UP": {
+            # Second reminder for onboarding
             "delay": timedelta(hours=23),
             "acknowledgement_message": "Great! We’ll remind you tomorrow 🗓️\n\nChat soon 👋🏾",
             "resume_message": "Hi mom!\n\nGot time to tell us a little bit more about yourself and help make MomConnect better for moms across South Africa? 👇🏽\n\na. Yes, let’s start  ✅\nb. Remind me tomorrow",
         },
-    ],
-    "kab": [  # KAB flows can share the same schedule as onboarding
-        {
+    },
+    "kab": {  # KAB flows can share the same schedule as onboarding
+        "DEFAULT": {
             "delay": timedelta(hours=1),
             "acknowledgement_message": "",
             "resume_message": "Hi! Ready to pick up where you left off on our MomConnect study?\n\na. Yes, let’s start  ✅\nb. Remind me tomorrow",
         },
-        {
+        "FOLLOW_UP": {
             "delay": timedelta(hours=23),
             "acknowledgement_message": "Great! We’ll remind you tomorrow 🗓️\n\nChat soon 👋🏾",
             "resume_message": "Hi mom!\n\nGot time to tell us a little bit more about yourself and help make MomConnect better for moms across South Africa? 👇🏽\n\na. Yes, let’s start  ✅\nb. Remind me tomorrow",
         },
-    ],
-    "survey": [
-        {
-            "delay": timedelta(days=3),
-            "acknowledgement_message": "OK, we’ll remind you tomorrow 🗓️",
-            "resume_message": "Hello 👋🏽\n\nYou started telling us about your recent pregnancy check-up 🗓️\n\nDo you have a few minutes to finish telling us about it now?\n\na.Yes\nb.Remind me tomorrow",
+    },
+    "survey": {
+        "DEFAULT": {
+            "delay": timedelta(hours=23),
+            "acknowledgement_message": "No problem! We'll remind you tomorrow. We'd really like to know how it went at the clinic.",
+            "resume_message": "Hello 👋🏽\n\nYou asked us to remind you to tell us more about your recent clinic visit!\n\nReady?",
         }
-    ],
-    "default": [  # A fallback for any other flows
-        {
+    },
+    "default": {  # A fallback for any other flows
+        "DEFAULT": {
             "delay": timedelta(hours=23),
             "acknowledgement_message": "Great! We’ll remind you tomorrow 🗓️\n\nChat soon 👋🏾",
             "resume_message": "Hi! Ready to pick up where you left off?\n\na. Yes, let’s start  ✅\nb. Remind me tomorrow",
         }
-    ],
+    },
 }
 
 
@@ -253,100 +255,18 @@ def prepare_valid_responses_to_display_to_anc_survey_user(
     text_to_prepend: str, question: str, valid_responses: list[str], step_title: str
 ) -> str:
     final_question_text = text_to_prepend + question
-    if valid_responses:
-        if step_title in ["start", "seen_yes", "Q_seen_no", "start_not_going"]:
-            options = "\n\n" + "\n".join(
-                ["Please reply with one of the following:"]
-                + [f"- '{vr}'" for vr in valid_responses]
-            )
-            final_question_text += options
-        elif step_title in ["bad", "good"]:
-            vr = valid_responses[-1]
-            final_question_text += f"\n\nPlease reply with '{vr}' to continue."
-        elif step_title in ["Q_experience", "feedback_if_first_survey"]:
-            options = "\n\n" + "\n".join(
-                prepend_valid_responses_with_alphabetical_index(valid_responses)
-            )
-            final_question_text += options
-        elif step_title == "Q_visit_bad":
-            options = "\n\n" + "\n".join(
-                prepend_valid_responses_with_alphabetical_index(
-                    [
-                        "I didn't have my maternity record📝",
-                        "I was shamed or embarrassed 😳",
-                        "I was not given privacy to discuss my worries or challenges 🤐",
-                        "I was not given enough information about tests, supplements or my pregnancy ℹ️",
-                        "The staff were disrespectful 🤬",
-                        "They asked me to pay 💰",
-                        "I had to wait a long time ⌛",
-                        "Something else 😞",
-                    ]
-                )
-            )
-            final_question_text += options
-        elif step_title == "Q_visit_good":
-            options = "\n\n" + "\n".join(
-                prepend_valid_responses_with_alphabetical_index(
-                    [
-                        "No problems - all fine👌",
-                        "I didn't have my maternity record📝",
-                        "I was shamed or embarrassed 😳",
-                        "I was not given privacy to discuss my worries or challenges 🤐",
-                        "I was not given enough information about tests, supplements or my pregnancy ℹ️",
-                        "The staff were disrespectful 🤬",
-                        "They asked me to pay 💰",
-                        "I had to wait a long time ⌛",
-                        "Something else 😞",
-                    ]
-                )
-            )
-            final_question_text += options
-        elif step_title == "Q_challenges":
-            options = "\n\n" + "\n".join(
-                prepend_valid_responses_with_alphabetical_index(
-                    [
-                        "No challenges - all fine👌",
-                        "Transport is expensive or it’s far to travel 🚌",
-                        "I don't have support from my partner or family 🤝",
-                        "It's hard to get there during clinic opening hours 🏥",
-                        "Something else 😞",
-                    ]
-                )
-            )
-            final_question_text += options
-        elif step_title == "Q_why_no_visit":
-            options = "\n\n" + "\n".join(
-                prepend_valid_responses_with_alphabetical_index(
-                    [
-                        "The clinic was closed ⛔",
-                        "I had to wait too long⌛",
-                        "I didn't have my maternity record 📝",
-                        "They asked me to pay💰",
-                        "I was told to come back another day 📅",
-                        "I left because the staff were disrespectful 🤬",
-                        "Something else 😞",
-                    ]
-                )
-            )
-            final_question_text += options
-        elif step_title == "Q_why_not_go":
-            options = "\n\n" + "\n".join(
-                prepend_valid_responses_with_alphabetical_index(
-                    [
-                        "I didn't know I had a check-up 📅",
-                        "I didn't know where to go📍",
-                        "I don't want check-ups ⛔",
-                        "I can't go in clinic opening hours 🏥",
-                        "They asked me to pay💰",
-                        "Waiting times are too long ⌛",
-                        "I have no support from family or friends 🤝",
-                        "Getting to the clinic is hard - no money for transport or it's too far to travel 🚌",
-                        "I forgot about it 😧",
-                        "Something else 😞",
-                    ]
-                )
-            )
-            final_question_text += options
+
+    # Only show options for the specified multiple-choice questions.
+    if valid_responses and step_title in [
+        "start",
+        "Q_experience",
+        "feedback_if_first_survey",
+    ]:
+        options = "\n\n" + "\n".join(
+            prepend_valid_responses_with_alphabetical_index(valid_responses)
+        )
+        final_question_text += options
+
     return final_question_text
 
 
