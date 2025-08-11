@@ -47,6 +47,13 @@ The API is documented in this readme, but there is also automatically generated 
 ### Authentication
 Authentication is handled through the `Authorization` HTTP header, the value of which should be `Token <token>`. The token is configured using the `API_TOKEN` environment variable. There is only one token for the whole service.
 
+## QA Reset Feature
+- **How it Works:** An admin must first add a QA tester's user ID to the `QA_USER_IDS` environment variable (`QA_USER_IDS="27821112222,27833334444"`). The authorized tester can then send the !reset command at any time during any conversation flow (onboarding, survey, etc.) to trigger the reset.
+
+- **What it Does:** The command permanently deletes all records for that user from five key tables: `ChatHistory`, `AssessmentHistory`, `AssessmentResultHistory`, `AssessmentEndMessagingHistory`, and `UserJourneyState`.
+
+- **Outcome:** This allows the tester to immediately restart any flow from the beginning as if they were a new user.
+
 ### Intents
 For every response, we first classify the intent of the user's message. If the intent is to answer the qusetion that we asked them, then we should continue as normal. But if it's not, then we should take a different action depending on the intent. There are `intent` and `intent_related_response` fields added to every response to deal with this. The values for `intent` are:
 
