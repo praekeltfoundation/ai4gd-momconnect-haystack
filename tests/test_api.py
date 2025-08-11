@@ -2123,23 +2123,21 @@ async def test_resumption_from_awaiting_reminder_state_is_safe(client: TestClien
 @mock.patch(
     "ai4gd_momconnect_haystack.api.reset_user_state", new_callable=mock.AsyncMock
 )
-async def test_survey_qa_reset_command_success_for_qa_user(mock_reset, client):
+async def test_catchall_qa_reset_command_success_for_qa_user(mock_reset, client):
     """
     Tests that an authorized QA user can successfully reset their state
-    using the !reset command.
+    using the !reset command via the catchall endpoint.
     """
     # 1. Arrange
     qa_user_id = "111111111"
     request_data = {
         "user_id": qa_user_id,
         "user_input": "!reset",
-        "survey_id": "anc",
-        "user_context": {},
     }
 
     # 2. Act
-    response = client.post(  # Removed 'await'
-        "/v1/survey",
+    response = client.post(
+        "/v1/catchall",
         json=request_data,
         headers={"Authorization": "Token testtoken"},
     )
@@ -2147,8 +2145,9 @@ async def test_survey_qa_reset_command_success_for_qa_user(mock_reset, client):
     # 3. Assert
     assert response.status_code == 200
     response_json = response.json()
-    assert "Your state has been reset" in response_json["question"]
-    assert response_json["intent"] == "QA_RESET"
+    # Assertions updated for CatchAllResponse model
+    assert response_json["intent"] == "QA_RESET_SUCCESS"
+    assert "User state has been reset" in response_json["intent_related_response"]
     mock_reset.assert_awaited_once_with(user_id=qa_user_id)
 
 
@@ -2162,38 +2161,26 @@ async def test_survey_qa_reset_command_success_for_qa_user(mock_reset, client):
     "ai4gd_momconnect_haystack.api.reset_user_state", new_callable=mock.AsyncMock
 )
 @mock.patch(
-    "ai4gd_momconnect_haystack.api.get_anc_survey_question", new_callable=mock.AsyncMock
-)
-@mock.patch(
     "ai4gd_momconnect_haystack.api.handle_user_message",
-    return_value=("JOURNEY_RESPONSE", None),
+    return_value=("CHITCHAT", "Some chitchat response"),
 )
-@mock.patch(
-    "ai4gd_momconnect_haystack.api.extract_anc_data_from_response",
-    return_value=({}, None),
-)
-async def test_survey_qa_reset_command_ignored_for_regular_user(
-    mock_extract, mock_handle_msg, mock_get_question, mock_reset, client
+async def test_catchall_qa_reset_command_ignored_for_regular_user(
+    mock_handle_msg, mock_reset, client
 ):
     """
-    Tests that the !reset command is ignored if the user is not in the
-    QA user list, ensuring regular users cannot delete their data.
+    Tests that the !reset command is ignored by the catchall endpoint
+    if the user is not in the QA user list.
     """
     # 1. Arrange
     regular_user_id = "222222222"
-    mock_get_question.return_value = {
-        "contextualized_question": "This is the next survey question."
-    }
     request_data = {
         "user_id": regular_user_id,
         "user_input": "!reset",
-        "survey_id": "anc",
-        "user_context": {"some_key": "some_value"},
     }
 
     # 2. Act
     response = client.post(
-        "/v1/survey",
+        "/v1/catchall",
         json=request_data,
         headers={"Authorization": "Token testtoken"},
     )
@@ -2201,6 +2188,8 @@ async def test_survey_qa_reset_command_ignored_for_regular_user(
     # 3. Assert
     assert response.status_code == 200
     response_json = response.json()
-    assert "This is the next survey question." in response_json["question"]
-    assert response_json["intent"] != "QA_RESET"
+    # Assert that the normal catchall logic ran
+    assert response_json["intent"] == "CHITCHAT"
+    assert "Some chitchat response" in response_json["intent_related_response"]
+    # CRITICAL: Verify that the reset function was never called
     mock_reset.assert_not_awaited()

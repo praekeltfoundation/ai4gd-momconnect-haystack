@@ -891,24 +891,6 @@ async def assessment_end(
 
 @app.post("/v1/survey", response_model=SurveyResponse)
 async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
-    # --- QA Reset Command Logic ---
-    if request.user_input and request.user_input.strip().lower() == "!reset":
-        # Check against a comma-separated list of user IDs in the environment variable
-        qa_user_ids = os.environ.get("QA_USER_IDS", "").split(",")
-        if request.user_id in qa_user_ids:
-            await reset_user_state(user_id=request.user_id)
-            # Return a confirmation message and end the flow
-            return SurveyResponse(
-                question="Your state has been reset. You can now start the survey again.",
-                question_identifier="qa_reset",
-                user_context={},
-                survey_complete=True,
-                intent="QA_RESET",
-                intent_related_response=None,
-                results_to_save=[],
-                failure_count=0,
-            )
-
     # --- RESUMPTION LOGIC ---
     if request.user_context and request.user_context.get("resume") is True:
         return await handle_journey_resumption_prompt(
@@ -1239,6 +1221,17 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
 
 @app.post("/v1/catchall", response_model=CatchAllResponse)
 async def catchall(request: CatchAllRequest, token: str = Depends(verify_token)):
+    # --- QA Reset Command Logic ---
+    if request.user_input and request.user_input.strip().lower() == "!reset":
+        qa_user_ids = os.environ.get("QA_USER_IDS", "").split(",")
+        if request.user_id in qa_user_ids:
+            await reset_user_state(user_id=request.user_id)
+            # This intent can be used by the caller to send a confirmation message
+            return CatchAllResponse(
+                intent="QA_RESET_SUCCESS",
+                intent_related_response="User state has been reset.",
+            )
+
     intent, intent_related_response = handle_user_message("", request.user_input)
 
     return CatchAllResponse(
