@@ -456,3 +456,34 @@ async def get_user_journey_state(user_id: str) -> UserJourneyState | None:
             select(UserJourneyState).where(UserJourneyState.user_id == user_id)
         )
         return result.scalar_one_or_none()
+
+
+async def reset_user_state(user_id: str) -> None:
+    """
+    Deletes all chat history, assessment history, results, and journey state for a user.
+    """
+    logger.info(f"Resetting all state for user_id: {user_id}")
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            # Delete all records associated with the user_id from all relevant tables
+            await session.execute(
+                delete(ChatHistory).where(ChatHistory.user_id == user_id)
+            )
+            await session.execute(
+                delete(AssessmentHistory).where(AssessmentHistory.user_id == user_id)
+            )
+            await session.execute(
+                delete(AssessmentResultHistory).where(
+                    AssessmentResultHistory.user_id == user_id
+                )
+            )
+            await session.execute(
+                delete(AssessmentEndMessagingHistory).where(
+                    AssessmentEndMessagingHistory.user_id == user_id
+                )
+            )
+            await session.execute(
+                delete(UserJourneyState).where(UserJourneyState.user_id == user_id)
+            )
+
+    logger.info(f"Successfully reset state for user_id: {user_id}")

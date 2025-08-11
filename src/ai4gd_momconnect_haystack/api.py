@@ -1,4 +1,5 @@
 import sys
+import os
 import logging
 from contextlib import asynccontextmanager
 from os import environ
@@ -33,6 +34,7 @@ from ai4gd_momconnect_haystack.crud import (
     save_chat_history,
     get_user_journey_state,
     save_user_journey_state,
+    reset_user_state,
 )
 from ai4gd_momconnect_haystack.doc_store import (
     INTRO_MESSAGES,
@@ -889,6 +891,24 @@ async def assessment_end(
 
 @app.post("/v1/survey", response_model=SurveyResponse)
 async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
+    # --- QA Reset Command Logic ---
+    if request.user_input and request.user_input.strip().lower() == "!reset":
+        # Check against a comma-separated list of user IDs in the environment variable
+        qa_user_ids = os.environ.get("QA_USER_IDS", "").split(",")
+        if request.user_id in qa_user_ids:
+            await reset_user_state(user_id=request.user_id)
+            # Return a confirmation message and end the flow
+            return SurveyResponse(
+                question="Your state has been reset. You can now start the survey again.",
+                question_identifier="qa_reset",
+                user_context={},
+                survey_complete=True,
+                intent="QA_RESET",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=0,
+            )
+
     # --- RESUMPTION LOGIC ---
     if request.user_context and request.user_context.get("resume") is True:
         return await handle_journey_resumption_prompt(

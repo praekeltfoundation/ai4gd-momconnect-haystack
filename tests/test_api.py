@@ -2112,3 +2112,95 @@ async def test_resumption_from_awaiting_reminder_state_is_safe(client: TestClien
     # 3. CRITICAL: The `next_question` field must be None, because the step
     #    identifier was not a number. This proves the fix is working.
     assert json_response["next_question"] is None
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(
+    os.environ,
+    {"API_TOKEN": "testtoken", "QA_USER_IDS": "111111111"},
+    clear=True,
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.reset_user_state", new_callable=mock.AsyncMock
+)
+async def test_survey_qa_reset_command_success_for_qa_user(mock_reset, client):
+    """
+    Tests that an authorized QA user can successfully reset their state
+    using the !reset command.
+    """
+    # 1. Arrange
+    qa_user_id = "111111111"
+    request_data = {
+        "user_id": qa_user_id,
+        "user_input": "!reset",
+        "survey_id": "anc",
+        "user_context": {},
+    }
+
+    # 2. Act
+    response = client.post(  # Removed 'await'
+        "/v1/survey",
+        json=request_data,
+        headers={"Authorization": "Token testtoken"},
+    )
+
+    # 3. Assert
+    assert response.status_code == 200
+    response_json = response.json()
+    assert "Your state has been reset" in response_json["question"]
+    assert response_json["intent"] == "QA_RESET"
+    mock_reset.assert_awaited_once_with(user_id=qa_user_id)
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(
+    os.environ,
+    {"API_TOKEN": "testtoken", "QA_USER_IDS": "111111111"},
+    clear=True,
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.reset_user_state", new_callable=mock.AsyncMock
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_anc_survey_question", new_callable=mock.AsyncMock
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.handle_user_message",
+    return_value=("JOURNEY_RESPONSE", None),
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.extract_anc_data_from_response",
+    return_value=({}, None),
+)
+async def test_survey_qa_reset_command_ignored_for_regular_user(
+    mock_extract, mock_handle_msg, mock_get_question, mock_reset, client
+):
+    """
+    Tests that the !reset command is ignored if the user is not in the
+    QA user list, ensuring regular users cannot delete their data.
+    """
+    # 1. Arrange
+    regular_user_id = "222222222"
+    mock_get_question.return_value = {
+        "contextualized_question": "This is the next survey question."
+    }
+    request_data = {
+        "user_id": regular_user_id,
+        "user_input": "!reset",
+        "survey_id": "anc",
+        "user_context": {"some_key": "some_value"},
+    }
+
+    # 2. Act
+    response = client.post(
+        "/v1/survey",
+        json=request_data,
+        headers={"Authorization": "Token testtoken"},
+    )
+
+    # 3. Assert
+    assert response.status_code == 200
+    response_json = response.json()
+    assert "This is the next survey question." in response_json["question"]
+    assert response_json["intent"] != "QA_RESET"
+    mock_reset.assert_not_awaited()
