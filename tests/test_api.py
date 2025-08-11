@@ -2057,3 +2057,58 @@ async def test_api_anc_survey_full_turn_with_key_refactor(
     mock_get_question.assert_awaited_once_with(
         user_id="test-user", user_context=updated_context_with_key
     )
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+async def test_resumption_from_awaiting_reminder_state_is_safe(client: TestClient):
+    """
+    BUG FIX VERIFICATION:
+    Tests that if a user drops out *after* receiving a resume prompt,
+    the system can safely re-engage them a second time without crashing.
+    This specifically targets the `int('awaiting_reminder_response')` ValueError.
+    """
+    user_id = "double-dropout-user"
+
+    # Arrange: Manually create the problematic state in the database.
+    # The user was on step 5 of an assessment, got re-engaged once, and we are
+    # now about to re-engage them a second time.
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            session.add(
+                UserJourneyState(
+                    user_id=user_id,
+                    current_flow_id="dma-pre-assessment",
+                    # This is the state that caused the crash
+                    current_step_identifier="awaiting_reminder_response",
+                    last_question_sent="Hi! Ready to pick up where you left off...?",
+                    user_context={"reminder_count": 1},
+                )
+            )
+            await session.commit()
+
+    # Act: The platform re-engages the user a second time.
+    response = client.post(
+        "/v1/assessment",  # Calling the assessment endpoint to resume
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": user_id,
+            "user_input": "",
+            "user_context": {"resume": True},
+            "flow_id": "dma-pre-assessment",  # This is needed for the assessment endpoint
+            "question_number": 0,  # Not relevant here, but required by the model
+            "previous_question": "",  # Not relevant here, but required by the model
+        },
+    )
+
+    # Assert:
+    # 1. The API call must succeed and not crash.
+    assert response.status_code == 200
+    json_response = response.json()
+
+    # 2. The user should receive the resume prompt again.
+    assert "Hi! Ready to pick up" in json_response["question"]
+
+    # 3. CRITICAL: The `next_question` field must be None, because the step
+    #    identifier was not a number. This proves the fix is working.
+    assert json_response["next_question"] is None

@@ -1133,7 +1133,7 @@ async def handle_journey_resumption_prompt(
                 results_to_save=[],
                 failure_count=0,
             )
-        else:
+        else:  # Default to AssessmentResponse for KAB flows
             # Check if the step identifier is a digit before converting to int.
             # If not (e.g., it's 'awaiting_reminder_response'), we can't determine a
             # specific next question number, so we default to None.
