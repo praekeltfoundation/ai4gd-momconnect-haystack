@@ -112,11 +112,11 @@ REPHRASED_QUESTION_SCHEMA = {
 ANC_SURVEY_FLOW_LOGIC = {
     "intro": lambda ctx: "start",
     "start": lambda ctx: "Q_seen"
-    if ctx.get("start") == "VISIT_YES"
+    if ctx.get("start") == "YES"
     else "start_not_going"
-    if ctx.get("start") == "VISIT_NO"
+    if ctx.get("start") == "NO"
     else "start_going_soon"
-    if ctx.get("start") == "VISIT_SOON"
+    if ctx.get("start") == "IM_GOING"
     else "Q_seen",
     "start_going_soon": lambda ctx: "__GOING_SOON_REMINDER_3_DAYS__",
     "Q_seen": lambda ctx: "seen_yes" if ctx.get("Q_seen") == "YES" else "Q_seen_no",
@@ -157,7 +157,7 @@ ANC_SURVEY_FLOW_LOGIC = {
     else "intent",
     "Q_why_not_go_other": lambda ctx: "intent",
     "intent": lambda ctx: "not_going_next_one"
-    if ctx.get("intent") == "WONT_GO"  # Key for "No, I won't"
+    if ctx.get("intent") == "NO"
     else "feedback_if_first_survey"
     if ctx.get("first_survey")
     else "end",

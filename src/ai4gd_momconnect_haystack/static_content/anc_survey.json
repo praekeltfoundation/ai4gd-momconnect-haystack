@@ -22,7 +22,7 @@
         {
             "title": "start_going_soon",
             "content": "OK, that's great! We'll check in a few days to see how it went 💕",
-            "content_type": "follow_up_question"
+            "content_type": "follow_up_message"
         },
         {
             "title": "seen_yes",

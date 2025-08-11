@@ -1731,7 +1731,10 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     anc_user_context[question_identifier] = "Skip"
                 elif final_predicted_intent == "JOURNEY_RESPONSE":
                     anc_user_context, action_dict = extract_anc_data_from_response(
-                        final_user_response, anc_user_context, question_identifier
+                        final_user_response,
+                        anc_user_context,
+                        question_identifier,
+                        contextualized_question,
                     )
 
                     if (
