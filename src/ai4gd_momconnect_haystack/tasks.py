@@ -616,20 +616,8 @@ def extract_anc_data_from_response(
     validated_response_key = extraction_result.get("validated_response")
     confidence = extraction_result.get("confidence")
 
-    if confidence == "low" and isinstance(validated_response_key, str):
-        key_to_response_map = {v: k for k, v in response_key_map.items()}
-        potential_answer_text = key_to_response_map.get(validated_response_key, "")
-
-        # Only trigger confirmation if there is a valid potential answer to confirm
-        if potential_answer_text:
-            action_dict = {
-                "status": "needs_confirmation",
-                "message": f"It sounds like you meant '{potential_answer_text}'. Is that correct?",
-                "potential_answer": validated_response_key,
-                "step_title_to_confirm": step_title,
-            }
-
-    elif match_type == "no_match":
+    # Prioritize handling of "no_match" to prevent the loop.
+    if match_type == "no_match":
         # Find the standardized key for the "Something else" option.
         other_option_key = next(
             (v for k, v in response_key_map.items() if "Something else" in k), "OTHER"
@@ -641,6 +629,20 @@ def extract_anc_data_from_response(
         logger.info(
             f"Handled as 'other'. Storing '{user_response}' in '{step_title}_other_text'"
         )
+
+    elif confidence == "low" and isinstance(validated_response_key, str):
+        # This block now only runs if it was not a no_match.
+        key_to_response_map = {v: k for k, v in response_key_map.items()}
+        potential_answer_text = key_to_response_map.get(validated_response_key, "")
+
+        # Only trigger confirmation if there is a valid potential answer to confirm
+        if potential_answer_text:
+            action_dict = {
+                "status": "needs_confirmation",
+                "message": f"It sounds like you meant '{potential_answer_text}'. Is that correct?",
+                "potential_answer": validated_response_key,
+                "step_title_to_confirm": step_title,
+            }
 
     elif validated_response_key:
         # High-confidence, direct match. Store the KEY in the context.
@@ -945,7 +947,7 @@ def classify_yes_no_response(user_input: str) -> str:
     """
     user_input_lower = user_input.lower().strip()
     # Using word boundaries (\b) for more accurate matching
-    affirmative_pattern = r"\b(yes|yebo|y|ok|okay|sure|please)\b"
+    affirmative_pattern = r"\b(yes|yebo|y|ok|okay|sure|please|definitely|course)\b"
     negative_pattern = r"\b(no|nope|n|stop|not|nah|never)\b"
 
     is_affirmative = bool(re.search(affirmative_pattern, user_input_lower))

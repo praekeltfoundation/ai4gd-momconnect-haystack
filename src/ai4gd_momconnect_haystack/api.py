@@ -68,6 +68,7 @@ from ai4gd_momconnect_haystack.tasks import (
     handle_journey_resumption_prompt,
     handle_intro_reminder,
     handle_reminder_response,
+    classify_yes_no_response,
 )
 from ai4gd_momconnect_haystack.utilities import (
     FLOWS_WITH_INTRO,
@@ -1052,90 +1053,101 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
             else ""
         )
 
-        last_question_data = ANC_SURVEY_MAP.get(last_step_title)
-        valid_responses_for_intent = (
-            last_question_data.valid_responses if last_question_data else []
-        )
-        intent, intent_related_response = handle_user_message(
-            last_question, user_input, valid_responses_for_intent
-        )
-
-        if intent == "SKIP_QUESTION":
-            user_context[last_step_title] = "Skip"
-        elif intent == "JOURNEY_RESPONSE":
-            user_context, action_dict = extract_anc_data_from_response(
-                user_response=user_input,
-                user_context=user_context,
-                step_title=last_step_title,
-                contextualized_question=last_question,
+        # For the critical 'intent' question, use the reliable classifier.
+        if last_step_title == "intent":
+            classification = classify_yes_no_response(user_input)
+            # Treat AMBIGUOUS as NEGATIVE to be cautious
+            user_context["intent"] = "YES" if classification == "AFFIRMATIVE" else "NO"
+            logger.info(
+                f"For step 'intent', classified response as '{classification}' -> '{user_context['intent']}'"
+            )
+        # For all other questions, use the original AI-based logic.
+        else:
+            last_question_data = ANC_SURVEY_MAP.get(last_step_title)
+            valid_responses_for_intent = (
+                last_question_data.valid_responses if last_question_data else []
+            )
+            intent, intent_related_response = handle_user_message(
+                last_question, user_input, valid_responses_for_intent
             )
 
-            if action_dict and action_dict.get("status") == "needs_confirmation":
-                user_context["pending_confirmation"] = action_dict
-                confirmation_question = action_dict["message"]
-                chat_history.append(
-                    ChatMessage.from_assistant(
-                        text=confirmation_question, meta={"step_title": "confirmation"}
-                    )
+            if intent == "SKIP_QUESTION":
+                user_context[last_step_title] = "Skip"
+            elif intent == "JOURNEY_RESPONSE":
+                user_context, action_dict = extract_anc_data_from_response(
+                    user_response=user_input,
+                    user_context=user_context,
+                    step_title=last_step_title,
+                    contextualized_question=last_question,
                 )
-                await save_chat_history(
+
+                if action_dict and action_dict.get("status") == "needs_confirmation":
+                    user_context["pending_confirmation"] = action_dict
+                    confirmation_question = action_dict["message"]
+                    chat_history.append(
+                        ChatMessage.from_assistant(
+                            text=confirmation_question,
+                            meta={"step_title": "confirmation"},
+                        )
+                    )
+                    await save_chat_history(
+                        user_id=user_id,
+                        messages=chat_history,
+                        history_type=request.survey_id,
+                    )
+                    return SurveyResponse(
+                        question=confirmation_question,
+                        question_identifier="confirmation",
+                        user_context=user_context,
+                        survey_complete=False,
+                        intent="SYSTEM_CONFIRM",
+                        intent_related_response=None,
+                        results_to_save=[],
+                        failure_count=request.failure_count,
+                    )
+            elif intent == "REQUEST_TO_BE_REMINDED":
+                state = await get_user_journey_state(user_id)
+                current_reminder_count = state.reminder_count if state else 0
+                new_reminder_count = current_reminder_count + 1
+                reminder_type = 2 if new_reminder_count >= 2 else 1
+                user_context["reminder_count"] = new_reminder_count
+
+                message, reengagement_info = await handle_reminder_request(
                     user_id=user_id,
-                    messages=chat_history,
-                    history_type=request.survey_id,
+                    flow_id=flow_id,
+                    step_identifier=last_step_title,
+                    last_question=last_question,
+                    user_context=user_context,
+                    reminder_type=reminder_type,
                 )
                 return SurveyResponse(
-                    question=confirmation_question,
-                    question_identifier="confirmation",
+                    question=message,
+                    question_identifier=last_step_title,
                     user_context=user_context,
                     survey_complete=False,
-                    intent="SYSTEM_CONFIRM",
+                    intent=intent,
                     intent_related_response=None,
                     results_to_save=[],
-                    failure_count=request.failure_count,
+                    failure_count=0,
+                    reengagement_info=reengagement_info,
                 )
-        elif intent == "REQUEST_TO_BE_REMINDED":
-            state = await get_user_journey_state(user_id)
-            current_reminder_count = state.reminder_count if state else 0
-            new_reminder_count = current_reminder_count + 1
-            reminder_type = 2 if new_reminder_count >= 2 else 1
-            user_context["reminder_count"] = new_reminder_count
-
-            message, reengagement_info = await handle_reminder_request(
-                user_id=user_id,
-                flow_id=flow_id,
-                step_identifier=last_step_title,
-                last_question=last_question,
-                user_context=user_context,
-                reminder_type=reminder_type,
-            )
-            return SurveyResponse(
-                question=message,
-                question_identifier=last_step_title,
-                user_context=user_context,
-                survey_complete=False,
-                intent=intent,
-                intent_related_response=None,
-                results_to_save=[],
-                failure_count=0,
-                reengagement_info=reengagement_info,
-            )
-        else:  # Handle chitchat or other non-journey intents
-            rephrased_question = handle_conversational_repair(
-                flow_id=flow_id,
-                question_identifier=last_step_title,
-                previous_question=last_question,
-                invalid_input=user_input,
-            )
-            return SurveyResponse(
-                question=rephrased_question,
-                question_identifier=last_step_title,
-                user_context=user_context,
-                survey_complete=False,
-                intent="REPAIR",
-                intent_related_response=None,
-                results_to_save=[],
-                failure_count=request.failure_count + 1,
-            )
+            else:  # Handle chitchat or other non-journey intents
+                rephrased_question = handle_conversational_repair(
+                    flow_id=flow_id,
+                    question_identifier=last_step_title,
+                    previous_question=last_question,
+                    invalid_input=user_input,
+                )
+                return SurveyResponse(
+                    question=rephrased_question,
+                    question_identifier=last_step_title,
+                    user_context=user_context,
+                    survey_complete=False,
+                    intent="REPAIR",
+                    intent_related_response=None,
+                    results_to_save=[],
+                    failure_count=request.failure_count + 1,
+                )
 
         if user_context == previous_context:
             if request.failure_count >= 1:

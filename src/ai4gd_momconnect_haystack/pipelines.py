@@ -157,7 +157,7 @@ ANC_SURVEY_FLOW_LOGIC = {
     else "intent",
     "Q_why_not_go_other": lambda ctx: "intent",
     "intent": lambda ctx: "not_going_next_one"
-    if ctx.get("intent") == "WONT_GO"  # Key for "No, I won't"
+    if ctx.get("intent") == "NO"
     else "feedback_if_first_survey"
     if ctx.get("first_survey")
     else "end",

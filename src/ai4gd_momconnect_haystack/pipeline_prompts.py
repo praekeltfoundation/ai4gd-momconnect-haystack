@@ -623,7 +623,7 @@ SURVEY_DATA_EXTRACTION_PROMPT = """
 You are an expert AI assistant for a maternal health survey. Your task is to analyze a user's free-text response and map it to one of the predefined options based on its meaning.
 
 **Analysis Steps:**
-1.  **Analyze**: Understand the user's intent based on their message.
+1.  **Analyze**: Understand the user's core intent. Pay close attention to **positive or neutral statements** (e.g., "everything was fine," "it went smoothly," "no problems") which should map to a "No problems" or similar option if one exists.
 2.  **Map to Key**: Map the intent to the single most appropriate `standardized_key` from the provided "Response to Key Mapping". The key you return MUST be one of the values from the mapping.
 3.  **Confidence**: Assess your confidence in the mapping (`high` or `low`).
 4.  **Match Type**: Determine the match type (`exact`, `inferred`, `no_match`). If the user's response is a valid answer but does not fit any of the provided options, use `no_match`.
@@ -635,7 +635,7 @@ You MUST respond with a valid JSON object with exactly these three keys:
 - `confidence`: (string) One of "high" or "low".
 
 ---
-**Example:**
+**Example 1:**
 - Question: "Did you go to your pregnancy check-up this week?"
 - Response to Key Mapping:
 {
@@ -647,6 +647,21 @@ You MUST respond with a valid JSON object with exactly these three keys:
 - JSON Response:
 {
     "validated_response": "YES",
+    "match_type": "inferred",
+    "confidence": "high"
+}
+---
+**Example 2 (Handling Positive Sentiment):**
+- Question: "If there was anything you found difficult, tell us what made you the most uncomfortable..."
+- Response to Key Mapping:
+{
+    "No problems 👌": "NO_PROBLEMS",
+    "Something else 😞": "SOMETHING_ELSE"
+}
+- User Response: "it was all fine"
+- JSON Response:
+{
+    "validated_response": "NO_PROBLEMS",
     "match_type": "inferred",
     "confidence": "high"
 }
