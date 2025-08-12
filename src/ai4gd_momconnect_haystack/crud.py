@@ -1,31 +1,30 @@
 import logging
 from typing import Any
+
+from haystack.dataclasses import ChatMessage
 from sqlalchemy import delete, update
 from sqlalchemy.future import select
-from .sqlalchemy_models import UserJourneyState
-from haystack.dataclasses import ChatMessage
 
 from ai4gd_momconnect_haystack.assessment_logic import (
     matches_assessment_question_length,
     score_assessment,
 )
 from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType
-from ai4gd_momconnect_haystack.utilities import chat_messages_to_json
-
-from .database import AsyncSessionLocal
-from .sqlalchemy_models import (
-    AssessmentEndMessagingHistory,
-    AssessmentResultHistory,
-    ChatHistory,
-    AssessmentHistory,
-)
-
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentResult,
     AssessmentRun,
     Turn,
 )
+from ai4gd_momconnect_haystack.utilities import chat_messages_to_json
 
+from .database import AsyncSessionLocal
+from .sqlalchemy_models import (
+    AssessmentEndMessagingHistory,
+    AssessmentHistory,
+    AssessmentResultHistory,
+    ChatHistory,
+    UserJourneyState,
+)
 
 logger = logging.getLogger(__name__)
 
