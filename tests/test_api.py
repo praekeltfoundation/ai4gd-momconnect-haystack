@@ -8,21 +8,19 @@ from haystack.dataclasses import ChatMessage
 from sentry_sdk import get_client as get_sentry_client
 
 from ai4gd_momconnect_haystack.api import app, setup_sentry, survey
+from ai4gd_momconnect_haystack.database import AsyncSessionLocal
 from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentEndScoreBasedMessage,
     AssessmentResult,
-    SurveyResponse,
     ReengagementInfo,
     SurveyRequest,
+    SurveyResponse,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import (
     AssessmentEndMessagingHistory,
     UserJourneyState,
 )
-
-
-from ai4gd_momconnect_haystack.database import AsyncSessionLocal
 
 SERVICE_PERSONA_TEXT = "Test Persona"
 
@@ -871,6 +869,81 @@ async def test_anc_survey_first_question(
     assert len(saved_messages) == 4
     assert saved_messages[2].text == "Yes"
     assert saved_messages[3].text == "Hi! Did you go for your clinic visit?"
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch("ai4gd_momconnect_haystack.api.SERVICE_PERSONA_TEXT", "Test Persona")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_anc_survey_question",
+    new_callable=mock.AsyncMock,
+    return_value={
+        "contextualized_question": "Hi! Did you go for your clinic visit?",
+        "is_final_step": False,
+        "question_identifier": "start",
+    },
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.delete_chat_history_for_user",
+    new_callable=mock.AsyncMock,
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_user_journey_state",
+    new_callable=mock.AsyncMock,
+    return_value=None,
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.save_chat_history",
+    new_callable=mock.AsyncMock,
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
+    new_callable=mock.AsyncMock,
+)
+async def test_anc_survey_new_session(
+    get_or_create_chat_history,
+    save_chat_history,
+    mock_get_journey_state,
+    mock_delete_history,
+    mock_get_question,
+):
+    """
+    Tests that when starting a new ANC survey session (no user_input),
+    the system immediately returns the first question since ANC surveys
+    don't have an intro flow.
+    """
+    # Empty history for a new session
+    get_or_create_chat_history.return_value = []
+
+    client = TestClient(app)
+    response = client.post(
+        "/v1/survey",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "TestUser",
+            "survey_id": "anc",
+            "user_context": {},
+            "user_input": "",  # No user input = new session
+        },
+    )
+
+    assert response.status_code == 200
+    json_response = response.json()
+    assert json_response["question"] == "Hi! Did you go for your clinic visit?"
+    assert json_response["question_identifier"] == "start"
+    assert json_response["survey_complete"] is False
+    assert json_response["intent"] == "SYSTEM_INTRO"
+    assert json_response["intent_related_response"] is None
+
+    # Verify the expected function calls
+    get_or_create_chat_history.assert_not_awaited()
+    mock_delete_history.assert_awaited_once_with("TestUser", HistoryType.anc)
+    mock_get_journey_state.assert_not_awaited()
+    mock_get_question.assert_awaited_once_with(
+        user_id="TestUser", user_context={}, chat_history=[]
+    )
+    # No chat history should be saved for this initial system response
+    save_chat_history.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -2127,8 +2200,8 @@ async def test_resumption_from_awaiting_reminder_state_is_safe(client: TestClien
             UserJourneyState(current_flow_id="anc-survey", current_step_identifier=""),
             1,
         ),
-        # For the NO_STATE case, we now correctly expect 2 calls
-        ("NO_STATE", "new_user", None, 2),
+        # For the NO_STATE case, we now correctly expect 1 call
+        ("NO_STATE", "new_user", None, 1),
         (
             "DIFFERENT_FLOW",
             "onboarding_user",

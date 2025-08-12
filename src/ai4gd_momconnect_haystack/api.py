@@ -1,5 +1,5 @@
-import sys
 import logging
+import sys
 from contextlib import asynccontextmanager
 from os import environ
 from pathlib import Path
@@ -10,7 +10,6 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
 from haystack.dataclasses import ChatMessage
 from prometheus_fastapi_instrumentator import Instrumentator
-
 
 from ai4gd_momconnect_haystack.assessment_logic import (
     create_assessment_end_error_response,
@@ -28,12 +27,13 @@ from ai4gd_momconnect_haystack.crud import (
     get_assessment_end_messaging_history,
     get_assessment_result,
     get_or_create_chat_history,
+    get_user_journey_state,
     save_assessment_end_message,
     save_assessment_question,
     save_chat_history,
-    get_user_journey_state,
     save_user_journey_state,
 )
+from ai4gd_momconnect_haystack.database import run_migrations
 from ai4gd_momconnect_haystack.doc_store import (
     INTRO_MESSAGES,
     setup_document_store,
@@ -47,37 +47,36 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     CatchAllResponse,
     OnboardingRequest,
     OnboardingResponse,
-    SurveyRequest,
-    SurveyResponse,
     ResumeRequest,
     ResumeResponse,
+    SurveyRequest,
+    SurveyResponse,
 )
 from ai4gd_momconnect_haystack.tasks import (
+    classify_yes_no_response,
     extract_anc_data_from_response,
     extract_assessment_data_from_response,
+    format_user_data_summary_for_whatsapp,
     get_anc_survey_question,
     get_assessment_question,
     get_next_onboarding_question,
     handle_conversational_repair,
+    handle_intro_reminder,
     handle_intro_response,
+    handle_journey_resumption_prompt,
+    handle_reminder_request,
+    handle_reminder_response,
+    handle_summary_confirmation_step,
     handle_user_message,
     process_onboarding_step,
-    handle_summary_confirmation_step,
-    format_user_data_summary_for_whatsapp,
-    handle_reminder_request,
-    handle_journey_resumption_prompt,
-    handle_intro_reminder,
-    handle_reminder_response,
-    classify_yes_no_response,
 )
 from ai4gd_momconnect_haystack.utilities import (
+    ANC_SURVEY_MAP,
     FLOWS_WITH_INTRO,
     all_onboarding_questions,
     assessment_end_flow_map,
     load_json_and_validate,
-    ANC_SURVEY_MAP,
 )
-from ai4gd_momconnect_haystack.database import run_migrations
 
 from .enums import HistoryType
 
@@ -919,17 +918,21 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
     user_id = request.user_id
     user_input = request.user_input
     flow_id = "anc-survey"
-    chat_history = await get_or_create_chat_history(
-        user_id=user_id, history_type=request.survey_id
-    )
     user_context = request.user_context.copy()
     previous_context = request.user_context.copy()
 
-    # If we didn't fetch the state during the resume check, fetch it now.
-    if state is None:
-        state = await get_user_journey_state(
-            user_id
-        )  # Second call now only happens if needed
+    if not user_input:
+        await delete_chat_history_for_user(request.user_id, HistoryType.anc)
+        chat_history = []
+    else:
+        chat_history = await get_or_create_chat_history(
+            user_id=user_id, history_type=request.survey_id
+        )
+        # If we didn't fetch the state during the resume check, fetch it now.
+        if state is None:
+            state = await get_user_journey_state(
+                user_id
+            )  # Second call now only happens if needed
 
     # Check if the user's last state was awaiting a response to a reminder
     if state and state.current_step_identifier == "awaiting_reminder_response":
@@ -938,7 +941,6 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
     # --- 1. INTRO LOGIC ---
     if not user_input:
         if flow_id in FLOWS_WITH_INTRO:
-            await delete_chat_history_for_user(request.user_id, HistoryType.anc)
             chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
             intro_message = INTRO_MESSAGES["free_text_intro"]
             chat_history.append(
