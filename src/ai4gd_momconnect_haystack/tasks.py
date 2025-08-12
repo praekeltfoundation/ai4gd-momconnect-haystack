@@ -812,10 +812,17 @@ def handle_conversational_repair(
         logger.info(
             f"Using template-based repair for USSD-style question: {flow_id} - {question_identifier}"
         )
-        ack = "Sorry, we don’t understand your answer! Please try again.\n\n"
+        # Define the components of the repair message
+        ack = "Sorry, we don't understand your answer! Please try again.\n\n"
         instruction = "\n\nPlease reply with the letter corresponding to your answer."
-        # The `previous_question` already contains the formatted a,b,c options
-        return ack + previous_question + instruction
+
+        # Clean any previous repair message components from the incoming question text
+        cleaned_question = (
+            previous_question.replace(ack, "").replace(instruction, "").strip()
+        )
+
+        # Rebuild the message correctly to prevent stacking
+        return ack + cleaned_question + instruction
     else:
         # For free-text questions, use the LLM to rephrase
         logger.info(
