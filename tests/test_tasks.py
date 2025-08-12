@@ -947,7 +947,9 @@ async def test_get_anc_survey_question_appends_ussd_options(
     mock_get_history.return_value = []
 
     # Act
-    result = await get_anc_survey_question(user_id="test-user", user_context={}, chat_history=[])
+    result = await get_anc_survey_question(
+        user_id="test-user", user_context={}, chat_history=[]
+    )
 
     # Assert
     assert result is not None
@@ -986,7 +988,9 @@ async def test_get_anc_survey_question_sets_3_day_reminder(
     expected_trigger_time = fake_now + timedelta(days=3)
 
     # 2. Act: Call the function we want to test
-    result = await get_anc_survey_question(user_id="test-user", user_context={}, chat_history=[])
+    result = await get_anc_survey_question(
+        user_id="test-user", user_context={}, chat_history=[]
+    )
 
     # 3. Assert: Check that the result is correct
     assert result is not None

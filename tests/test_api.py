@@ -2121,14 +2121,28 @@ async def test_resumption_from_awaiting_reminder_state_is_safe(client: TestClien
 @pytest.mark.parametrize(
     "scenario, user_id, mock_state, expected_state_calls",
     [
-        ( "COMPLETED_SURVEY", "completed_user", 
-          UserJourneyState(current_flow_id="anc-survey", current_step_identifier=""), 1),
+        (
+            "COMPLETED_SURVEY",
+            "completed_user",
+            UserJourneyState(current_flow_id="anc-survey", current_step_identifier=""),
+            1,
+        ),
         # For the NO_STATE case, we now correctly expect 2 calls
-        ( "NO_STATE", "new_user", None, 2),
-        ( "DIFFERENT_FLOW", "onboarding_user", 
-          UserJourneyState(current_flow_id="onboarding", current_step_identifier="step_2"), 1),
+        ("NO_STATE", "new_user", None, 2),
+        (
+            "DIFFERENT_FLOW",
+            "onboarding_user",
+            UserJourneyState(
+                current_flow_id="onboarding", current_step_identifier="step_2"
+            ),
+            1,
+        ),
     ],
-    ids=["When survey is completed", "When no state exists", "When state is for another flow"],
+    ids=[
+        "When survey is completed",
+        "When no state exists",
+        "When state is for another flow",
+    ],
 )
 @patch("ai4gd_momconnect_haystack.api.save_user_journey_state", new_callable=AsyncMock)
 @patch("ai4gd_momconnect_haystack.api.get_anc_survey_question")
@@ -2156,7 +2170,7 @@ async def test_survey_resume_is_bypassed_for_non_resumable_states(
         "question_identifier": "start",
         "is_final_step": False,
     }
-    
+
     request = SurveyRequest(
         user_id=user_id,
         survey_id=HistoryType.anc,
@@ -2170,10 +2184,11 @@ async def test_survey_resume_is_bypassed_for_non_resumable_states(
     # --- Assert ---
     # This assertion is now flexible and checks for the correct call count in each case
     assert mock_get_state.call_count == expected_state_calls
-    
+
     mock_handle_resume.assert_not_called()
     mock_get_question.assert_called_once()
     assert response.question == "Welcome! Here is the first question."
+
 
 @patch("ai4gd_momconnect_haystack.api.save_user_journey_state", new_callable=AsyncMock)
 @patch("ai4gd_momconnect_haystack.api.get_anc_survey_question")
