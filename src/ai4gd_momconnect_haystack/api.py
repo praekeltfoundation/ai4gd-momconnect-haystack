@@ -890,10 +890,30 @@ async def assessment_end(
 @app.post("/v1/survey", response_model=SurveyResponse)
 async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
     # --- RESUMPTION LOGIC ---
+    state = None  # Initialize state to None at the top
     if request.user_context and request.user_context.get("resume") is True:
-        return await handle_journey_resumption_prompt(
-            user_id=request.user_id, flow_id="anc-survey"
+        logger.info(
+            f"Resume flag detected for user {request.user_id} in survey request."
         )
+        state = await get_user_journey_state(request.user_id)  # First call happens here
+
+        is_resumable = False
+        if state and state.current_flow_id == "anc-survey":
+            if state.current_step_identifier and state.current_step_identifier != "":
+                is_resumable = True
+                logger.info(
+                    f"User {request.user_id} has a resumable survey at step: {state.current_step_identifier}."
+                )
+
+        if is_resumable:
+            return await handle_journey_resumption_prompt(
+                user_id=request.user_id, flow_id="anc-survey"
+            )
+        else:
+            logger.warning(
+                f"Ignoring resume flag for user {request.user_id}. State is not resumable. Starting fresh survey."
+            )
+            request.user_context.pop("resume", None)
     # --- END OF RESUMPTION LOGIC ---
 
     user_id = request.user_id
@@ -905,14 +925,15 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
     user_context = request.user_context.copy()
     previous_context = request.user_context.copy()
 
+    # If we didn't fetch the state during the resume check, fetch it now.
+    if state is None:
+        state = await get_user_journey_state(
+            user_id
+        )  # Second call now only happens if needed
+
     # Check if the user's last state was awaiting a response to a reminder
-    saved_state = await get_user_journey_state(user_id)
-    if (
-        saved_state
-        and saved_state.current_step_identifier == "awaiting_reminder_response"
-    ):
-        # If so, hand off to the dedicated reminder response handler
-        return await handle_reminder_response(user_id, user_input, saved_state)
+    if state and state.current_step_identifier == "awaiting_reminder_response":
+        return await handle_reminder_response(user_id, user_input, state)
 
     # --- 1. INTRO LOGIC ---
     if not user_input:
@@ -942,7 +963,7 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
             # This is a new survey for a flow WITHOUT an intro (e.g., ANC).
             # Immediately fetch and return the first question.
             question_result = await get_anc_survey_question(
-                user_id=user_id, user_context=user_context
+                user_id=user_id, user_context=user_context, chat_history=chat_history
             )
             if question_result:
                 question = question_result.get("contextualized_question", "")
@@ -1172,7 +1193,7 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
 
     # --- 4. GET NEXT QUESTION ---
     question_result = await get_anc_survey_question(
-        user_id=user_id, user_context=user_context
+        user_id=user_id, user_context=user_context, chat_history=chat_history
     )
 
     question, next_step, survey_complete = "", "", True

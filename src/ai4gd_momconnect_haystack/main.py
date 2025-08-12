@@ -1620,7 +1620,9 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
                 print("-" * 20)
                 result = await get_anc_survey_question(
-                    user_id=user_id, user_context=anc_user_context
+                    user_id=user_id,
+                    user_context=anc_user_context,
+                    chat_history=chat_history,
                 )
 
                 if not result:

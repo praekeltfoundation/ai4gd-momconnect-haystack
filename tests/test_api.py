@@ -1,18 +1,20 @@
 import os
 from unittest import mock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 from haystack.dataclasses import ChatMessage
 from sentry_sdk import get_client as get_sentry_client
 
-from ai4gd_momconnect_haystack.api import app, setup_sentry
+from ai4gd_momconnect_haystack.api import app, setup_sentry, survey
 from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentEndScoreBasedMessage,
     AssessmentResult,
     SurveyResponse,
     ReengagementInfo,
+    SurveyRequest,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import (
     AssessmentEndMessagingHistory,
@@ -2055,7 +2057,9 @@ async def test_api_anc_survey_full_turn_with_key_refactor(
     #    context containing the standardized key. This proves the entire
     #    refactor is working.
     mock_get_question.assert_awaited_once_with(
-        user_id="test-user", user_context=updated_context_with_key
+        user_id="test-user",
+        user_context=updated_context_with_key,
+        chat_history=mock.ANY,
     )
 
 
@@ -2112,3 +2116,102 @@ async def test_resumption_from_awaiting_reminder_state_is_safe(client: TestClien
     # 3. CRITICAL: The `next_question` field must be None, because the step
     #    identifier was not a number. This proves the fix is working.
     assert json_response["next_question"] is None
+
+
+@pytest.mark.parametrize(
+    "scenario, user_id, mock_state, expected_state_calls",
+    [
+        ( "COMPLETED_SURVEY", "completed_user", 
+          UserJourneyState(current_flow_id="anc-survey", current_step_identifier=""), 1),
+        # For the NO_STATE case, we now correctly expect 2 calls
+        ( "NO_STATE", "new_user", None, 2),
+        ( "DIFFERENT_FLOW", "onboarding_user", 
+          UserJourneyState(current_flow_id="onboarding", current_step_identifier="step_2"), 1),
+    ],
+    ids=["When survey is completed", "When no state exists", "When state is for another flow"],
+)
+@patch("ai4gd_momconnect_haystack.api.save_user_journey_state", new_callable=AsyncMock)
+@patch("ai4gd_momconnect_haystack.api.get_anc_survey_question")
+@patch("ai4gd_momconnect_haystack.api.handle_journey_resumption_prompt")
+@patch("ai4gd_momconnect_haystack.api.get_user_journey_state")
+async def test_survey_resume_is_bypassed_for_non_resumable_states(
+    mock_get_state: AsyncMock,
+    mock_handle_resume: AsyncMock,
+    mock_get_question: AsyncMock,
+    mock_save_state: AsyncMock,
+    scenario: str,
+    user_id: str,
+    mock_state: UserJourneyState | None,
+    expected_state_calls: int,
+):
+    """
+    GIVEN a user's state is not a resumable survey (it's completed, null, or for another flow)
+    WHEN they start the survey with a `resume: True` flag
+    THEN the resume logic should be bypassed and a fresh survey should start.
+    """
+    # --- Arrange ---
+    mock_get_state.return_value = mock_state
+    mock_get_question.return_value = {
+        "contextualized_question": "Welcome! Here is the first question.",
+        "question_identifier": "start",
+        "is_final_step": False,
+    }
+    
+    request = SurveyRequest(
+        user_id=user_id,
+        survey_id=HistoryType.anc,
+        user_input="",
+        user_context={"resume": True},
+    )
+
+    # --- Act ---
+    response = await survey(request, token="fake_token")
+
+    # --- Assert ---
+    # This assertion is now flexible and checks for the correct call count in each case
+    assert mock_get_state.call_count == expected_state_calls
+    
+    mock_handle_resume.assert_not_called()
+    mock_get_question.assert_called_once()
+    assert response.question == "Welcome! Here is the first question."
+
+@patch("ai4gd_momconnect_haystack.api.save_user_journey_state", new_callable=AsyncMock)
+@patch("ai4gd_momconnect_haystack.api.get_anc_survey_question")
+@patch("ai4gd_momconnect_haystack.api.handle_journey_resumption_prompt")
+@patch("ai4gd_momconnect_haystack.api.get_user_journey_state")
+async def test_survey_resume_is_triggered_for_in_progress_state(
+    mock_get_state: AsyncMock,
+    mock_handle_resume: AsyncMock,
+    mock_get_question: AsyncMock,
+    mock_save_state: AsyncMock,
+):
+    """
+    GIVEN a user with an IN-PROGRESS survey state (step is a non-empty string)
+    WHEN they start the survey with a `resume: True` flag
+    THEN the resume logic should be triggered and the resumption handler called.
+    """
+    # --- Arrange ---
+    mock_get_state.return_value = UserJourneyState(
+        current_flow_id="anc-survey", current_step_identifier="Q_bp_measurement"
+    )
+    mock_handle_resume.return_value = {
+        "question": "Welcome back! Let's continue.",
+        "question_identifier": "Q_bp_measurement",
+    }
+    request = SurveyRequest(
+        user_id="paused_user",
+        survey_id=HistoryType.anc,
+        user_input="",
+        user_context={"resume": True},
+    )
+
+    # --- Act ---
+    response = await survey(request, token="fake_token")
+
+    # --- Assert ---
+    mock_get_state.assert_called_once_with("paused_user")
+    mock_handle_resume.assert_called_once_with(
+        user_id="paused_user", flow_id="anc-survey"
+    )
+    mock_get_question.assert_not_called()
+    assert response["question"] == "Welcome back! Let's continue."
