@@ -3,6 +3,7 @@ import json
 import logging
 from datetime import datetime, timezone, timedelta
 
+from haystack.dataclasses import ChatMessage
 
 from ai4gd_momconnect_haystack.crud import (
     get_assessment_history,
@@ -405,7 +406,9 @@ def extract_assessment_data_from_response(
         }
 
 
-async def get_anc_survey_question(user_id: str, user_context: dict) -> dict | None:
+async def get_anc_survey_question(
+    user_id: str, user_context: dict, chat_history: list[ChatMessage]
+) -> dict | None:
     """
     Gets the next contextualized ANC survey question or identifies a special action step.
     """
@@ -1079,8 +1082,9 @@ async def handle_journey_resumption_prompt(
     if resume_message is None:
         # ANC SURVEY CASE: No resume message, go directly to the next question.
         restored_context = state.user_context
+        chat_history = await get_or_create_chat_history(user_id, HistoryType.anc)
         question_result = await get_anc_survey_question(
-            user_id=user_id, user_context=restored_context
+            user_id=user_id, user_context=restored_context, chat_history=chat_history
         )
 
         if not question_result:
@@ -1233,8 +1237,11 @@ async def handle_reminder_response(
 
         # If for some reason the last question was empty, get the next logical one
         if not question_to_send:
+            chat_history = await get_or_create_chat_history(user_id, HistoryType.anc)
             question_result = await get_anc_survey_question(
-                user_id=user_id, user_context=restored_context
+                user_id=user_id,
+                user_context=restored_context,
+                chat_history=chat_history,
             )
             if question_result:
                 question_to_send = question_result.get("contextualized_question", "")
