@@ -957,8 +957,8 @@ def classify_yes_no_response(user_input: str) -> str:
     """
     user_input_lower = user_input.lower().strip()
     # Using word boundaries (\b) for more accurate matching
-    affirmative_pattern = r"\b(yes|yebo|y|ok|okay|sure|please|definitely|course)\b"
-    negative_pattern = r"\b(no|nope|n|stop|not|nah|never)\b"
+    affirmative_pattern = r"\b(yes|yebo|y|ok|okay|sure|please|definitely|course|yup|yep|yeah|ja|yah|yea|ewe)\b"
+    negative_pattern = r"\b(no|nope|n|stop|not|nah|never|nee|hayi)\b"
 
     is_affirmative = bool(re.search(affirmative_pattern, user_input_lower))
     is_negative = bool(re.search(negative_pattern, user_input_lower))
