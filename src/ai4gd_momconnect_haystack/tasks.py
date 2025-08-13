@@ -2,6 +2,7 @@ import re
 import json
 import logging
 from datetime import datetime, timezone, timedelta
+from string import ascii_lowercase
 
 from haystack.dataclasses import ChatMessage
 
@@ -42,6 +43,7 @@ from .utilities import (
     prepare_valid_responses_to_display_to_onboarding_user,
     create_response_to_key_map,
     prepare_valid_responses_to_display_to_anc_survey_user,
+    prepend_valid_responses_with_alphabetical_index,
 )
 
 from fastapi import HTTPException
@@ -600,13 +602,32 @@ def extract_anc_data_from_response(
         return user_context, None
 
     # Step 1: Create the mapping from response text to a standardized key
+    # FIX: ADD RULE-BASED SHORTCUT FOR SINGLE-LETTER RESPONSES
     response_key_map = create_response_to_key_map(question_data.valid_responses)
+    user_response_lower = user_response.strip().lower()
 
+    if len(user_response_lower) == 1 and user_response_lower in ascii_lowercase:
+        try:
+            response_index = ascii_lowercase.index(user_response_lower)
+            if response_index < len(question_data.valid_responses):
+                selected_response_text = question_data.valid_responses[response_index]
+                standardized_key = response_key_map.get(selected_response_text)
+
+                if standardized_key:
+                    logger.info(
+                        f"Rule-based match found: '{user_response}' -> '{standardized_key}'"
+                    )
+                    user_context[step_title] = standardized_key
+                    return user_context, None  # Return immediately
+        except (ValueError, IndexError):
+            logger.warning("Rule-based mapping failed, falling back to LLM.")
+
+    # --- If not handled by rules, proceed with LLM-based extraction ---
     # Step 2: Call the pipeline, passing the key map for the AI to use
     extraction_result = pipelines.run_survey_data_extraction_pipeline(
         user_response=user_response,
         previous_service_message=contextualized_question,
-        response_key_map=response_key_map,  # Pass the map as a keyword argument
+        response_key_map=response_key_map,
     )
 
     if not extraction_result:
@@ -863,11 +884,31 @@ def handle_conversational_repair(
                     item.response
                     for item in assessment_question_data.valid_responses_and_scores
                 ]
+        elif flow_id == "anc-survey":
+            if isinstance(question_identifier, str):
+                question_data = ANC_SURVEY_MAP.get(question_identifier)
+                if question_data:
+                    valid_responses = question_data.valid_responses or []
+                else:
+                    logger.error(
+                        f"No question data found for ANC step_id: '{question_identifier}'"
+                    )
+            else:
+                logger.error(
+                    f"ANC repair called with invalid identifier type: {type(question_identifier)}"
+                )
+
+        if valid_responses:
+            formatted_responses = prepend_valid_responses_with_alphabetical_index(
+                valid_responses
+            )
+        else:
+            formatted_responses = []
 
         rephrased_question = run_rephrase_question_pipeline(
             previous_question=previous_question,
             invalid_input=invalid_input,
-            valid_responses=valid_responses,
+            valid_responses=formatted_responses,
         )
 
         if not rephrased_question:

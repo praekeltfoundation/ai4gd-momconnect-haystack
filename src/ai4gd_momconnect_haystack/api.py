@@ -917,7 +917,8 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
     # --- END OF RESUMPTION LOGIC ---
 
     user_id = request.user_id
-    user_input = request.user_input
+    # Normalize user input to lowercase and strip whitespace
+    user_input = request.user_input.strip().lower() if request.user_input else ""
     flow_id = "anc-survey"
     chat_history = await get_or_create_chat_history(
         user_id=user_id, history_type=request.survey_id
@@ -1073,6 +1074,9 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
             if last_assistant_message
             else ""
         )
+        logger.debug(
+            f"Processing user_input: '{user_input}' for step '{last_step_title}'"
+        )
 
         # For the critical 'intent' question, use the reliable classifier.
         if last_step_title == "intent":
@@ -1153,22 +1157,32 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
                     reengagement_info=reengagement_info,
                 )
             else:  # Handle chitchat or other non-journey intents
-                rephrased_question = handle_conversational_repair(
-                    flow_id=flow_id,
-                    question_identifier=last_step_title,
-                    previous_question=last_question,
-                    invalid_input=user_input,
-                )
-                return SurveyResponse(
-                    question=rephrased_question,
-                    question_identifier=last_step_title,
-                    user_context=user_context,
-                    survey_complete=False,
-                    intent="REPAIR",
-                    intent_related_response=None,
-                    results_to_save=[],
-                    failure_count=request.failure_count + 1,
-                )
+                # PREVENT INFINITE REPAIR LOOP BY ADDING AN ESCAPE HATCH
+                if request.failure_count >= 1:
+                    # After one failed repair, force-skip the question
+                    logger.warning(
+                        f"Repair failed twice for step '{last_step_title}'. Force-skipping."
+                    )
+                    user_context[last_step_title] = "Skipped - System"
+                    # Fall through to get the next question
+                else:
+                    # On the first failure, attempt conversational repair
+                    rephrased_question = handle_conversational_repair(
+                        flow_id=flow_id,
+                        question_identifier=last_step_title,
+                        previous_question=last_question,
+                        invalid_input=user_input,
+                    )
+                    return SurveyResponse(
+                        question=rephrased_question,
+                        question_identifier=last_step_title,
+                        user_context=previous_context,
+                        survey_complete=False,
+                        intent="REPAIR",
+                        intent_related_response=None,
+                        results_to_save=[],
+                        failure_count=request.failure_count + 1,
+                    )
 
         if user_context == previous_context:
             if request.failure_count >= 1:
