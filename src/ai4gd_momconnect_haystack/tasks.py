@@ -1194,7 +1194,7 @@ async def handle_journey_resumption_prompt(
             chat_history = await get_or_create_chat_history(
                 user_id, HistoryType.onboarding
             )
-            save_resume_message_to_chat_history(
+            await save_resume_message_to_chat_history(
                 user_id=user_id,
                 question_text=resume_message,
                 chat_history=chat_history,
