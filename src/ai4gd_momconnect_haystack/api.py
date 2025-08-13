@@ -181,8 +181,10 @@ def verify_token(authorization: Annotated[str, Header()]):
 
 @app.post("/v1/onboarding")
 async def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
+    logger.info("Processing onboarding request for user: %s", request.user_id)
     # --- RESUMPTION LOGIC ---
     if request.user_context and request.user_context.get("resume") is True:
+        logger.info(f"Resume flag detected for user {request.user_id}.")
         return await handle_journey_resumption_prompt(
             user_id=request.user_id, flow_id="onboarding"
         )
@@ -195,6 +197,9 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     chat_history = await get_or_create_chat_history(
         user_id=user_id, history_type=HistoryType.onboarding
     )
+
+    logger.info(f"User input: {user_input}")
+    logger.info(f"User context: {user_context}")
 
     # --- STATE MACHINE: Handles summary confirmation and updates ---
     flow_state = user_context.get("flow_state")
@@ -214,10 +219,12 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     # Check if the user's last state was awaiting a response to a reminder
     state = await get_user_journey_state(user_id)
     if state and state.current_step_identifier == "awaiting_reminder_response":
+        logger.info("User is responding to a reminder prompt.")
         return await handle_reminder_response(user_id, user_input, state)
 
     # This block handles the very first message of a flow (no user input)
     if not user_input:
+        logger.info("No user input provided, checking for intro message.")
         if flow_id and flow_id in FLOWS_WITH_INTRO:
             await delete_chat_history_for_user(request.user_id, HistoryType.onboarding)
             chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
@@ -244,6 +251,11 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     is_intro_response = (
         len(chat_history) == 2 and chat_history[0].role.value == "system"
     )
+
+    logger.info(
+        f"Last assistant message: {last_assistant_msg.text if last_assistant_msg else 'N/A'}"
+    )
+    logger.info(f"Is intro response: {is_intro_response}")
 
     if is_intro_response:
         result = handle_intro_response(user_input=user_input, flow_id=flow_id)
@@ -309,6 +321,8 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         last_question_obj.question_number if last_question_obj else 0
     )
 
+    logger.info(f"Current question number: {current_question_number}")
+
     # For subsequent messages, detect intent
     if not is_intro_response:
         intent, intent_related_response = handle_user_message(last_question, user_input)
@@ -318,10 +332,15 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     else:
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
 
+    logger.info(f"User intent: {intent}")
+    logger.info(f"User intent-related response: {intent_related_response}")
+
     user_context = request.user_context.copy()
     results_to_save = []
     question_text = ""
     failure_count = request.failure_count
+
+    logger.info(f"failure_count: {failure_count}")
 
     if intent == "SKIP_QUESTION":
         failure_count = 0
