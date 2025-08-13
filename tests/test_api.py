@@ -2236,60 +2236,63 @@ async def test_survey_resume_is_triggered_for_in_progress_state(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "user_input, expected_next_step, expected_question_text",
+    "user_input, expected_next_step, expected_question_text, context_update",
     [
         (
             "a",
             "Q_seen",
             ANC_SURVEY_MAP["Q_seen"].content,
+            {"start": "VISIT_YES"},  # Remove first_survey
         ),
         (
             "b",
             "start_not_going",
             ANC_SURVEY_MAP["start_not_going"].content,
+            {"start": "NOT_GOING"},
         ),
         (
             "c",
             "start_going_soon",
             ANC_SURVEY_MAP["start_going_soon"].content,
+            {"start": "IM_GOING"},
         ),
     ],
     ids=["User says Yes", "User says No", "User says Going Soon"],
 )
-@mock.patch.dict("os.environ", {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch.dict("os.environ", {"API_TOKEN": "testtoken"}, clear=True)  # Remove OPENAI_API_KEY
+@mock.patch("ai4gd_momconnect_haystack.api.get_anc_survey_question")  # Mock pipeline
 @mock.patch("ai4gd_momconnect_haystack.api.extract_anc_data_from_response")
 @mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
-@mock.patch(
-    "ai4gd_momconnect_haystack.api.save_user_journey_state", new_callable=mock.AsyncMock
-)
-@mock.patch(
-    "ai4gd_momconnect_haystack.api.save_chat_history", new_callable=mock.AsyncMock
-)
+@mock.patch("ai4gd_momconnect_haystack.api.save_user_journey_state", new_callable=mock.AsyncMock)
+@mock.patch("ai4gd_momconnect_haystack.api.save_chat_history", new_callable=mock.AsyncMock)
 async def test_anc_survey_first_turn_branching_and_content(
     mock_save_history,
     mock_save_state,
     mock_handle_message,
     mock_extract_data,
+    mock_get_question,
     user_input,
     expected_next_step,
     expected_question_text,
+    context_update,
 ):
     """
     Tests that the first user response in the ANC survey correctly branches
     the conversation AND returns the correct content for the next step.
     """
-    # Arrange: Mock the return values for the functions we are isolating
+    # Arrange
     mock_handle_message.return_value = ("JOURNEY_RESPONSE", None)
-
-    # We need to simulate the context changing for the logic to proceed.
-    # The key must match the 'start' step's "collects" field.
-    mock_extract_data.return_value = ({"start": "some_value"}, None)
-
+    mock_extract_data.return_value = (context_update, None)
+    mock_get_question.return_value = {
+        "contextualized_question": expected_question_text,
+        "question_identifier": expected_next_step,
+        "is_final_step": False,
+    }
     initial_history = [
         ChatMessage.from_system("..."),
         ChatMessage.from_assistant("Intro message", meta={"step_title": "start"}),
     ]
-
+    
     client = TestClient(app)
     with mock.patch(
         "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
@@ -2300,14 +2303,13 @@ async def test_anc_survey_first_turn_branching_and_content(
             headers={"Authorization": "Token testtoken"},
             json={
                 "user_id": "test-branching-user",
-                # FIX: Use the correct enum value for the survey_id
-                "survey_id": "anc-survey",
+                "survey_id": "anc",
                 "user_context": {},
                 "user_input": user_input,
                 "failure_count": 0,
             },
         )
-
+    
     assert response.status_code == 200
     json_response = response.json()
     assert json_response["question_identifier"] == expected_next_step
