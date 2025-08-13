@@ -1,6 +1,6 @@
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest import mock
-from datetime import datetime, timezone, timedelta
 
 import pytest
 
@@ -12,32 +12,33 @@ from ai4gd_momconnect_haystack.assessment_logic import (
     validate_assessment_answer,
 )
 from ai4gd_momconnect_haystack.enums import AssessmentType
-from ai4gd_momconnect_haystack.utilities import create_response_to_key_map
-from ai4gd_momconnect_haystack.sqlalchemy_models import UserJourneyState
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentQuestion,
+    AssessmentResponse,
     AssessmentRun,
-    ResponseScore,
-    Turn,
-    SurveyResponse,
+    OnboardingResponse,
     ReengagementInfo,
+    ResponseScore,
+    SurveyResponse,
+    Turn,
 )
-
+from ai4gd_momconnect_haystack.sqlalchemy_models import UserJourneyState
 from ai4gd_momconnect_haystack.tasks import (
+    classify_ussd_intro_response,
+    classify_yes_no_response,
+    extract_anc_data_from_response,
     extract_onboarding_data_from_response,
+    format_user_data_summary_for_whatsapp,
+    get_anc_survey_question,
     get_assessment_question,
     get_next_onboarding_question,
-    handle_intro_response,
     handle_conversational_repair,
-    extract_anc_data_from_response,
-    handle_summary_confirmation_step,
-    format_user_data_summary_for_whatsapp,
-    classify_yes_no_response,
+    handle_intro_response,
     handle_reminder_request,
-    classify_ussd_intro_response,
     handle_reminder_response,
-    get_anc_survey_question,
+    handle_summary_confirmation_step,
 )
+from ai4gd_momconnect_haystack.utilities import create_response_to_key_map
 
 # --- Test Data Fixtures ---
 
@@ -838,9 +839,9 @@ def test_create_response_to_key_map_generates_correct_keys():
 
 
 @pytest.mark.asyncio
-async def test_handle_reminder_response_affirmative():
+async def test_handle_reminder_response_affirmative_survey():
     """
-    Tests that when a user affirmatively responds to a reminder, the original question is returned.
+    Tests that when a user affirmatively responds to a reminder on surveys, the original question is returned.
     """
     mock_state = UserJourneyState(
         user_id="test-user",
@@ -855,6 +856,50 @@ async def test_handle_reminder_response_affirmative():
     )
 
     assert isinstance(response, SurveyResponse)
+    assert response.question == "This was the original question."
+    assert response.intent == "JOURNEY_RESUMED"
+
+
+@pytest.mark.asyncio
+async def test_handle_reminder_response_affirmative_onboarding():
+    """
+    Tests that when a user affirmatively responds to a reminder on onboarding, the original question is returned.
+    """
+    mock_state = UserJourneyState(
+        user_id="test-user",
+        current_flow_id="onboarding",
+        current_step_identifier="start",
+        last_question_sent="This was the original question.",
+        user_context={},
+    )
+
+    response = await handle_reminder_response(
+        user_id="test-user", user_input="a. Yes", state=mock_state
+    )
+
+    assert isinstance(response, OnboardingResponse)
+    assert response.question == "This was the original question."
+    assert response.intent == "JOURNEY_RESUMED"
+
+
+@pytest.mark.asyncio
+async def test_handle_reminder_response_affirmative_assessment():
+    """
+    Tests that when a user affirmatively responds to a reminder on assessment, the original question is returned.
+    """
+    mock_state = UserJourneyState(
+        user_id="test-user",
+        current_flow_id="behaviour",
+        current_step_identifier="start",
+        last_question_sent="This was the original question.",
+        user_context={},
+    )
+
+    response = await handle_reminder_response(
+        user_id="test-user", user_input="a. Yes", state=mock_state
+    )
+
+    assert isinstance(response, AssessmentResponse)
     assert response.question == "This was the original question."
     assert response.intent == "JOURNEY_RESUMED"
 
