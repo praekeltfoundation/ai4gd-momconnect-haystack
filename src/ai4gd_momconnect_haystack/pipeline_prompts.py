@@ -475,6 +475,18 @@ The user was asked about their confidence level. Their response, "how long will 
 </json>
 
 ---
+**Example 1b: User gives a direct answer with uppercase**
+Last question that was sent to the user: "Have you taken your iron supplements today? a. Yes b. No"
+User's response: "A"
+<reasoning>The user responded with 'A', which corresponds to 'Yes', ignoring case. This is a direct answer. Therefore, the intent is JOURNEY_RESPONSE.</reasoning>
+<json>
+{
+    "intent": "JOURNEY_RESPONSE"
+}
+</json>
+---
+
+---
 **Example 2: User gives a simple conversational reply**
 Last question that was sent to the user: "Do you own the phone you're using right now? 📱"
 User's response: "ok cool"
@@ -625,6 +637,7 @@ You are an expert AI assistant for a maternal health survey. Your task is to ana
 **Analysis Steps:**
 1.  **Analyze**: Understand the user's core intent. Pay close attention to **positive or neutral statements** (e.g., "everything was fine," "it went smoothly," "no problems") which should map to a "No problems" or similar option if one exists.
 2.  **Map to Key**: Map the intent to the single most appropriate `standardized_key` from the provided "Response to Key Mapping". The key you return MUST be one of the values from the mapping.
+    - **Important**: If the user responds with a single letter (e.g., 'a' or 'A'), map it to the corresponding option in the list, ignoring case.
 3.  **Confidence**: Assess your confidence in the mapping (`high` or `low`).
 4.  **Match Type**: Determine the match type (`exact`, `inferred`, `no_match`). If the user's response is a valid answer but does not fit any of the provided options, use `no_match`.
 

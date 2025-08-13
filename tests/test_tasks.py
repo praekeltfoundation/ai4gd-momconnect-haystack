@@ -425,7 +425,7 @@ def test_handle_conversational_repair(pipeline_return, expected_substring):
         mock_run_pipeline.assert_called_once_with(
             previous_question="Original Question?",
             invalid_input="bad answer",
-            valid_responses=["Yes"],
+            valid_responses=["a. Yes"],
         )
 
 

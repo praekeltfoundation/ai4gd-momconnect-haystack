@@ -22,6 +22,8 @@ from ai4gd_momconnect_haystack.sqlalchemy_models import (
     UserJourneyState,
 )
 
+from ai4gd_momconnect_haystack.utilities import ANC_SURVEY_MAP
+
 SERVICE_PERSONA_TEXT = "Test Persona"
 
 
@@ -793,7 +795,7 @@ async def test_anc_survey(
     mock_save_history.assert_awaited_once()
     saved_messages = mock_save_history.call_args.kwargs["messages"]
     assert len(saved_messages) == 6
-    assert saved_messages[4].text == "Yes I did"
+    assert saved_messages[4].text == "yes i did"
     assert saved_messages[5].text == "Q2"
 
 
@@ -861,13 +863,13 @@ async def test_anc_survey_first_question(
     get_or_create_chat_history.assert_awaited_once_with(
         user_id="TestUser", history_type=HistoryType.anc
     )
-    mock_handle_intro.assert_called_once_with(user_input="Yes", flow_id="anc-survey")
+    mock_handle_intro.assert_called_once_with(user_input="yes", flow_id="anc-survey")
     mock_get_question.assert_awaited_once()
     mock_handle_user_message.assert_not_called()
     save_chat_history.assert_awaited_once()
     saved_messages = save_chat_history.call_args.kwargs["messages"]
     assert len(saved_messages) == 4
-    assert saved_messages[2].text == "Yes"
+    assert saved_messages[2].text == "yes"
     assert saved_messages[3].text == "Hi! Did you go for your clinic visit?"
 
 
@@ -1014,7 +1016,7 @@ async def test_anc_survey_chitchat(
     assert json_response["question"] == "Rephrased question."
     assert json_response["intent"] == "REPAIR"
     mock_handle_message.assert_called_once_with(
-        "Hi! Did you go for your clinic visit?", "Hi!", ["Yes", "No"]
+        "Hi! Did you go for your clinic visit?", "hi!", ["Yes", "No"]
     )
 
 
@@ -1973,7 +1975,7 @@ async def test_survey_api_handles_reminder_response(
 
     # Verify that the correct logic path was taken
     mock_get_state.assert_awaited_once_with("test-user")
-    mock_handle_response.assert_awaited_once_with("test-user", "Yes", mock_state)
+    mock_handle_response.assert_awaited_once_with("test-user", "yes", mock_state)
 
 
 @pytest.mark.asyncio
@@ -2303,3 +2305,91 @@ async def test_survey_resume_is_triggered_for_in_progress_state(
     )
     mock_get_question.assert_not_called()
     assert response["question"] == "Welcome back! Let's continue."
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "user_input, expected_next_step, expected_question_text, context_update",
+    [
+        (
+            "a",
+            "Q_seen",
+            ANC_SURVEY_MAP["Q_seen"].content,
+            {"start": "VISIT_YES"},  # Remove first_survey
+        ),
+        (
+            "b",
+            "start_not_going",
+            ANC_SURVEY_MAP["start_not_going"].content,
+            {"start": "NOT_GOING"},
+        ),
+        (
+            "c",
+            "start_going_soon",
+            ANC_SURVEY_MAP["start_going_soon"].content,
+            {"start": "IM_GOING"},
+        ),
+    ],
+    ids=["User says Yes", "User says No", "User says Going Soon"],
+)
+@mock.patch.dict(
+    "os.environ", {"API_TOKEN": "testtoken"}, clear=True
+)  # Remove OPENAI_API_KEY
+@mock.patch("ai4gd_momconnect_haystack.api.get_anc_survey_question")  # Mock pipeline
+@mock.patch("ai4gd_momconnect_haystack.api.extract_anc_data_from_response")
+@mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.save_user_journey_state", new_callable=mock.AsyncMock
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.save_chat_history", new_callable=mock.AsyncMock
+)
+async def test_anc_survey_first_turn_branching_and_content(
+    mock_save_history,
+    mock_save_state,
+    mock_handle_message,
+    mock_extract_data,
+    mock_get_question,
+    user_input,
+    expected_next_step,
+    expected_question_text,
+    context_update,
+):
+    """
+    Tests that the first user response in the ANC survey correctly branches
+    the conversation AND returns the correct content for the next step.
+    """
+    # Arrange
+    mock_handle_message.return_value = ("JOURNEY_RESPONSE", None)
+    mock_extract_data.return_value = (context_update, None)
+    mock_get_question.return_value = {
+        "contextualized_question": expected_question_text,
+        "question_identifier": expected_next_step,
+        "is_final_step": False,
+    }
+    initial_history = [
+        ChatMessage.from_system("..."),
+        ChatMessage.from_assistant("Intro message", meta={"step_title": "start"}),
+    ]
+
+    client = TestClient(app)
+    with mock.patch(
+        "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
+        return_value=initial_history,
+    ):
+        response = client.post(
+            "/v1/survey",
+            headers={"Authorization": "Token testtoken"},
+            json={
+                "user_id": "test-branching-user",
+                "survey_id": "anc",
+                "user_context": {},
+                "user_input": user_input,
+                "failure_count": 0,
+            },
+        )
+
+    assert response.status_code == 200
+    json_response = response.json()
+    assert json_response["question_identifier"] == expected_next_step
+    assert expected_question_text in json_response["question"]
