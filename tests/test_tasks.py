@@ -1007,3 +1007,53 @@ async def test_get_anc_survey_question_sets_3_day_reminder(
 
     # Assert that the user's state was saved
     mock_save_state.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    "flow_id, question_identifier, previous_question, invalid_input",
+    [
+        ("dma-pre-assessment", 1, "Original DMA question?", "invalid"),
+        ("attitude-post-assessment", 3, "Original Attitude question?", "invalid"),
+        ("anc-survey", "Q_experience", "Original ANC question?", "invalid"),
+    ],
+    ids=["dma_flow", "kab_attitude_flow", "anc_survey_flow"],
+)
+def test_handle_conversational_repair_for_ussd_style_flows(
+    flow_id, question_identifier, previous_question, invalid_input
+):
+    """
+    Tests that for USSD-style flows, the conversational repair uses a
+    fixed template and correctly prevents the apology message from stacking
+    on repeated errors.
+    """
+    # --- First invalid response ---
+    first_repair_message = handle_conversational_repair(
+        flow_id=flow_id,
+        question_identifier=question_identifier,
+        previous_question=previous_question,
+        invalid_input=invalid_input,
+    )
+
+    # Assert that the first message is correctly formatted
+    assert "Sorry, we don't understand your answer!" in first_repair_message
+    assert previous_question in first_repair_message
+    assert (
+        "Please reply with the letter corresponding to your answer."
+        in first_repair_message
+    )
+
+    # --- Second invalid response (testing the anti-stacking logic) ---
+    # The new 'previous_question' is the full repair message from the first attempt
+    second_repair_message = handle_conversational_repair(
+        flow_id=flow_id,
+        question_identifier=question_identifier,
+        previous_question=first_repair_message,
+        invalid_input="another invalid answer",
+    )
+
+    # Assert that the apology text only appears ONCE in the final message
+    apology_text = "Sorry, we don't understand your answer!"
+    assert second_repair_message.count(apology_text) == 1
+
+    # Assert that the second message is identical to the first, proving no stacking occurred
+    assert second_repair_message == first_repair_message

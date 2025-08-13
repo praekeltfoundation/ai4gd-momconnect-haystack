@@ -833,10 +833,17 @@ def handle_conversational_repair(
         logger.info(
             f"Using template-based repair for USSD-style question: {flow_id} - {question_identifier}"
         )
-        ack = "Sorry, we don’t understand your answer! Please try again.\n\n"
+        # Define the components of the repair message
+        ack = "Sorry, we don't understand your answer! Please try again.\n\n"
         instruction = "\n\nPlease reply with the letter corresponding to your answer."
-        # The `previous_question` already contains the formatted a,b,c options
-        return ack + previous_question + instruction
+
+        # Clean any previous repair message components from the incoming question text
+        cleaned_question = (
+            previous_question.replace(ack, "").replace(instruction, "").strip()
+        )
+
+        # Rebuild the message correctly to prevent stacking
+        return ack + cleaned_question + instruction
     else:
         # For free-text questions, use the LLM to rephrase
         logger.info(
@@ -991,8 +998,8 @@ def classify_yes_no_response(user_input: str) -> str:
     """
     user_input_lower = user_input.lower().strip()
     # Using word boundaries (\b) for more accurate matching
-    affirmative_pattern = r"\b(yes|yebo|y|ok|okay|sure|please|definitely|course)\b"
-    negative_pattern = r"\b(no|nope|n|stop|not|nah|never)\b"
+    affirmative_pattern = r"\b(yes|yebo|y|ok|okay|sure|please|definitely|course|yup|yep|yeah|ja|yah|yea|ewe)\b"
+    negative_pattern = r"\b(no|nope|n|stop|not|nah|never|nee|hayi)\b"
 
     is_affirmative = bool(re.search(affirmative_pattern, user_input_lower))
     is_negative = bool(re.search(negative_pattern, user_input_lower))
