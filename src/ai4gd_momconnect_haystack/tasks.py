@@ -1266,7 +1266,7 @@ async def handle_reminder_response(
     user_id: str,
     user_input: str,
     state: UserJourneyState,  # The user's saved state
-) -> SurveyResponse:
+) -> SurveyResponse | OnboardingResponse | AssessmentResponse:
     """
     Processes a user's response to a "Ready to continue?" reminder prompt.
 
