@@ -211,6 +211,11 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
             failure_count=0,
         )
 
+    # Check if the user's last state was awaiting a response to a reminder
+    state = await get_user_journey_state(user_id)
+    if state and state.current_step_identifier == "awaiting_reminder_response":
+        return await handle_reminder_response(user_id, user_input, state)
+
     # This block handles the very first message of a flow (no user input)
     if not user_input:
         if flow_id and flow_id in FLOWS_WITH_INTRO:

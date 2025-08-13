@@ -1,16 +1,17 @@
-import re
 import json
 import logging
-from datetime import datetime, timezone, timedelta
+import re
+from datetime import datetime, timedelta, timezone
 from string import ascii_lowercase
 
+from fastapi import HTTPException
 from haystack.dataclasses import ChatMessage
 
 from ai4gd_momconnect_haystack.crud import (
     get_assessment_history,
     get_or_create_chat_history,
-    save_user_journey_state,
     get_user_journey_state,
+    save_user_journey_state,
 )
 from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType, ReminderType
 from ai4gd_momconnect_haystack.pipelines import (
@@ -22,31 +23,29 @@ from ai4gd_momconnect_haystack.sqlalchemy_models import (
     AssessmentHistory,
     UserJourneyState,
 )
-from .pydantic_models import (
-    ReengagementInfo,
-    OnboardingResponse,
-    AssessmentResponse,
-    SurveyResponse,
-    AssessmentQuestion,
-)
 
 from . import doc_store, pipelines
+from .pydantic_models import (
+    AssessmentQuestion,
+    AssessmentResponse,
+    OnboardingResponse,
+    ReengagementInfo,
+    SurveyResponse,
+)
 from .utilities import (
-    all_onboarding_questions,
     ANC_SURVEY_MAP,
+    REMINDER_CONFIG,
+    all_onboarding_questions,
     assessment_flow_map,
     assessment_map_to_their_pre,
+    create_response_to_key_map,
     kab_b_post_flow_id,
     kab_b_pre_flow_id,
-    REMINDER_CONFIG,
+    prepare_valid_responses_to_display_to_anc_survey_user,
     prepare_valid_responses_to_display_to_assessment_user,
     prepare_valid_responses_to_display_to_onboarding_user,
-    create_response_to_key_map,
-    prepare_valid_responses_to_display_to_anc_survey_user,
     prepend_valid_responses_with_alphabetical_index,
 )
-
-from fastapi import HTTPException
 
 # --- Configuration ---
 logger = logging.getLogger(__name__)
@@ -1267,7 +1266,7 @@ async def handle_reminder_response(
     user_id: str,
     user_input: str,
     state: UserJourneyState,  # The user's saved state
-) -> SurveyResponse:
+) -> SurveyResponse | OnboardingResponse | AssessmentResponse:
     """
     Processes a user's response to a "Ready to continue?" reminder prompt.
 
@@ -1294,15 +1293,34 @@ async def handle_reminder_response(
             if question_result:
                 question_to_send = question_result.get("contextualized_question", "")
 
-        return SurveyResponse(
-            question=question_to_send,
-            user_context=restored_context,
-            survey_complete=False,
-            intent="JOURNEY_RESUMED",
-            intent_related_response=None,
-            results_to_save=[],
-            failure_count=0,
-        )
+        if "onboarding" in state.current_flow_id:
+            return OnboardingResponse(
+                question=question_to_send,
+                user_context=restored_context,
+                intent="JOURNEY_RESUMED",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=0,
+            )
+        elif "survey" in state.current_flow_id:
+            return SurveyResponse(
+                question=question_to_send,
+                user_context=restored_context,
+                survey_complete=False,
+                intent="JOURNEY_RESUMED",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=0,
+            )
+        else:
+            return AssessmentResponse(
+                question=question_to_send,
+                next_question=0,
+                intent="JOURNEY_RESUMED",
+                intent_related_response=None,
+                processed_answer=None,
+                failure_count=0,
+            )
 
     elif intent == "REMIND_LATER":
         # User wants another reminder. Schedule it.
