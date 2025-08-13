@@ -1,16 +1,18 @@
-import re
 import json
 import logging
-from datetime import datetime, timezone, timedelta
+import re
+from datetime import datetime, timedelta, timezone
 from string import ascii_lowercase
 
+from fastapi import HTTPException
 from haystack.dataclasses import ChatMessage
 
 from ai4gd_momconnect_haystack.crud import (
     get_assessment_history,
     get_or_create_chat_history,
-    save_user_journey_state,
     get_user_journey_state,
+    save_chat_history,
+    save_user_journey_state,
 )
 from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType, ReminderType
 from ai4gd_momconnect_haystack.pipelines import (
@@ -22,31 +24,29 @@ from ai4gd_momconnect_haystack.sqlalchemy_models import (
     AssessmentHistory,
     UserJourneyState,
 )
-from .pydantic_models import (
-    ReengagementInfo,
-    OnboardingResponse,
-    AssessmentResponse,
-    SurveyResponse,
-    AssessmentQuestion,
-)
 
 from . import doc_store, pipelines
+from .pydantic_models import (
+    AssessmentQuestion,
+    AssessmentResponse,
+    OnboardingResponse,
+    ReengagementInfo,
+    SurveyResponse,
+)
 from .utilities import (
-    all_onboarding_questions,
     ANC_SURVEY_MAP,
+    REMINDER_CONFIG,
+    all_onboarding_questions,
     assessment_flow_map,
     assessment_map_to_their_pre,
+    create_response_to_key_map,
     kab_b_post_flow_id,
     kab_b_pre_flow_id,
-    REMINDER_CONFIG,
+    prepare_valid_responses_to_display_to_anc_survey_user,
     prepare_valid_responses_to_display_to_assessment_user,
     prepare_valid_responses_to_display_to_onboarding_user,
-    create_response_to_key_map,
-    prepare_valid_responses_to_display_to_anc_survey_user,
     prepend_valid_responses_with_alphabetical_index,
 )
-
-from fastapi import HTTPException
 
 # --- Configuration ---
 logger = logging.getLogger(__name__)
@@ -1090,6 +1090,20 @@ def classify_ussd_intro_response(user_input: str) -> str:
     return "AMBIGUOUS"
 
 
+async def save_resume_message_to_chat_history(
+    user_id: str,
+    question_text: str,
+    chat_history: list[ChatMessage],
+    history_type: HistoryType,
+) -> None:
+    chat_history.append(ChatMessage.from_assistant(text=question_text))
+    await save_chat_history(
+        user_id=user_id,
+        messages=chat_history,
+        history_type=history_type,
+    )
+
+
 async def handle_journey_resumption_prompt(
     user_id: str,
     flow_id: str,
@@ -1177,6 +1191,15 @@ async def handle_journey_resumption_prompt(
 
         # Use separate, explicit blocks for each response type
         if "onboarding" in state.current_flow_id:
+            chat_history = await get_or_create_chat_history(
+                user_id, HistoryType.onboarding
+            )
+            await save_resume_message_to_chat_history(
+                user_id=user_id,
+                question_text=resume_message,
+                chat_history=chat_history,
+                history_type=HistoryType.onboarding,
+            )
             return OnboardingResponse(
                 question=resume_message,
                 user_context=state.user_context,
