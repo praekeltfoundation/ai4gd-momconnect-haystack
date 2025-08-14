@@ -10,6 +10,9 @@ from .enums import (
     HistoryType,
 )
 
+import uuid
+from dataclasses import dataclass, field
+
 # A generic model type
 T = TypeVar("T", bound=BaseModel)
 
@@ -194,21 +197,23 @@ class AssessmentEndResponse(BaseModel):
 
 class SurveyRequest(BaseModel):
     user_id: str
-    survey_id: HistoryType
-    user_input: str
-    user_context: dict[str, Any]
-    failure_count: int = 0
+    survey_id: str
+    user_input: str | None = None
+    user_context: dict[str, Any] = Field(default_factory=dict)
+    is_re_engagement_ping: bool = False
+    turn_id: str | None = None
+    trace_id: str | None = None
 
 
 class SurveyResponse(BaseModel):
-    question: str | None
+    question: str
     question_identifier: str | None = None
-    user_context: dict[str, Any]
-    survey_complete: bool
-    intent: str | None
-    intent_related_response: str | None
-    results_to_save: list[str]
-    failure_count: int = 0
+    user_context: dict[str, Any] = Field(default_factory=dict)
+    survey_complete: bool = False
+    intent: str | None = None
+    intent_related_response: str | None = None
+    results_to_save: list[str] = Field(default_factory=list)
+    meta: dict[str, Any] = Field(default_factory=dict)
     reengagement_info: ReengagementInfo | None = None
 
 
@@ -239,3 +244,62 @@ class ReminderConfig(TypedDict):
     delay: timedelta
     acknowledgement_message: str
     resume_message: str | None
+
+
+# --- NEW: Internal Data Transfer Objects ---
+
+
+class ExtractedData(BaseModel):
+    is_success: bool
+    updated_context: dict[str, Any] = Field(default_factory=dict)
+    action_dict: dict[str, Any] | None = None
+    reason: str | None = None  # FIX: Added missing 'reason' field
+
+
+class IntentResult(BaseModel):
+    intent: str
+    intent_related_response: str | None = None
+    reason: str | None = None  # FIX: Added missing 'reason' field
+
+
+class UserJourneyState(BaseModel):
+    """Pydantic version for use within the application logic."""
+
+    user_id: str
+    flow_id: str
+    expected_step_id: str | None = None
+    last_question: str | None = None
+    user_context: dict[str, Any] = Field(default_factory=dict)
+    repair_strikes: dict[str, int] = Field(default_factory=dict)
+    version: int = 0
+
+
+@dataclass
+class SurveyTurnContext:
+    request: SurveyRequest
+    journey_state: UserJourneyState | None = None
+    history: list[dict[str, Any]] = field(default_factory=list)
+    previous_context: dict[str, Any] = field(default_factory=dict)
+    current_context: dict[str, Any] = field(default_factory=dict)
+    last_assistant_message: dict[str, Any] | None = None
+    turn_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    trace_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+
+
+class LegacySurveyRequest(BaseModel): # Renamed to avoid conflict
+    user_id: str
+    survey_id: HistoryType
+    user_input: str
+    user_context: dict[str, Any]
+    failure_count: int = 0
+
+class LegacySurveyResponse(BaseModel): # Renamed to avoid conflict
+    question: str | None
+    question_identifier: str | None = None
+    user_context: dict[str, Any]
+    survey_complete: bool
+    intent: str | None
+    intent_related_response: str | None
+    results_to_save: list[str]
+    failure_count: int = 0
+    reengagement_info: ReengagementInfo | None = None

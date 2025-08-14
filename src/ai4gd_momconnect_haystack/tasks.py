@@ -30,7 +30,7 @@ from .pydantic_models import (
     AssessmentResponse,
     OnboardingResponse,
     ReengagementInfo,
-    SurveyResponse,
+    LegacySurveyResponse as SurveyResponse,
 )
 from .utilities import (
     ANC_SURVEY_MAP,

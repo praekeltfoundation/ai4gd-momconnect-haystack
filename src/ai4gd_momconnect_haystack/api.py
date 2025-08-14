@@ -49,8 +49,8 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     OnboardingResponse,
     ResumeRequest,
     ResumeResponse,
-    SurveyRequest,
-    SurveyResponse,
+    LegacySurveyRequest as SurveyRequest,
+    LegacySurveyResponse as SurveyResponse,
 )
 from ai4gd_momconnect_haystack.tasks import (
     classify_yes_no_response,
@@ -890,7 +890,7 @@ async def assessment_end(
         reengagement_info=reengagement_info,
     )
 
-
+"""
 @app.post("/v1/survey", response_model=SurveyResponse)
 async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
     # --- RESUMPTION LOGIC ---
@@ -1257,7 +1257,7 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
         results_to_save=diff_keys,
         failure_count=0,
     )
-
+"""
 
 @app.post("/v1/catchall", response_model=CatchAllResponse)
 async def catchall(request: CatchAllRequest, token: str = Depends(verify_token)):
