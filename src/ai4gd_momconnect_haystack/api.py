@@ -223,12 +223,6 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
             failure_count=0,
         )
 
-    # Check if the user's last state was awaiting a response to a reminder
-    state = await get_user_journey_state(user_id)
-    if state and state.current_step_identifier == "awaiting_reminder_response":
-        logger.info("User is responding to a reminder prompt.")
-        return await handle_reminder_response(user_id, user_input, state)
-
     # This block handles the very first message of a flow (no user input)
     if not user_input:
         logger.info("No user input provided, checking for intro message.")
@@ -250,6 +244,12 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
                 results_to_save=[],
                 failure_count=0,
             )
+
+    # Check if the user's last state was awaiting a response to a reminder
+    state = await get_user_journey_state(user_id)
+    if state and state.current_step_identifier == "awaiting_reminder_response":
+        logger.info("User is responding to a reminder prompt.")
+        return await handle_reminder_response(user_id, user_input, state)
 
     # This block handles the user's response to the intro message
     last_assistant_msg = next(
