@@ -741,12 +741,12 @@ def test_validate_dma_answer_prepares_aligned_prompts(mock_run_pipeline):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "flow_id, reminder_count, expected_delay_hours",
+    "flow_id, reminder_type, expected_delay_hours",
     [
-        ("onboarding", 0, 1),
-        ("onboarding", 1, 23),
-        ("behaviour-pre-assessment", 0, 1),
-        ("anc-survey", 1, 23),
+        ("onboarding", 1, 1),
+        ("onboarding", 2, 23),
+        ("behaviour-pre-assessment", 1, 1),
+        ("anc-survey", 2, 23),
     ],
 )
 @mock.patch(
@@ -758,19 +758,19 @@ async def test_handle_reminder_request_dynamic_schedule(
     mock_datetime,  # NEW: Add the mock as an argument
     mock_save_state,
     flow_id,
-    reminder_count,
+    reminder_type,
     expected_delay_hours,
 ):
     """
     Tests that handle_reminder_request correctly selects the reminder delay
-    from the REMINDER_CONFIG based on the flow_id and reminder_count.
+    from the REMINDER_CONFIG based on the flow_id and reminder_type(reminder_count old).
     """
     # Arrange:
     # Set a fixed, predictable time for datetime.now() to return
     fake_now = datetime(2025, 8, 5, 12, 0, 0, tzinfo=timezone.utc)
     mock_datetime.now.return_value = fake_now
 
-    user_context = {"reminder_count": reminder_count}
+    # user_context = {"reminder_count": reminder_count}
 
     # Act
     _, reengagement_info = await handle_reminder_request(
@@ -778,8 +778,8 @@ async def test_handle_reminder_request_dynamic_schedule(
         flow_id=flow_id,
         step_identifier="intro",
         last_question="Some question",
-        user_context=user_context,
-        reminder_type=1,
+        user_context={},
+        reminder_type=reminder_type,
     )
 
     # Assert:

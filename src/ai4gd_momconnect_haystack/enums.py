@@ -19,4 +19,5 @@ class HistoryType(str, Enum):
 
 class ReminderType(IntEnum):
     USER_REQUESTED = 1
-    SYSTEM_SCHEDULED_THREE_DAY = 2
+    USER_REQUESTED_SECOND = 2
+    SYSTEM_SCHEDULED_THREE_DAY = 3
