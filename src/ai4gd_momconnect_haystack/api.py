@@ -24,6 +24,7 @@ from ai4gd_momconnect_haystack.crud import (
     calculate_and_store_assessment_result,
     delete_assessment_history_for_user,
     delete_chat_history_for_user,
+    delete_user_journey_state,
     get_assessment_end_messaging_history,
     get_assessment_result,
     get_or_create_chat_history,
@@ -33,7 +34,6 @@ from ai4gd_momconnect_haystack.crud import (
     save_chat_history,
     save_user_journey_state,
 )
-from ai4gd_momconnect_haystack.database import run_migrations
 from ai4gd_momconnect_haystack.doc_store import (
     INTRO_MESSAGES,
     setup_document_store,
@@ -83,6 +83,12 @@ from .enums import HistoryType
 
 load_dotenv()
 
+log_level = environ.get("LOGLEVEL", "WARNING").upper()
+numeric_level = getattr(logging, log_level, logging.WARNING)
+
+logging.basicConfig(
+    level=numeric_level, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 DATA_PATH = Path("src/ai4gd_momconnect_haystack/")
@@ -140,11 +146,13 @@ async def lifespan(app: FastAPI):
     logger.info("Application startup...")
     setup_document_store(startup=True)
 
-    if not is_running_in_pytest():
-        logger.info("Running database migrations...")
-        run_migrations()
-    else:
-        logger.info("Skipping migrations: running in pytest environment.")
+    # Temporarily commented out migrations to make logging work.
+    # from ai4gd_momconnect_haystack.database import run_migrations
+    # if not is_running_in_pytest():
+    #     logger.info("Running database migrations...")
+    #     run_migrations()
+    # else:
+    #     logger.info("Skipping migrations: running in pytest environment.")
 
     yield
     logger.info("Application shutdown...")
@@ -217,12 +225,6 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
             failure_count=0,
         )
 
-    # Check if the user's last state was awaiting a response to a reminder
-    state = await get_user_journey_state(user_id)
-    if state and state.current_step_identifier == "awaiting_reminder_response":
-        logger.info("User is responding to a reminder prompt.")
-        return await handle_reminder_response(user_id, user_input, state)
-
     # This block handles the very first message of a flow (no user input)
     if not user_input:
         logger.info("No user input provided, checking for intro message.")
@@ -236,6 +238,7 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
                 messages=chat_history,
                 history_type=HistoryType.onboarding,
             )
+            await delete_user_journey_state(user_id)
             return OnboardingResponse(
                 question=intro_message,
                 user_context=request.user_context,
@@ -244,6 +247,12 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
                 results_to_save=[],
                 failure_count=0,
             )
+
+    # Check if the user's last state was awaiting a response to a reminder
+    state = await get_user_journey_state(user_id)
+    if state and state.current_step_identifier == "awaiting_reminder_response":
+        logger.info("User is responding to a reminder prompt.")
+        return await handle_reminder_response(user_id, user_input, state)
 
     # This block handles the user's response to the intro message
     last_assistant_msg = next(
@@ -259,8 +268,10 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     logger.info(f"Is intro response: {is_intro_response}")
 
     if is_intro_response:
+        logger.info("User is responding to intro.")
         result = handle_intro_response(user_input=user_input, flow_id=flow_id)
         if result.get("action") == "PAUSE_AND_REMIND":
+            logger.info("User requested to be reminded later.")
             last_question = last_assistant_msg.text if last_assistant_msg else ""
             return await handle_intro_reminder(
                 user_id=user_id,
@@ -295,7 +306,15 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         await save_chat_history(
             user_id=user_id, messages=chat_history, history_type=HistoryType.onboarding
         )
+        await save_user_journey_state(
+            user_id=request.user_id,
+            flow_id=flow_id,
+            step_identifier="",
+            last_question=question_text,
+            user_context=request.user_context,
+        )
 
+        logger.info(f"First question text: {question_text}")
         return OnboardingResponse(
             question=question_text,
             user_context=user_context,
