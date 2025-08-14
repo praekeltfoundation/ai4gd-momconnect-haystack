@@ -807,7 +807,7 @@ async def assessment_end(
             previous_message_with_options += options
 
         intent, intent_related_response = handle_user_message(
-            previous_message, request.user_input
+            previous_message_with_options, request.user_input
         )
         next_message_nr = previous_message_nr + 1
 

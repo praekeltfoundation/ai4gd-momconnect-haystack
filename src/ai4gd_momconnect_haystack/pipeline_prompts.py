@@ -118,6 +118,16 @@ Before finalizing, silently check if a user's response of "{{ documents[0].meta.
 If no changes are needed, return the original question text.
 
 You MUST respond with a valid JSON object containing exactly one key: "contextualized_question".
+**Ensure that all characters, including any emojis from the original question, are properly enclosed within the JSON string value.**
+
+---
+EXAMPLE:
+- Original Question: "Have you smoked at all? 🚬"
+- Correct JSON Response:
+{
+    "contextualized_question": "Since becoming pregnant, have you smoked at all? 🚬"
+}
+---
 
 JSON Response:
     """
