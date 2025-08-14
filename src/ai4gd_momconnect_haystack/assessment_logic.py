@@ -199,9 +199,12 @@ def validate_assessment_end_response(
     user_response: str,
 ) -> dict[str, Any]:
     """ """
+    # Normalize the user's input before sending it to the pipeline
+    normalized_user_response = user_response.lower().strip()
+
     # Create and run a pipeline that validates the user's response to the previous message
     processed_user_response = pipelines.run_assessment_end_response_validator_pipeline(
-        user_response,
+        normalized_user_response,
         previous_message_valid_responses,
         previous_message,
     )

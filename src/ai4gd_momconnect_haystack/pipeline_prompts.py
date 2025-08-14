@@ -240,6 +240,12 @@ ASSESSMENT_END_RESPONSE_VALIDATOR_PROMPT = """
 You are an AI assistant validating a user's response to the previous message sent by a chatbot for new mothers in South Africa.
 Your task is to analyze the user's response and determine if it maps to one of the allowed responses provided below.
 
+You must follow these mapping rules:
+
+1.  **Map by Index:** If the user responds with a letter (e.g., "a", "B", "c."), map it to the corresponding option in the list. "a" is the first option, "b" is the second, "c" is the third, and so on. This should be case-insensitive.
+2.  **Map by Meaning:** If the user's response contains text that clearly and unambiguously matches the meaning of one of the allowed responses (e.g., "Very easy", "OK"), map it to that response. This should be case-insensitive.
+3.  **Handle Nonsense:** If the user's response is ambiguous, doesn't match any option, or is conversational filler that doesn't map to a specific choice (e.g., "maybe", "thanks"), you MUST classify it as "nonsense".
+
 Previous Message:
 "{{ previous_message }}"
 
@@ -248,8 +254,9 @@ User Response:
 
 You MUST respond with a valid JSON object. The JSON should contain a single key, "validated_response".
 
-- If the user's response clearly and unambiguously corresponds to one of the expected responses of the previous message, the value of "validated_response" should be the exact text of that expected response.
-- If the user's response is ambiguous, does not match any of the expected responses, or is nonsense/gibberish, you MUST set the value of "validated_response" to "nonsense".
+- If the user's response maps to an option, the value of "validated_response" should be the **exact text of that option**.
+- **Crucially, do not include the letter prefix (e.g., 'a.', 'b.') in the response.** For example, if the user says "a", you must return the text of the first option, not "a. [option text]".
+- If the user's response is ambiguous or does not match any option, you MUST set the value of "validated_response" to "nonsense".
 
 JSON Response:
     """
@@ -266,8 +273,8 @@ Follow these critical rules:
     * If the user says "none" or "zero", map it to the corresponding "0 - None" or "0" option.
     * If the user gives a number higher than the available options, map it to the "More than X" option if one exists.
 3.  **Yes/No Questions:**
-    * Map all affirmative phrases (e.g., "yebo", "yeah", "I have") to the exact affirmative string in the expected list (e.g., "yes" or "Yes").
-    * Map all negative phrases (e.g., "nope", "not at all") to the exact negative string in the expected list (e.g., "no" or "No").
+    * Map all affirmative phrases (e.g., "yebo", "yeah", "I have") to the exact affirmative string in the expected list (e.g., "yes" or "Yes").  **This includes responses that confirm the action described in the question (e.g., if asked "Do you drink alcohol?", a response like "I drink wine" should map to "Yes").**
+    * Map all negative phrases (e.g., "nope", "not at all") to the exact negative string in the expected list (e.g., "no" or "No"). **This includes responses that conversationally deny the action described in the question (e.g., if asked "Do you drink alcohol?", a response like "I don't drink" or "I stopped drinking" should map to "No").** 
 4.  **Skip:** If the user indicates they want to skip, map their response to "Skip".
 5.  If the user's response is ambiguous or doesn't fit any category, you MUST return "nonsense".
 6.  You MUST respond with a valid JSON object with a single key, "validated_response".
