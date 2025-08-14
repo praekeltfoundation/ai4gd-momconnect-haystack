@@ -939,7 +939,8 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         result = validate_assessment_end_response(
                             previous_message=previous_message_with_options,
                             previous_message_nr=next_message_nr - 1,
-                            previous_message_valid_responses=previous_message_valid_responses or [],
+                            previous_message_valid_responses=previous_message_valid_responses
+                            or [],
                             user_response=user_response,
                         )
                         if result["next_message_number"] == next_message_nr - 1:
@@ -1435,7 +1436,8 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                             result = validate_assessment_end_response(
                                 previous_message=previous_message_with_options,
                                 previous_message_nr=next_message_nr - 1,
-                                previous_message_valid_responses=previous_message_valid_responses or [],
+                                previous_message_valid_responses=previous_message_valid_responses
+                                or [],
                                 user_response=user_response,
                             )
                             if result["next_message_number"] == next_message_nr - 1:
