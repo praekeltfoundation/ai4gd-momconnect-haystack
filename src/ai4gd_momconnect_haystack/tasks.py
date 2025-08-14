@@ -1152,7 +1152,7 @@ async def handle_journey_resumption_prompt(
             user_id=user_id,
             flow_id="anc-survey",
             step_identifier=next_step,
-            last_question=question,
+            last_question=state.last_question_sent,
             user_context=restored_context,
         )
         return SurveyResponse(
@@ -1170,7 +1170,7 @@ async def handle_journey_resumption_prompt(
             user_id=user_id,
             flow_id=state.current_flow_id,
             step_identifier="awaiting_reminder_response",
-            last_question=resume_message,
+            last_question=state.last_question_sent,
             user_context=state.user_context,
         )
 
