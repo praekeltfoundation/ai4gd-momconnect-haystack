@@ -49,15 +49,12 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     OnboardingResponse,
     ResumeRequest,
     ResumeResponse,
-    LegacySurveyRequest as SurveyRequest,
-    LegacySurveyResponse as SurveyResponse,
+    OrchestratorSurveyRequest,
+    LegacySurveyResponse as SurveyResponse,  # Use LegacySurveyResponse for the API contract
 )
 from ai4gd_momconnect_haystack.tasks import (
-    classify_yes_no_response,
-    extract_anc_data_from_response,
     extract_assessment_data_from_response,
     format_user_data_summary_for_whatsapp,
-    get_anc_survey_question,
     get_assessment_question,
     get_next_onboarding_question,
     handle_conversational_repair,
@@ -71,12 +68,12 @@ from ai4gd_momconnect_haystack.tasks import (
     process_onboarding_step,
 )
 from ai4gd_momconnect_haystack.utilities import (
-    ANC_SURVEY_MAP,
     FLOWS_WITH_INTRO,
     all_onboarding_questions,
     assessment_end_flow_map,
     load_json_and_validate,
 )
+from . import survey_orchestrator
 
 from .enums import HistoryType
 
@@ -890,6 +887,21 @@ async def assessment_end(
         reengagement_info=reengagement_info,
     )
 
+
+@app.post("/v1/survey", response_model=SurveyResponse)
+async def survey(
+    request: OrchestratorSurveyRequest, token: str = Depends(verify_token)
+):
+    """
+    Handles all survey interactions by calling the main orchestrator.
+
+    This endpoint uses the new, robust, and maintainable survey engine.
+    """
+    # The API endpoint is now just a clean pass-through to the orchestrator.
+    # All complex logic, state management, and error handling are managed inside.
+    return await survey_orchestrator.process_survey_turn(request)
+
+
 """
 @app.post("/v1/survey", response_model=SurveyResponse)
 async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
@@ -1258,6 +1270,7 @@ async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
         failure_count=0,
     )
 """
+
 
 @app.post("/v1/catchall", response_model=CatchAllResponse)
 async def catchall(request: CatchAllRequest, token: str = Depends(verify_token)):

@@ -274,26 +274,15 @@ class UserJourneyState(BaseModel):
     version: int = 0
 
 
-@dataclass
-class SurveyTurnContext:
-    request: SurveyRequest
-    journey_state: UserJourneyState | None = None
-    history: list[dict[str, Any]] = field(default_factory=list)
-    previous_context: dict[str, Any] = field(default_factory=dict)
-    current_context: dict[str, Any] = field(default_factory=dict)
-    last_assistant_message: dict[str, Any] | None = None
-    turn_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    trace_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-
-
-class LegacySurveyRequest(BaseModel): # Renamed to avoid conflict
+class LegacySurveyRequest(BaseModel):
     user_id: str
     survey_id: HistoryType
     user_input: str
     user_context: dict[str, Any]
     failure_count: int = 0
 
-class LegacySurveyResponse(BaseModel): # Renamed to avoid conflict
+
+class LegacySurveyResponse(BaseModel):
     question: str | None
     question_identifier: str | None = None
     user_context: dict[str, Any]
@@ -303,3 +292,55 @@ class LegacySurveyResponse(BaseModel): # Renamed to avoid conflict
     results_to_save: list[str]
     failure_count: int = 0
     reengagement_info: ReengagementInfo | None = None
+
+
+# --- NEW ORCHESTRATOR MODELS (Used ONLY by survey_orchestrator.py) ---
+
+
+class OrchestratorSurveyRequest(BaseModel):
+    user_id: str
+    survey_id: str
+    user_input: str | None = None
+    user_context: dict[str, Any] = Field(default_factory=dict)
+    is_re_engagement_ping: bool = False
+    turn_id: str | None = None
+    trace_id: str | None = None
+    failure_count: int = 0
+
+
+class OrchestratorSurveyResponse(BaseModel):
+    question: str
+    question_identifier: str | None = None
+    user_context: dict[str, Any] = Field(default_factory=dict)
+    survey_complete: bool = False
+    intent: str
+    intent_related_response: str | None = None
+    results_to_save: list[str] = Field(default_factory=list)
+    meta: dict[str, Any] = Field(default_factory=dict)
+    reengagement_info: ReengagementInfo | None = None
+    failure_count: int = 0
+
+
+class OrchestratorUserJourneyState(BaseModel):
+    """Pydantic version for the orchestrator's internal logic."""
+
+    user_id: str
+    current_flow_id: str
+    current_step_identifier: str
+    last_question_sent: str | None = None
+    user_context: dict[str, Any] = Field(default_factory=dict)
+    repair_strikes: dict[str, int] = Field(default_factory=dict)
+    version: int = 0
+
+
+# --- The single, correct definition of SurveyTurnContext ---
+@dataclass
+class SurveyTurnContext:
+    request: OrchestratorSurveyRequest
+    journey_state: OrchestratorUserJourneyState | None = None
+    history: list[dict[str, Any]] = field(default_factory=list)
+    previous_context: dict[str, Any] = field(default_factory=dict)
+    current_context: dict[str, Any] = field(default_factory=dict)
+    last_assistant_message: dict[str, Any] | None = None
+    turn_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    trace_id: str = field(default_factory=lambda: str(uuid.uuid4()))

@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from haystack.dataclasses import ChatMessage
 from pydantic import ValidationError
 from sqlalchemy import delete
+from .database import run_migrations
 
 from ai4gd_momconnect_haystack.assessment_logic import (
     _score_single_turn,
@@ -32,6 +33,7 @@ from ai4gd_momconnect_haystack.sqlalchemy_models import (
     AssessmentHistory,
     AssessmentResultHistory,
     ChatHistory,
+    UserJourneyState,
 )
 from ai4gd_momconnect_haystack.tasks import (
     extract_anc_data_from_response,
@@ -57,13 +59,14 @@ from ai4gd_momconnect_haystack.utilities import (
     ANC_SURVEY_MAP,
 )
 
-from .database import AsyncSessionLocal, init_db
+from .database import AsyncSessionLocal
 from .enums import AssessmentType, HistoryType
 from .pydantic_models import (
     AssessmentEndScoreBasedMessage,
     AssessmentEndSimpleMessage,
     AssessmentRun,
     Turn,
+    OrchestratorSurveyRequest,
 )
 
 load_dotenv()
@@ -1808,6 +1811,72 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             run_results["turns"] = anc_survey_turns
             simulation_results.append(run_results)
 
+    # ** NEW: Simulate the new Survey Orchestrator **
+    sim_new_survey = "anc-survey" in gt_lookup_by_flow  # Auto-run if in ground truth
+    if not gt_scenarios:
+        print("")
+        while True:
+            sim = input("Simulate New Survey Orchestrator? (Y/N)\n> ")
+            if sim.lower() in ["y", "yes"]:
+                sim_new_survey = True
+                break
+            elif sim.lower() in ["n", "no"]:
+                break
+            else:
+                print("Please enter 'Y' or 'N'.")
+
+    if sim_new_survey:
+        logger.info("\n--- Simulating New Survey Orchestrator ---")
+        # Import the new orchestrator and request model
+        from .survey_orchestrator import process_survey_turn
+
+        # Reset state for the new simulation
+        user_id = "OrchestratorTestUser"
+        user_context = {}
+        survey_complete = False
+        user_input = ""
+        failure_count = 0
+
+        # Clear previous history for this user if any
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                await session.execute(
+                    delete(ChatHistory).where(ChatHistory.user_id == user_id)
+                )
+                await session.execute(
+                    delete(UserJourneyState).where(UserJourneyState.user_id == user_id)
+                )
+
+        while not survey_complete:
+            print("-" * 20)
+
+            # 1. Create the request object for the orchestrator
+            request = OrchestratorSurveyRequest(
+                user_id=user_id,
+                survey_id="anc",
+                user_input=user_input,
+                user_context=user_context,
+                failure_count=failure_count,
+            )
+
+            # 2. Call the single, powerful orchestrator function
+            response = await process_survey_turn(request)
+
+            # 3. Process the response
+            print(f"ASSISTANT:\n{response.question}")
+
+            survey_complete = response.survey_complete
+            if survey_complete:
+                print("\n--- Survey Complete ---")
+                break
+
+            # Update state for the next turn
+            user_context = response.user_context
+            failure_count = response.failure_count
+
+            # 4. Get the next user input
+            user_input = input("USER:\n> ")
+
     # --- End of Simulation ---
 
     logger.info("--- Simulation Complete ---")
@@ -1865,7 +1934,8 @@ async def async_main(
     """
     try:
         logging.info("Initializing database...")
-        await init_db()
+        # await init_db()
+        run_migrations()
         logging.info("Database initialized.")
         logging.info("Starting interactive simulation...")
 
