@@ -1169,7 +1169,7 @@ async def handle_journey_resumption_prompt(
         await save_user_journey_state(
             user_id=user_id,
             flow_id=state.current_flow_id,
-            step_identifier="awaiting_reminder_response",
+            step_identifier="",
             last_question=state.last_question_sent,
             user_context=state.user_context,
         )
