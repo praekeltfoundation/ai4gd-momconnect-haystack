@@ -301,6 +301,13 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         await save_chat_history(
             user_id=user_id, messages=chat_history, history_type=HistoryType.onboarding
         )
+        await save_user_journey_state(
+            user_id=request.user_id,
+            flow_id=flow_id,
+            step_identifier="",
+            last_question=question_text,
+            user_context=request.user_context,
+        )
 
         return OnboardingResponse(
             question=question_text,
