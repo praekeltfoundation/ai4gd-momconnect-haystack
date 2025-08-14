@@ -1040,11 +1040,11 @@ async def handle_reminder_request(
     schedule = REMINDER_CONFIG[schedule_key]
 
     # 2. Determine which specific reminder config to use from that schedule
-    reminder_count = user_context.get("reminder_count", 1)
+    reminder_count = user_context.get("reminder_count", 0)
 
     # This logic now explicitly chooses the reminder type based on the flow
     config_key = "DEFAULT"
-    if schedule_key in ["onboarding", "kab"] and reminder_count >= 2:
+    if schedule_key in ["onboarding", "kab"] and reminder_count >= 1:
         config_key = "FOLLOW_UP"
 
     reminder_config = schedule[config_key]

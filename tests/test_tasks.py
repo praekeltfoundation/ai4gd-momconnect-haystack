@@ -745,9 +745,9 @@ def test_validate_dma_answer_prepares_aligned_prompts(mock_run_pipeline):
 @pytest.mark.parametrize(
     "flow_id, reminder_count, expected_delay_hours",
     [
-        ("onboarding", 1, 1),
-        ("onboarding", 2, 23),
-        ("behaviour-pre-assessment", 1, 1),
+        ("onboarding", 0, 1),
+        ("onboarding", 1, 23),
+        ("behaviour-pre-assessment", 0, 1),
         ("anc-survey", 1, 23),
     ],
 )
