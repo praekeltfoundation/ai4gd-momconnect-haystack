@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from haystack.dataclasses import ChatMessage
 
 from ai4gd_momconnect_haystack.crud import (
+    delete_user_journey_state,
     get_assessment_history,
     get_or_create_chat_history,
     get_user_journey_state,
@@ -1169,7 +1170,7 @@ async def handle_journey_resumption_prompt(
         await save_user_journey_state(
             user_id=user_id,
             flow_id=state.current_flow_id,
-            step_identifier="",
+            step_identifier="awaiting_reminder_response",
             last_question=state.last_question_sent,
             user_context=state.user_context,
         )
@@ -1292,6 +1293,8 @@ async def handle_reminder_response(
             )
             if question_result:
                 question_to_send = question_result.get("contextualized_question", "")
+
+        await delete_user_journey_state(user_id)
 
         if "onboarding" in state.current_flow_id:
             return OnboardingResponse(
