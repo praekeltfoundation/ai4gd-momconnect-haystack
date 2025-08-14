@@ -33,7 +33,6 @@ from ai4gd_momconnect_haystack.crud import (
     save_chat_history,
     save_user_journey_state,
 )
-from ai4gd_momconnect_haystack.database import run_migrations
 from ai4gd_momconnect_haystack.doc_store import (
     INTRO_MESSAGES,
     setup_document_store,
@@ -139,11 +138,13 @@ async def lifespan(app: FastAPI):
     logger.info("Application startup...")
     setup_document_store(startup=True)
 
-    if not is_running_in_pytest():
-        logger.info("Running database migrations...")
-        run_migrations()
-    else:
-        logger.info("Skipping migrations: running in pytest environment.")
+    # Temporarily commented out migrations to make logging work.
+    # from ai4gd_momconnect_haystack.database import run_migrations
+    # if not is_running_in_pytest():
+    #     logger.info("Running database migrations...")
+    #     run_migrations()
+    # else:
+    #     logger.info("Skipping migrations: running in pytest environment.")
 
     yield
     logger.info("Application shutdown...")
