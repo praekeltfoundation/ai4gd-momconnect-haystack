@@ -76,6 +76,7 @@ from ai4gd_momconnect_haystack.utilities import (
     all_onboarding_questions,
     assessment_end_flow_map,
     load_json_and_validate,
+    prepend_valid_responses_with_alphabetical_index,
 )
 
 from .enums import HistoryType
@@ -813,8 +814,19 @@ async def assessment_end(
             return create_assessment_end_error_response(
                 "User responded without this journey having been triggered."
             )
+
+        # FIX: Reconstruct the full message with options that was sent to the user
+        previous_message_with_options = previous_message
+        if previous_valid_responses:
+            options = "\n" + "\n".join(
+                prepend_valid_responses_with_alphabetical_index(
+                    previous_valid_responses
+                )
+            )
+            previous_message_with_options += options
+
         intent, intent_related_response = handle_user_message(
-            previous_message, request.user_input
+            previous_message_with_options, request.user_input
         )
         next_message_nr = previous_message_nr + 1
 
@@ -831,7 +843,7 @@ async def assessment_end(
                 )
 
             validation_result = validate_assessment_end_response(
-                previous_message=previous_message,
+                previous_message=previous_message_with_options,
                 previous_message_nr=previous_message_nr,
                 previous_message_valid_responses=previous_valid_responses,
                 user_response=request.user_input,
