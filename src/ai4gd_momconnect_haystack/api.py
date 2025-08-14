@@ -81,6 +81,12 @@ from .enums import HistoryType
 
 load_dotenv()
 
+log_level = environ.get("LOGLEVEL", "WARNING").upper()
+numeric_level = getattr(logging, log_level, logging.WARNING)
+
+logging.basicConfig(
+    level=numeric_level, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 DATA_PATH = Path("src/ai4gd_momconnect_haystack/")
