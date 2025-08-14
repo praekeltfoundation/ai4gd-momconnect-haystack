@@ -24,6 +24,7 @@ from ai4gd_momconnect_haystack.crud import (
     calculate_and_store_assessment_result,
     delete_assessment_history_for_user,
     delete_chat_history_for_user,
+    delete_user_journey_state,
     get_assessment_end_messaging_history,
     get_assessment_result,
     get_or_create_chat_history,
@@ -236,6 +237,7 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
                 messages=chat_history,
                 history_type=HistoryType.onboarding,
             )
+            await delete_user_journey_state(user_id)
             return OnboardingResponse(
                 question=intro_message,
                 user_context=request.user_context,
@@ -265,8 +267,10 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     logger.info(f"Is intro response: {is_intro_response}")
 
     if is_intro_response:
+        logger.info("User is responding to intro.")
         result = handle_intro_response(user_input=user_input, flow_id=flow_id)
         if result.get("action") == "PAUSE_AND_REMIND":
+            logger.info("User requested to be reminded later.")
             last_question = last_assistant_msg.text if last_assistant_msg else ""
             return await handle_intro_reminder(
                 user_id=user_id,
@@ -309,6 +313,7 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
             user_context=request.user_context,
         )
 
+        logger.info(f"First question text: {question_text}")
         return OnboardingResponse(
             question=question_text,
             user_context=user_context,
