@@ -411,25 +411,21 @@ async def get_anc_survey_question(
     user_id: str, user_context: dict, chat_history: list[ChatMessage]
 ) -> dict | None:
     """
-    Gets the next contextualized ANC survey question or identifies a special action step.
+    Gets the next contextualized ANC survey question using the reliable,
+    persisted journey state.
     """
     # TODO: Improve survey histories to know when it's truly a user's first time completing one. For now we are forcing "first_survey" to True.
     user_context["first_survey"] = True
-    chat_history = await get_or_create_chat_history(user_id, HistoryType.anc)
 
-    # Find the last message from the assistant that has a step title.
-    last_assistant_msg = next(
-        (
-            msg
-            for msg in reversed(chat_history)
-            if msg.role.value == "assistant" and msg.meta.get("step_title")
-        ),
-        None,
-    )
-
+    # Determine the current step.
+    state = await get_user_journey_state(user_id)
     current_step = "intro"
-    if last_assistant_msg and last_assistant_msg.meta.get("step_title"):
-        current_step = last_assistant_msg.meta.get("step_title")
+    if state and state.current_step_identifier:
+        current_step = state.current_step_identifier
+
+    last_question = state.last_question_sent if state else ""
+
+    logger.info(f"get_anc_survey_question: Determined current_step is '{current_step}'")
     next_step = get_next_anc_survey_step(current_step, user_context)
 
     # --- Consolidated "Going Soon" Logic with 3-Day Reminder ---
@@ -467,9 +463,7 @@ async def get_anc_survey_question(
     elif next_step == "__USER_REQUESTED_REMINDER__":
         logger.info("Handling user-requested reminder.")
         last_step = current_step  # The step the user was on
-        last_question = last_assistant_msg.text if last_assistant_msg else ""
 
-        state = await get_user_journey_state(user_id)
         current_reminder_count = state.reminder_count if state else 0
         new_reminder_count = current_reminder_count + 1
         reminder_type = ReminderType.USER_REQUESTED
@@ -491,9 +485,7 @@ async def get_anc_survey_question(
         }
 
     if not next_step:
-        logger.warning(
-            f"End of survey reached! Last step was: {current_step if last_assistant_msg else 'None'}"
-        )
+        logger.warning(f"End of survey reached! Last step was: {current_step}")
         return None
 
     # --- Check for special action steps before treating it as a question ---
@@ -1368,3 +1360,35 @@ async def handle_reminder_response(
             results_to_save=[],
             failure_count=0,
         )
+
+
+def classify_anc_start_response(user_input: str) -> str | None:
+    """
+    Reliably classifies the user's response to the first ANC survey question.
+    Returns a standardized key: 'YES', 'NO', 'SOON', or None if ambiguous.
+    """
+    text = user_input.lower().strip()
+    print(f"[ANC Start Response]: {text}")
+
+    # Check for alphabetical options first
+    if text == "a":
+        return "YES"
+    if text == "b":
+        return "NO"
+    if text == "c":
+        return "SOON"
+
+    # Check for keywords
+    went_pattern = r"\b(yes|went|i went)\b"
+    not_going_pattern = r"\b(no|not going)\b"
+    going_soon_pattern = r"\b(soon|going soon)\b"
+
+    if re.search(went_pattern, text):
+        return "YES"
+    if re.search(not_going_pattern, text):
+        return "NO"
+    if re.search(going_soon_pattern, text):
+        print(f"[ANC Start Response]: Detected 'going soon' in response: {text}")
+        return "SOON"
+
+    return None  # Return None if the response is ambiguous

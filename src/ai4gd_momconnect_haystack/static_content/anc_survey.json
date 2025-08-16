@@ -1,16 +1,6 @@
 {
     "anc-survey": [
         {
-            "title": "start",
-            "content": "Hi mom 👋🏽\n\nDid you go to your *pregnancy check-up* this week? 🏥",
-            "content_type": "follow_up_question",
-            "valid_responses": [
-                "Yes, I went",
-                "No, I'm not going",
-                "I'm going soon"
-            ]
-        },
-        {
             "title": "Q_seen",
             "content": "Good to hear. Before we continue, here are a few things to know:\n\nYou can answer *in your own words* — there’s no right or wrong!\nYou can *ask us questions about this study* any time.\nDon’t want to answer something? Just type *skip*.\n\nDid a health worker see you?",
             "content_type": "follow_up_question",

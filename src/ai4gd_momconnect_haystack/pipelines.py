@@ -110,57 +110,36 @@ REPHRASED_QUESTION_SCHEMA = {
 
 # --- The ANC Survey flow, statically defined ---
 ANC_SURVEY_FLOW_LOGIC = {
-    "intro": lambda ctx: "start",
-    "start": lambda ctx: "Q_seen"
-    if ctx.get("start") == "YES"
-    else "start_not_going"
-    if ctx.get("start") == "NO"
+    # --- Entry Point ---
+    "intro": lambda ctx: "Q_why_not_go"
+    if ctx.get("intro") == "NO"
     else "start_going_soon"
-    if ctx.get("start") == "IM_GOING"
+    if ctx.get("intro") == "SOON"
     else "Q_seen",
-    "start_going_soon": lambda ctx: "__GOING_SOON_REMINDER_3_DAYS__",
+    # --- Branch 1: Going Soon ---
+    "start_going_soon": lambda ctx: None,  # Ends flow, triggers 3-day reminder
+    # --- Branch 2: Not Going ---
+    "Q_why_not_go": lambda ctx: "intent",
+    # --- Branch 3: Went to Clinic ---
     "Q_seen": lambda ctx: "seen_yes" if ctx.get("Q_seen") == "YES" else "Q_seen_no",
-    "seen_yes": lambda ctx: "Q_bp"
-    if ctx.get("seen_yes") == "YES"
-    else "mom_ANC_remind_me_01",
-    "Q_seen_no": lambda ctx: "Q_why_no_visit"
-    if ctx.get("Q_seen_no") == "YES"
-    else "mom_ANC_remind_me_01",
-    "mom_ANC_remind_me_01": lambda ctx: "__NOT_GOING_REMINDER_1_DAY__",
+    # > Sub-branch: Was Seen
+    "seen_yes": lambda ctx: "Q_bp",
     "Q_bp": lambda ctx: "Q_experience",
     "Q_experience": lambda ctx: "bad"
     if ctx.get("Q_experience") in ["EXP_BAD", "EXP_VERY_BAD"]
     else "good",
-    "bad": lambda ctx: "Q_visit_bad",
     "good": lambda ctx: "Q_visit_good",
-    "Q_visit_good": lambda ctx: "Q_visit_other"
-    if ctx.get("Q_visit_good") == "SOMETHING_ELSE"
-    else "Q_challenges",
-    "Q_visit_bad": lambda ctx: "Q_visit_other"
-    if ctx.get("Q_visit_bad") == "SOMETHING_ELSE"
-    else "Q_challenges",
-    "Q_visit_other": lambda ctx: "Q_challenges",
-    "Q_challenges": lambda ctx: "Q_challenges_other"
-    if ctx.get("Q_challenges") == "SOMETHING_ELSE"
-    else "intent",
-    "Q_challenges_other": lambda ctx: "intent",
-    "Q_why_no_visit": lambda ctx: "Q_why_no_visit_other"
-    if ctx.get("Q_why_no_visit") == "SOMETHING_ELSE"
-    else "intent",
-    "Q_why_no_visit_other": lambda ctx: "intent",
-    "start_not_going": lambda ctx: "Q_why_not_go"
-    if ctx.get("start_not_going") == "YES"
-    else "mom_ANC_remind_me_02",
-    "mom_ANC_remind_me_02": lambda ctx: "__WENT_REMINDER_1_DAY__",
-    "Q_why_not_go": lambda ctx: "Q_why_not_go_other"
-    if ctx.get("Q_why_not_go") == "SOMETHING_ELSE"
-    else "intent",
-    "Q_why_not_go_other": lambda ctx: "intent",
+    "bad": lambda ctx: "Q_visit_bad",
+    "Q_visit_bad": lambda ctx: "Q_challenges",
+    "Q_visit_good": lambda ctx: "Q_challenges",
+    "Q_challenges": lambda ctx: "intent",
+    # > Sub-branch: Was NOT Seen
+    "seen_no": lambda ctx: "Q_why_no_visit",
+    "Q_why_no_visit": lambda ctx: "intent",
+    # --- Converging Paths & End States ---
     "intent": lambda ctx: "not_going_next_one"
     if ctx.get("intent") == "NO"
-    else "feedback_if_first_survey"
-    if ctx.get("first_survey")
-    else "end",
+    else ("feedback_if_first_survey" if ctx.get("first_survey") else "end"),
     "not_going_next_one": lambda ctx: "feedback_if_first_survey"
     if ctx.get("first_survey")
     else "end",

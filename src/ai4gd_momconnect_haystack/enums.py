@@ -13,7 +13,7 @@ class AssessmentType(str, Enum):
 
 
 class HistoryType(str, Enum):
-    anc = "anc"
+    anc = "anc-survey"
     onboarding = "onboarding"
 
 

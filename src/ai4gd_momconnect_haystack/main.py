@@ -27,6 +27,7 @@ from ai4gd_momconnect_haystack.crud import (
     save_assessment_end_message,
     save_assessment_question,
     save_chat_history,
+    get_user_journey_state,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import (
     AssessmentEndMessagingHistory,
@@ -1849,11 +1850,10 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
         while not survey_complete:
             print("-" * 20)
-
             # 1. Create the request object for the orchestrator
             request = OrchestratorSurveyRequest(
                 user_id=user_id,
-                survey_id="anc",
+                survey_id="anc-survey",
                 user_input=user_input,
                 user_context=user_context,
                 failure_count=failure_count,
@@ -1874,9 +1874,24 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             user_context = response.user_context
             failure_count = response.failure_count
 
+            # ---
+            # FIX: Add diagnostic printing to see the current state
+            if user_context:
+                # We need to get the last step from the saved state to know what question we're on
+                # In a real app, this state would be loaded at the start of the turn
+                temp_state = await get_user_journey_state(user_id)
+                if temp_state:
+                    step_title = temp_state.current_step_identifier
+                    question_data = ANC_SURVEY_MAP.get(step_title)
+                    print(f"DEBUG: Current Question Title = {step_title}")
+                    if question_data:
+                        print(
+                            f"DEBUG: Valid Responses = {question_data.valid_responses}"
+                        )
+            # --- End of diagnostic printing ---
+
             # 4. Get the next user input
             user_input = input("USER:\n> ")
-
     # --- End of Simulation ---
 
     logger.info("--- Simulation Complete ---")

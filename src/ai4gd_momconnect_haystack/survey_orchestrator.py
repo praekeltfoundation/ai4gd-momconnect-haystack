@@ -43,10 +43,15 @@ async def process_survey_turn(request: SurveyRequest) -> SurveyResponse:
 
 # --- State Machine & Routing ---
 async def _initialize_turn_context(request: SurveyRequest) -> SurveyTurnContext:
+    """Creates the fully hydrated SurveyTurnContext object by loading history and journey state."""
     journey_alchemy = await crud.get_user_journey_state(request.user_id)
     history_messages = await crud.get_or_create_chat_history(
         request.user_id, HistoryType(request.survey_id)
     )
+
+    # FIX: Add the user's current input to the history right at the start of the turn.
+    if request.user_input:
+        history_messages.append(ChatMessage.from_user(text=request.user_input))
 
     journey_pydantic = (
         UserJourneyState.model_validate(journey_alchemy.__dict__)
@@ -59,8 +64,13 @@ async def _initialize_turn_context(request: SurveyRequest) -> SurveyTurnContext:
         if journey_pydantic
         else request.user_context.copy()
     )
+    # The last assistant message is now the second to last message in the list
     last_assistant_message = next(
-        (msg for msg in reversed(history_messages) if msg.role.value == "assistant"),
+        (
+            msg
+            for msg in reversed(history_messages[:-1])
+            if msg.role.value == "assistant"
+        ),
         None,
     )
 
@@ -79,21 +89,15 @@ async def _initialize_turn_context(request: SurveyRequest) -> SurveyTurnContext:
 def _compute_turn_state(ctx: SurveyTurnContext) -> TurnState:
     """Computes the single, definitive state for the current turn."""
     step_id = ctx.journey_state.current_step_identifier if ctx.journey_state else None
+
     if ctx.request.is_re_engagement_ping:
         return TurnState.RE_ENGAGEMENT
-
-    # FIX: Check for the special case of the first turn in an ANC survey
-    if ctx.request.survey_id == "anc" and not ctx.journey_state:
-        return TurnState.NEW_SURVEY
 
     if not ctx.request.user_input and not ctx.journey_state:
         return TurnState.NEW_SURVEY
 
-    #  Route the reply to ANC's first question ("start") to the intro handler
-    if step_id == "start" and ctx.request.survey_id == "anc":
-        return TurnState.AWAITING_INTRO_REPLY
-
-    if step_id == "intro":  # For other flows like onboarding
+    # This is now the single, simple check for any intro response.
+    if step_id == "intro":
         return TurnState.AWAITING_INTRO_REPLY
 
     return TurnState.ACTIVE_TURN
@@ -104,7 +108,6 @@ async def _handle_turn(ctx: SurveyTurnContext) -> SurveyResponse:
     router = {
         TurnState.RE_ENGAGEMENT: _handle_re_engagement,
         TurnState.NEW_SURVEY: _handle_new_survey,
-        # FIX: Remove the incorrect "_turn" suffix
         TurnState.AWAITING_INTRO_REPLY: _handle_intro_response,
         TurnState.ACTIVE_TURN: _process_active_response,
     }
@@ -124,79 +127,97 @@ async def _handle_re_engagement(ctx: SurveyTurnContext) -> SurveyResponse:
 
 async def _handle_new_survey(ctx: SurveyTurnContext) -> SurveyResponse:
     """
-    Handles the first turn of a survey. For ANC, it sends the first question.
-    For other flows, it sends the standard intro.
+    Handles the first turn of a survey by sending the correct static intro message.
     """
-    if ctx.request.survey_id == "anc":
-        first_question_data = await tasks.get_anc_survey_question(
-            user_id=ctx.request.user_id,
-            user_context=ctx.current_context,
-            chat_history=ctx.history
-        )
-        
-        # FIX: Add a check to handle the case where no question is found
-        if first_question_data:
-            assistant_message = first_question_data.get("contextualized_question", "Error: Could not find the first question.")
-            next_step_id = first_question_data.get("question_identifier", "error")
-            return await _finalise_and_respond(
-                ctx,
-                assistant_message=assistant_message,
-                next_step_id=next_step_id,
-            )
-        else:
-            # Handle error case where the first question can't be fetched
-            return await _finalise_and_respond(
-                ctx, 
-                assistant_message="Sorry, there was a problem starting the survey.", 
-                next_step_id="error"
-            )
+    # This logic is now simpler and correctly uses your static messages.
+    if ctx.request.survey_id == "anc-survey":
+        # Use the specific intro message for the ANC survey
+        intro_message = doc_store.INTRO_MESSAGES.get("survey_intro")
     else:
-        # For other flows like onboarding, use the standard intro message
-        intro_message = doc_store.INTRO_MESSAGES["free_text_intro"]
-        return await _finalise_and_respond(
-            ctx, assistant_message=intro_message, next_step_id="intro"
+        # Use the default intro for other flows like onboarding
+        intro_message = doc_store.INTRO_MESSAGES.get("free_text_intro")
+
+    if not intro_message:
+        # Fallback in case the intro message is not found
+        logger.error(
+            f"Could not find intro message for survey '{ctx.request.survey_id}'"
         )
+        intro_message = "Welcome! Shall we begin?"
+
+    # The next step for ANY new survey is now consistently "intro"
+    return await _finalise_and_respond(
+        ctx, assistant_message=intro_message, next_step_id="intro"
+    )
 
 
 async def _handle_intro_response(ctx: SurveyTurnContext) -> SurveyResponse:
-    """Handles the user's reply to an intro message."""
-    user_input = ctx.request.user_input or ""
-    result = tasks.handle_intro_response(
-        user_input=user_input, flow_id=ctx.request.survey_id
+    """
+    Handles the user's reply to ANY intro message by dispatching to the
+    correct reliable classifier based on the survey_id.
+    """
+    logger.info(
+        f"[{ctx.turn_id}] Handling intro response for survey '{ctx.request.survey_id}'."
     )
+    user_input = ctx.request.user_input or ""
 
-    if result.get("action") == "PROCEED":
-        return await _conclude_valid_turn(ctx)
-    elif result.get("action") == "PAUSE_AND_REMIND":
-        return await _handle_reminder_request(ctx)
-    else:  # This handles REPROMPT cases
-        return await _handle_repair(ctx, "intro", result.get("message"))
+    # --- Dispatcher based on survey_id ---
+    if ctx.request.survey_id == "anc-survey":
+        # For the ANC survey, use the dedicated 3-option classifier
+        classification = tasks.classify_anc_start_response(user_input)
+
+        if classification:  # Returns 'YES', 'NO', or 'SOON'
+            logger.info(f"[{ctx.turn_id}] ANC intro classified as: {classification}")
+            ctx.current_context["intro"] = classification  # Store result under 'intro'
+            return await _conclude_valid_turn(ctx)
+        else:  # Ambiguous
+            logger.warning(
+                f"[{ctx.turn_id}] ANC intro response is ambiguous. Triggering repair."
+            )
+            repair_message = (
+                "Sorry, I didn't quite get that. Please reply with a, b, or c."
+            )
+            return await _handle_repair(ctx, "intro", repair_message)
+    else:
+        print(f"[{ctx.turn_id}] Unsupported survey type: {ctx.request.survey_id}")
+        repair_message = (
+            "Sorry, I didn't quite understand. Could you say that differently?"
+        )
+        return await _handle_repair(ctx, "intro", repair_message)
 
 
 async def _process_active_response(ctx: SurveyTurnContext) -> SurveyResponse:
-    updated_context = ctx.previous_context.copy()
+    """
+    Handles a standard active turn with a simplified and corrected logic flow.
+    """
+    logger.info(
+        f"[{ctx.turn_id}] Processing active response: '{ctx.request.user_input}'."
+    )
 
     user_input = ctx.request.user_input or ""
     step_title = ctx.journey_state.current_step_identifier if ctx.journey_state else ""
     last_question = ctx.journey_state.last_question_sent if ctx.journey_state else ""
 
-    updated_context, _ = tasks.extract_anc_data_from_response(
+    # Pass the main context directly to the reliable extraction task
+    tasks.extract_anc_data_from_response(
         user_response=user_input,
-        user_context=updated_context,
+        user_context=ctx.current_context,  # The task modifies this dict in-place
         step_title=step_title,
-        # FIX: Provide a default "" to satisfy the function's type hint
         contextualized_question=(last_question or ""),
     )
 
-    if updated_context != ctx.previous_context:
-        ctx.current_context = updated_context
+    # Check if the task successfully updated the context.
+    if ctx.current_context != ctx.previous_context:
+        logger.info(f"[{ctx.turn_id}] Extraction successful. Context was updated.")
         return await _conclude_valid_turn(ctx)
 
-    intent, _ = tasks.handle_user_message(
-        # FIX: Provide a default "" to satisfy the function's type hint
-        previous_question=(last_question or ""),
-        user_message=user_input,
+    # --- Fallback logic if context was NOT updated ---
+    logger.warning(
+        f"[{ctx.turn_id}] Extraction failed. Falling back to intent analysis."
     )
+    intent, _ = tasks.handle_user_message(
+        previous_question=(last_question or ""), user_message=user_input
+    )
+    logger.info(f"[{ctx.turn_id}] Fallback intent detected: {intent}")
 
     if intent == Intent.REQUEST_TO_BE_REMINDED.value:
         return await _handle_reminder_request(ctx)
@@ -208,7 +229,6 @@ async def _process_active_response(ctx: SurveyTurnContext) -> SurveyResponse:
     return await _handle_repair_or_system_skip(ctx)
 
 
-# --- Conclusion, Persistence & Repair ---
 async def _conclude_valid_turn(ctx: SurveyTurnContext) -> SurveyResponse:
     next_q = await tasks.get_anc_survey_question(
         user_id=ctx.request.user_id,
@@ -244,8 +264,7 @@ async def _finalise_and_respond(
         k: v for k, v in ctx.current_context.items() if v != ctx.previous_context.get(k)
     }
 
-    if ctx.request.user_input:
-        ctx.history.append(ChatMessage.from_user(text=ctx.request.user_input))
+    # FIX: The user's message is already in the history. We only need to append the assistant's reply.
     ctx.history.append(
         ChatMessage.from_assistant(
             text=assistant_message, meta={"step_id": next_step_id}
