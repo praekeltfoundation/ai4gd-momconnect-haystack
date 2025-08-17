@@ -137,9 +137,11 @@ ANC_SURVEY_FLOW_LOGIC = {
     "seen_no": lambda ctx: "Q_why_no_visit",
     "Q_why_no_visit": lambda ctx: "intent",
     # --- Converging Paths & End States ---
-    "intent": lambda ctx: "not_going_next_one"
-    if ctx.get("intent") == "NO"
-    else ("feedback_if_first_survey" if ctx.get("first_survey") else "end"),
+    "intent": lambda ctx: (
+        "feedback_if_first_survey" if ctx.get("first_survey") else "end"
+    )
+    if ctx.get("intent") == "YES"
+    else "not_going_next_one",
     "not_going_next_one": lambda ctx: "feedback_if_first_survey"
     if ctx.get("first_survey")
     else "end",

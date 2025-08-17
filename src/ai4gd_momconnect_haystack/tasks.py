@@ -519,6 +519,10 @@ async def get_anc_survey_question(
         logger.error(f"Could not find question content for step_id: '{next_step}'")
         return None
 
+    is_final = False
+    if question_data.content_type == "end_message":
+        is_final = True
+
     original_question_content = question_data.content
     valid_responses = question_data.valid_responses
     if not valid_responses:

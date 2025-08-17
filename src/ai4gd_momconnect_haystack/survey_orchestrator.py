@@ -197,7 +197,20 @@ async def _process_active_response(ctx: SurveyTurnContext) -> SurveyResponse:
     step_title = ctx.journey_state.current_step_identifier if ctx.journey_state else ""
     last_question = ctx.journey_state.last_question_sent if ctx.journey_state else ""
 
-    # Pass the main context directly to the reliable extraction task
+    # --- STEP 1: Try the reliable, Python-first classifier for Yes/No question---
+    if step_title in ["intent", "Q_seen"]:
+        classification = tasks.classify_yes_no_response(user_input)
+        if classification in ["AFFIRMATIVE", "NEGATIVE"]:
+            ctx.current_context[step_title] = (
+                "YES" if classification == "AFFIRMATIVE" else "NO"
+            )
+            return await _conclude_valid_turn(ctx)
+
+        logger.info(
+            f"[{ctx.turn_id}] Classifier was ambiguous for '{step_title}'. Falling back to LLM."
+        )
+
+    # --- STEP 2: Fallback to the powerful LLM data extractor ---
     tasks.extract_anc_data_from_response(
         user_response=user_input,
         user_context=ctx.current_context,  # The task modifies this dict in-place
@@ -205,12 +218,11 @@ async def _process_active_response(ctx: SurveyTurnContext) -> SurveyResponse:
         contextualized_question=(last_question or ""),
     )
 
-    # Check if the task successfully updated the context.
     if ctx.current_context != ctx.previous_context:
         logger.info(f"[{ctx.turn_id}] Extraction successful. Context was updated.")
         return await _conclude_valid_turn(ctx)
 
-    # --- Fallback logic if context was NOT updated ---
+    # --- STEP 3: The final fallback logic you asked about ---
     logger.warning(
         f"[{ctx.turn_id}] Extraction failed. Falling back to intent analysis."
     )
