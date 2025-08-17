@@ -212,7 +212,7 @@ async def _process_active_response(ctx: SurveyTurnContext) -> SurveyResponse:
 
     # , ]
     # --- Handle other simple Yes/No questions ---
-    if step_title in ["seen_yes", "Q_seen_no", "start_not_going", "good"]:
+    if step_title in ["seen_yes", "Q_seen_no", "start_not_going", "good", "bad"]:
         logger.info(
             f"[{ctx.turn_id}] Using reliable Yes/No classifier for step '{step_title}'."
         )

@@ -133,7 +133,9 @@ ANC_SURVEY_FLOW_LOGIC = {
     "good": lambda ctx: "Q_visit_good"
     if ctx.get("good") == "YES"
     else "mom_ANC_remind_me_01",
-    "bad": lambda ctx: "Q_visit_bad",
+    "bad": lambda ctx: "Q_visit_bad"
+    if ctx.get("bad") == "YES"
+    else "mom_ANC_remind_me_01",
     "Q_visit_bad": lambda ctx: "Q_challenges",
     "Q_visit_good": lambda ctx: "Q_challenges",
     "Q_challenges": lambda ctx: "intent",

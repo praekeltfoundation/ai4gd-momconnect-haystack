@@ -50,7 +50,8 @@
             "content": "We’re sorry to hear you had a bad experience.\n\nBy telling us a bit more,  you can help us understand how to improve services for pregnant women in South Africa.\n\nReady to tell us?",
             "content_type": "follow_up_question",
             "valid_responses": [
-                "OK"
+                "Yes",
+                "No"
             ]
         },
         {
@@ -64,7 +65,7 @@
         },
         {
             "title": "Q_visit_bad",
-            "content": "Respond with an option from this list to share what made you the most uncomfortable or caused you *the biggest problem* at your check-up:",
+            "content": "Tell us what made you the most uncomfortable or caused you *the biggest problem* at your check-up",
             "content_type": "follow_up_question",
             "valid_responses": [
                 "No maternity record 📝",
