@@ -376,7 +376,6 @@ async def _handle_repair_or_system_skip(ctx: SurveyTurnContext) -> SurveyRespons
 
 async def _handle_reminder_request(ctx: SurveyTurnContext) -> SurveyResponse:
     step = ctx.journey_state.current_step_identifier if ctx.journey_state else "intro"
-    # FIX: Provide a default "" to satisfy the function's type hint
     last_question = ctx.journey_state.last_question_sent if ctx.journey_state else ""
 
     message, reengagement_info = await tasks.handle_reminder_request(

@@ -121,8 +121,7 @@ ANC_SURVEY_FLOW_LOGIC = {
     # --- Branch 2: Not Going ---
     "Q_why_not_go": lambda ctx: "intent",
     # --- Branch 3: Went to Clinic ---
-    "Q_seen": lambda ctx: "seen_yes"
-    if ctx.get("Q_seen") == "YES" else "Q_seen_no",
+    "Q_seen": lambda ctx: "seen_yes" if ctx.get("Q_seen") == "YES" else "Q_seen_no",
     # > Sub-branch: Was Seen
     "seen_yes": lambda ctx: "Q_bp"
     if ctx.get("seen_yes") == "YES"
