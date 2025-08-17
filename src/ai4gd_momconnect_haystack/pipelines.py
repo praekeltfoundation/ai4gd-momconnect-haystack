@@ -123,18 +123,24 @@ ANC_SURVEY_FLOW_LOGIC = {
     # --- Branch 3: Went to Clinic ---
     "Q_seen": lambda ctx: "seen_yes" if ctx.get("Q_seen") == "YES" else "Q_seen_no",
     # > Sub-branch: Was Seen
-    "seen_yes": lambda ctx: "Q_bp",
+    "seen_yes": lambda ctx: "Q_bp"
+    if ctx.get("seen_yes") == "YES"
+    else "mom_ANC_remind_me_01",
     "Q_bp": lambda ctx: "Q_experience",
     "Q_experience": lambda ctx: "bad"
     if ctx.get("Q_experience") in ["EXP_BAD", "EXP_VERY_BAD"]
     else "good",
-    "good": lambda ctx: "Q_visit_good",
+    "good": lambda ctx: "Q_visit_good"
+    if ctx.get("good") == "YES"
+    else "mom_ANC_remind_me_01",
     "bad": lambda ctx: "Q_visit_bad",
     "Q_visit_bad": lambda ctx: "Q_challenges",
     "Q_visit_good": lambda ctx: "Q_challenges",
     "Q_challenges": lambda ctx: "intent",
-    # > Sub-branch: Was NOT Seen
-    "seen_no": lambda ctx: "Q_why_no_visit",
+    # > Sub-branch: Was at clinic but NOT Seen
+    "Q_seen_no": lambda ctx: "Q_why_no_visit"
+    if ctx.get("Q_seen_no") == "YES"
+    else "mom_ANC_remind_me_01",
     "Q_why_no_visit": lambda ctx: "intent",
     # --- Converging Paths & End States ---
     "intent": lambda ctx: (
@@ -146,6 +152,7 @@ ANC_SURVEY_FLOW_LOGIC = {
     if ctx.get("first_survey")
     else "end",
     "feedback_if_first_survey": lambda ctx: "end_if_feedback",
+    "mom_ANC_remind_me_01": lambda ctx: None,
     "end_if_feedback": lambda ctx: None,
     "end": lambda ctx: None,
 }

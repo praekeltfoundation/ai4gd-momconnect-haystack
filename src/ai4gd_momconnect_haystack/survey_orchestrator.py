@@ -210,6 +210,27 @@ async def _process_active_response(ctx: SurveyTurnContext) -> SurveyResponse:
             f"[{ctx.turn_id}] Classifier was ambiguous for '{step_title}'. Falling back to LLM."
         )
 
+    # , ]
+    # --- Handle other simple Yes/No questions ---
+    if step_title in ["seen_yes", "Q_seen_no", "start_not_going", "good"]:
+        logger.info(
+            f"[{ctx.turn_id}] Using reliable Yes/No classifier for step '{step_title}'."
+        )
+        classification = tasks.classify_yes_no_response(user_input)
+
+        if classification == "AFFIRMATIVE":
+            ctx.current_context[step_title] = "YES"
+            return await _conclude_valid_turn(ctx)
+        elif classification == "NEGATIVE":
+            ctx.current_context[step_title] = "NO"
+            return await _conclude_valid_turn(ctx)
+
+        # If the response is AMBIGUOUS for these steps, trigger a repair.
+        logger.warning(
+            f"[{ctx.turn_id}] Ambiguous response for '{step_title}'. Triggering repair."
+        )
+        return await _handle_repair_or_system_skip(ctx)
+
     # --- STEP 2: Fallback to the powerful LLM data extractor ---
     tasks.extract_anc_data_from_response(
         user_response=user_input,

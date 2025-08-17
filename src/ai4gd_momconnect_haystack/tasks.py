@@ -520,7 +520,7 @@ async def get_anc_survey_question(
         return None
 
     is_final = False
-    if question_data.content_type == "end_message":
+    if question_data.content_type in ["end_message", "reminder_confirmation"]:
         is_final = True
 
     original_question_content = question_data.content

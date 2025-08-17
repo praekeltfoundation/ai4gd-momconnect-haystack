@@ -20,7 +20,7 @@
             "content_type": "follow_up_question",
             "valid_responses": [
                 "Yes",
-                "Remind me tomorrow"
+                "No"
             ]
         },
         {
@@ -58,7 +58,8 @@
             "content": "Thank you for telling us.\n\nThere are just 2 more questions. Your answers to these will help us understand how we can make services better for pregnant women in South Africa.\n\nReady to go?",
             "content_type": "follow_up_question",
             "valid_responses": [
-                "Continue"
+                "Yes",
+                "No"
             ]
         },
         {
@@ -120,7 +121,7 @@
             "content_type": "follow_up_question",
             "valid_responses": [
                 "Yes",
-                "Remind me tomorrow"
+                "No"
             ]
         },
         {
@@ -129,7 +130,7 @@
             "content_type": "follow_up_question",
             "valid_responses": [
                 "Yes",
-                "Remind me tomorrow"
+                "No"
             ]
         },
         {
