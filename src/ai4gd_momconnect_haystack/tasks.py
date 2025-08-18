@@ -1286,14 +1286,37 @@ async def handle_reminder_response(
 
         # If for some reason the last question was empty, get the next logical one
         if not question_to_send:
-            chat_history = await get_or_create_chat_history(user_id, HistoryType.anc)
-            question_result = await get_anc_survey_question(
-                user_id=user_id,
-                user_context=restored_context,
-                chat_history=chat_history,
-            )
-            if question_result:
-                question_to_send = question_result.get("contextualized_question", "")
+            # Handle different flow types when resuming without a stored last question
+            if "survey" in state.current_flow_id:
+                chat_history = await get_or_create_chat_history(
+                    user_id, HistoryType.anc
+                )
+                question_result = await get_anc_survey_question(
+                    user_id=user_id,
+                    user_context=restored_context,
+                    chat_history=chat_history,
+                )
+                if question_result:
+                    question_to_send = question_result.get(
+                        "contextualized_question", ""
+                    )
+            elif "onboarding" in state.current_flow_id:
+                next_q = get_next_onboarding_question(user_context=restored_context)
+                if next_q:
+                    question_to_send = next_q.get("contextualized_question", "")
+            else:
+                # For KAB flows, we assume the next question is the first one
+                next_q_num = state.current_step_identifier or 0
+                question_result = await get_assessment_question(
+                    user_id=user_id,
+                    flow_id=state.flow_id,
+                    question_number=next_q_num,
+                    user_context=state.user_context,
+                )
+                if question_result:
+                    question_to_send = question_result.get(
+                        "contextualized_question", ""
+                    )
 
         await delete_user_journey_state(user_id)
 
@@ -1337,16 +1360,38 @@ async def handle_reminder_response(
             user_context=state.user_context,
             reminder_type=2,  # This is at least the second reminder
         )
-        return SurveyResponse(
-            question=message,
-            user_context=state.user_context,
-            survey_complete=False,
-            intent="REQUEST_TO_BE_REMINDED",
-            intent_related_response=None,
-            results_to_save=[],
-            failure_count=0,
-            reengagement_info=reengagement_info,
-        )
+        # Return the appropriate response type for the current flow
+        if "onboarding" in state.current_flow_id:
+            return OnboardingResponse(
+                question=message,
+                user_context=state.user_context,
+                intent="REQUEST_TO_BE_REMINDED",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=0,
+                reengagement_info=reengagement_info,
+            )
+        elif "survey" in state.current_flow_id:
+            return SurveyResponse(
+                question=message,
+                user_context=state.user_context,
+                survey_complete=False,
+                intent="REQUEST_TO_BE_REMINDED",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=0,
+                reengagement_info=reengagement_info,
+            )
+        else:
+            return AssessmentResponse(
+                question=message,
+                next_question=None,
+                intent="REQUEST_TO_BE_REMINDED",
+                intent_related_response=None,
+                processed_answer=None,
+                failure_count=0,
+                reengagement_info=reengagement_info,
+            )
 
     else:  # Ambiguous response
         # Re-send the reminder prompt to clarify
@@ -1363,12 +1408,32 @@ async def handle_reminder_response(
         # Always use the DEFAULT resume message when re-prompting
         rephrased_question = schedule["DEFAULT"].get("resume_message")
 
-        return SurveyResponse(
-            question=rephrased_question,
-            user_context=state.user_context,
-            survey_complete=False,
-            intent="REPAIR",
-            intent_related_response=None,
-            results_to_save=[],
-            failure_count=0,
-        )
+        # Return the appropriate response type for the current flow
+        if "onboarding" in state.current_flow_id:
+            return OnboardingResponse(
+                question=rephrased_question or "",
+                user_context=state.user_context,
+                intent="REPAIR",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=0,
+            )
+        elif "survey" in state.current_flow_id:
+            return SurveyResponse(
+                question=rephrased_question,
+                user_context=state.user_context,
+                survey_complete=False,
+                intent="REPAIR",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=0,
+            )
+        else:
+            return AssessmentResponse(
+                question=rephrased_question or "",
+                next_question=None,
+                intent="REPAIR",
+                intent_related_response=None,
+                processed_answer=None,
+                failure_count=0,
+            )

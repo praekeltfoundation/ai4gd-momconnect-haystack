@@ -559,6 +559,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
                 if "behaviour" in request.flow_id.value
                 else INTRO_MESSAGES["multiple_choice_intro"]
             )
+            await delete_user_journey_state(request.user_id)
             return AssessmentResponse(
                 question=intro_message,
                 next_question=0,
@@ -567,6 +568,14 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
                 processed_answer=None,
                 failure_count=0,
             )
+
+    # Check if the user's last state was awaiting a response to a reminder
+    state = await get_user_journey_state(request.user_id)
+    if state and state.current_step_identifier == "awaiting_reminder_response":
+        logger.info("User is responding to a reminder prompt.")
+        return await handle_reminder_response(
+            request.user_id, request.user_input, state
+        )
 
     # --- 2. HANDLE THE USER'S RESPONSE TO THE INTRO ---
     if request.question_number == 0:
@@ -586,6 +595,14 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
                 last_question=intro_message,
                 result=result,
             )
+
+        await save_user_journey_state(
+            user_id=request.user_id,
+            flow_id=request.flow_id.value,
+            step_identifier="",
+            last_question=result["message"],
+            user_context=request.user_context,
+        )
 
         response = await _handle_consent_result(
             result=result,

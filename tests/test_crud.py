@@ -3,13 +3,21 @@ from haystack.dataclasses import ChatMessage
 from sqlalchemy.future import select
 
 from ai4gd_momconnect_haystack.crud import (
+    delete_assessment_history_for_user,
     delete_chat_history_for_user,
+    get_assessment_history,
     get_or_create_chat_history,
+    save_assessment_question,
     save_chat_history,
 )
 from ai4gd_momconnect_haystack.database import AsyncSessionLocal
-from ai4gd_momconnect_haystack.enums import HistoryType
-from ai4gd_momconnect_haystack.sqlalchemy_models import ChatHistory
+from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType
+from ai4gd_momconnect_haystack.sqlalchemy_models import (
+    AssessmentEndMessagingHistory,
+    AssessmentHistory,
+    AssessmentResultHistory,
+    ChatHistory,
+)
 
 
 @pytest.mark.asyncio
@@ -201,3 +209,266 @@ async def test_delete_chat_history_database_state():
         assert db_history is not None
         assert len(db_history.onboarding_history) == 0
         assert len(db_history.anc_survey_history) == 0
+
+
+@pytest.mark.asyncio
+async def test_delete_assessment_history_for_user_basic():
+    """
+    Test that delete_assessment_history_for_user correctly deletes all assessment-related
+    history for a specific user and assessment type.
+    """
+    user_id = "test_assessment_user_1"
+    assessment_type = AssessmentType.dma_pre_assessment
+
+    # Save some assessment questions
+    await save_assessment_question(
+        user_id, assessment_type, 1, "Question 1", "Answer 1", 5
+    )
+    await save_assessment_question(
+        user_id, assessment_type, 2, "Question 2", "Answer 2", 3
+    )
+    await save_assessment_question(
+        user_id, assessment_type, 3, "Question 3", "Answer 3", 4
+    )
+
+    # Verify assessment history exists before deletion
+    history_before = await get_assessment_history(user_id, assessment_type)
+    assert len(history_before) == 3
+
+    # Verify records exist in the database
+    async with AsyncSessionLocal() as session:
+        # Check AssessmentHistory
+        result = await session.execute(
+            select(AssessmentHistory).filter(
+                AssessmentHistory.user_id == user_id,
+                AssessmentHistory.assessment_id == assessment_type.value,
+            )
+        )
+        assessment_records = result.scalars().all()
+        assert len(assessment_records) == 3
+
+    # Delete assessment history
+    await delete_assessment_history_for_user(user_id, assessment_type)
+
+    # Verify assessment history is deleted
+    history_after = await get_assessment_history(user_id, assessment_type)
+    assert len(history_after) == 0
+
+    # Verify database records are deleted
+    async with AsyncSessionLocal() as session:
+        # Check AssessmentHistory
+        result = await session.execute(
+            select(AssessmentHistory).filter(
+                AssessmentHistory.user_id == user_id,
+                AssessmentHistory.assessment_id == assessment_type.value,
+            )
+        )
+        assessment_records = result.scalars().all()
+        assert len(assessment_records) == 0
+
+        # Check AssessmentResultHistory
+        result = await session.execute(
+            select(AssessmentResultHistory).filter(
+                AssessmentResultHistory.user_id == user_id,
+                AssessmentResultHistory.assessment_id == assessment_type.value,
+            )
+        )
+        result_records = result.scalars().all()
+        assert len(result_records) == 0
+
+        # Check AssessmentEndMessagingHistory
+        result = await session.execute(
+            select(AssessmentEndMessagingHistory).filter(
+                AssessmentEndMessagingHistory.user_id == user_id,
+                AssessmentEndMessagingHistory.assessment_id == assessment_type.value,
+            )
+        )
+        messaging_records = result.scalars().all()
+        assert len(messaging_records) == 0
+
+
+@pytest.mark.asyncio
+async def test_delete_assessment_history_for_user_selective_deletion():
+    """
+    Test that delete_assessment_history_for_user only deletes history for the specified
+    assessment type, leaving other assessment types intact.
+    """
+    user_id = "test_assessment_user_2"
+    assessment_type_1 = AssessmentType.dma_pre_assessment
+    assessment_type_2 = AssessmentType.knowledge_pre_assessment
+
+    # Save assessment questions for both types
+    await save_assessment_question(
+        user_id, assessment_type_1, 1, "DMA Question 1", "DMA Answer 1", 5
+    )
+    await save_assessment_question(
+        user_id, assessment_type_2, 1, "Knowledge Question 1", "Knowledge Answer 1", 3
+    )
+
+    # Verify both assessment histories exist
+    history_1_before = await get_assessment_history(user_id, assessment_type_1)
+    history_2_before = await get_assessment_history(user_id, assessment_type_2)
+    assert len(history_1_before) == 1
+    assert len(history_2_before) == 1
+
+    # Delete only the first assessment type
+    await delete_assessment_history_for_user(user_id, assessment_type_1)
+
+    # Verify only the first assessment type is deleted
+    history_1_after = await get_assessment_history(user_id, assessment_type_1)
+    history_2_after = await get_assessment_history(user_id, assessment_type_2)
+    assert len(history_1_after) == 0
+    assert len(history_2_after) == 1
+    assert history_2_after[0].question == "Knowledge Question 1"
+
+
+@pytest.mark.asyncio
+async def test_delete_assessment_history_for_user_nonexistent():
+    """
+    Test that delete_assessment_history_for_user handles gracefully when
+    trying to delete history for a user/assessment that doesn't exist.
+    """
+    user_id = "nonexistent_assessment_user"
+    assessment_type = AssessmentType.attitude_pre_assessment
+
+    # Attempt to delete history for a user/assessment that doesn't exist
+    # This should not raise an exception
+    await delete_assessment_history_for_user(user_id, assessment_type)
+
+    # Verify no history exists for this user/assessment
+    history = await get_assessment_history(user_id, assessment_type)
+    assert len(history) == 0
+
+
+@pytest.mark.asyncio
+async def test_delete_assessment_history_for_user_user_isolation():
+    """
+    Test that delete_assessment_history_for_user only deletes history for the specified
+    user, leaving other users' data intact.
+    """
+    user_id_1 = "test_assessment_user_3"
+    user_id_2 = "test_assessment_user_4"
+    assessment_type = AssessmentType.behaviour_pre_assessment
+
+    # Save assessment questions for both users
+    await save_assessment_question(
+        user_id_1, assessment_type, 1, "Question 1", "User 1 Answer", 5
+    )
+    await save_assessment_question(
+        user_id_2, assessment_type, 1, "Question 1", "User 2 Answer", 3
+    )
+
+    # Verify both users have assessment history
+    history_1_before = await get_assessment_history(user_id_1, assessment_type)
+    history_2_before = await get_assessment_history(user_id_2, assessment_type)
+    assert len(history_1_before) == 1
+    assert len(history_2_before) == 1
+
+    # Delete only user 1's assessment history
+    await delete_assessment_history_for_user(user_id_1, assessment_type)
+
+    # Verify only user 1's history is deleted
+    history_1_after = await get_assessment_history(user_id_1, assessment_type)
+    history_2_after = await get_assessment_history(user_id_2, assessment_type)
+    assert len(history_1_after) == 0
+    assert len(history_2_after) == 1
+    assert history_2_after[0].user_response == "User 2 Answer"
+
+
+@pytest.mark.asyncio
+async def test_delete_assessment_history_database_cleanup():
+    """
+    Test that delete_assessment_history_for_user correctly removes all related
+    records from AssessmentHistory, AssessmentResultHistory, and AssessmentEndMessagingHistory.
+    """
+    user_id = "test_assessment_cleanup_user"
+    assessment_type = AssessmentType.dma_post_assessment
+
+    # Create assessment question
+    await save_assessment_question(
+        user_id, assessment_type, 1, "Test Question", "Test Answer", 4
+    )
+
+    # Manually create related records in the database
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            # Create AssessmentResultHistory record
+            result_record = AssessmentResultHistory(
+                user_id=user_id,
+                assessment_id=assessment_type.value,
+                category="test_category",
+                score=75,
+                crossed_skip_threshold=False,
+            )
+            session.add(result_record)
+
+            # Create AssessmentEndMessagingHistory record
+            messaging_record = AssessmentEndMessagingHistory(
+                user_id=user_id,
+                assessment_id=assessment_type.value,
+                message_number=1,
+                user_response="Test message response",
+            )
+            session.add(messaging_record)
+            await session.commit()
+
+    # Verify all records exist before deletion
+    async with AsyncSessionLocal() as session:
+        # Check AssessmentHistory
+        result = await session.execute(
+            select(AssessmentHistory).filter(
+                AssessmentHistory.user_id == user_id,
+                AssessmentHistory.assessment_id == assessment_type.value,
+            )
+        )
+        assert len(result.scalars().all()) == 1
+
+        # Check AssessmentResultHistory
+        result = await session.execute(
+            select(AssessmentResultHistory).filter(
+                AssessmentResultHistory.user_id == user_id,
+                AssessmentResultHistory.assessment_id == assessment_type.value,
+            )
+        )
+        assert len(result.scalars().all()) == 1
+
+        # Check AssessmentEndMessagingHistory
+        result = await session.execute(
+            select(AssessmentEndMessagingHistory).filter(
+                AssessmentEndMessagingHistory.user_id == user_id,
+                AssessmentEndMessagingHistory.assessment_id == assessment_type.value,
+            )
+        )
+        assert len(result.scalars().all()) == 1
+
+    # Delete assessment history
+    await delete_assessment_history_for_user(user_id, assessment_type)
+
+    # Verify all related records are deleted
+    async with AsyncSessionLocal() as session:
+        # Check AssessmentHistory
+        result = await session.execute(
+            select(AssessmentHistory).filter(
+                AssessmentHistory.user_id == user_id,
+                AssessmentHistory.assessment_id == assessment_type.value,
+            )
+        )
+        assert len(result.scalars().all()) == 0
+
+        # Check AssessmentResultHistory
+        result = await session.execute(
+            select(AssessmentResultHistory).filter(
+                AssessmentResultHistory.user_id == user_id,
+                AssessmentResultHistory.assessment_id == assessment_type.value,
+            )
+        )
+        assert len(result.scalars().all()) == 0
+
+        # Check AssessmentEndMessagingHistory
+        result = await session.execute(
+            select(AssessmentEndMessagingHistory).filter(
+                AssessmentEndMessagingHistory.user_id == user_id,
+                AssessmentEndMessagingHistory.assessment_id == assessment_type.value,
+            )
+        )
+        assert len(result.scalars().all()) == 0
