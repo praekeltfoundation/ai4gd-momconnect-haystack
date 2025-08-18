@@ -1337,11 +1337,12 @@ def handle_reminder_response(
                 failure_count=0,
             )
         else:
-            next_q_num = (
-                (int(state.current_step_identifier) + 1)
-                if state.current_step_identifier.isdigit()
-                else int(restored_context.get("next_question_number", 0))
-            )
+            # next_q_num = (
+            #     (int(state.current_step_identifier) + 1)
+            #     if state.current_step_identifier.isdigit()
+            #     else int(restored_context.get("next_question_number", 0))
+            # )
+            next_q_num = state.next_question_number
             return AssessmentResponse(
                 question=question_to_send,
                 next_question=next_q_num,
