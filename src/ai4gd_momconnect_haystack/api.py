@@ -1,6 +1,6 @@
 import logging
 import sys
-from contextlib import contextmanager
+from contextlib import asynccontextmanager
 from os import environ
 from pathlib import Path
 from typing import Annotated, Type
@@ -136,8 +136,8 @@ def is_running_in_pytest():
     return "pytest" in sys.modules
 
 
-@contextmanager
-def lifespan(app: FastAPI):
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     """
     Handles application startup logic. Migrations are run on startup
     unless the application is being run by pytest.
