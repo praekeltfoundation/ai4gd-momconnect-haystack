@@ -1594,9 +1594,9 @@ def test_resumption_from_awaiting_reminder_state_is_safe(client: TestClient):
     # 2. The user should receive the resume prompt again.
     assert "Hi! Ready to pick up" in json_response["question"]
 
-    # 3. CRITICAL: The `next_question` field must be None, because the step
-    #    identifier was not a number. This proves the fix is working.
-    assert json_response["next_question"] is None
+    # 3. CRITICAL: The `next_question` field must be 0, we're using next_question_number
+    # and it is not set yet if resuming from intro
+    assert json_response["next_question"] == 0
 
 
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)

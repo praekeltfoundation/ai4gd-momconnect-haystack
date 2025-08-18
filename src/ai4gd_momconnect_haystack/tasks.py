@@ -1189,7 +1189,7 @@ def handle_journey_resumption_prompt(
             # Check if the step identifier is a digit before converting to int.
             # If not (e.g., it's 'awaiting_reminder_response'), we can't determine a
             # specific next question number, so we default to None.
-            next_q_num = state.next_question_number
+            next_q_num = state.next_question_number or 0
             return AssessmentResponse(
                 question=resume_message,
                 next_question=next_q_num,
@@ -1339,7 +1339,7 @@ def handle_reminder_response(
             #     if state.current_step_identifier.isdigit()
             #     else int(restored_context.get("next_question_number", 0))
             # )
-            next_q_num = state.next_question_number
+            next_q_num = state.next_question_number or 0
             return AssessmentResponse(
                 question=question_to_send,
                 next_question=next_q_num,
