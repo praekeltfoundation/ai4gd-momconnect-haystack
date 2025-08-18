@@ -18,6 +18,11 @@ from ai4gd_momconnect_haystack.sqlalchemy_models import (
     UserJourneyState,
 )
 
+from ai4gd_momconnect_haystack.pydantic_models import (
+    OrchestratorSurveyRequest,
+    LegacySurveyResponse,
+)
+
 
 SERVICE_PERSONA_TEXT = "Test Persona"
 
@@ -1623,3 +1628,58 @@ async def test_resumption_from_awaiting_reminder_state_is_safe(client: TestClien
     # 3. CRITICAL: The `next_question` field must be None, because the step
     #    identifier was not a number. This proves the fix is working.
     assert json_response["next_question"] is None
+
+
+@pytest.mark.asyncio
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.survey_orchestrator.process_survey_turn",
+    new_callable=mock.AsyncMock,
+)
+async def test_survey_endpoint_passes_through_to_orchestrator(
+    mock_process_turn, client: TestClient
+):
+    """
+    Tests that the /v1/survey endpoint correctly forwards the request to the
+    survey_orchestrator and returns its response.
+    """
+    # Arrange: Define the request payload that the API will receive
+    request_payload = {
+        "user_id": "test-orchestrator-user",
+        "survey_id": "anc-survey",
+        "user_input": "Yes, I did",
+        "user_context": {"some_key": "some_value"},
+        "failure_count": 0,
+    }
+
+    # Arrange: Define the response that the mocked orchestrator will return
+    mock_orchestrator_response = LegacySurveyResponse(
+        question="This is the next question from the orchestrator.",
+        question_identifier="Q2",
+        user_context={"some_key": "some_value", "new_key": "new_value"},
+        survey_complete=False,
+        intent="JOURNEY_RESPONSE",
+        intent_related_response=None,
+        results_to_save=["new_key"],
+    )
+    mock_process_turn.return_value = mock_orchestrator_response
+
+    # Act: Call the /v1/survey API endpoint
+    response = client.post(
+        "/v1/survey",
+        headers={"Authorization": "Token testtoken"},
+        json=request_payload,
+    )
+
+    # Assert
+    # 1. Check that the API response is successful and matches the orchestrator's response
+    assert response.status_code == 200
+    assert response.json() == mock_orchestrator_response.model_dump()
+
+    # 2. Verify that the orchestrator was called exactly once with the correct request object
+    mock_process_turn.assert_awaited_once()
+    call_args = mock_process_turn.call_args.args
+    assert len(call_args) == 1
+    assert isinstance(call_args[0], OrchestratorSurveyRequest)
+    assert call_args[0].user_id == "test-orchestrator-user"
+    assert call_args[0].user_input == "Yes, I did"

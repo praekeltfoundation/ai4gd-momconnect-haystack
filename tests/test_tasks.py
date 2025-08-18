@@ -841,7 +841,10 @@ def test_create_response_to_key_map_generates_correct_keys():
 
 
 @pytest.mark.asyncio
-@mock.patch("ai4gd_momconnect_haystack.tasks.get_or_create_chat_history", new_callable=mock.AsyncMock)
+@mock.patch(
+    "ai4gd_momconnect_haystack.tasks.get_or_create_chat_history",
+    new_callable=mock.AsyncMock,
+)
 async def test_handle_reminder_response_affirmative_survey(mock_get_history):
     """
     Tests that when a user affirmatively responds to a reminder on surveys,
@@ -849,7 +852,7 @@ async def test_handle_reminder_response_affirmative_survey(mock_get_history):
     """
     # Arrange
     mock_get_history.return_value = []
-    
+
     mock_state = UserJourneyState(
         user_id="test-user",
         current_flow_id="anc-survey",
