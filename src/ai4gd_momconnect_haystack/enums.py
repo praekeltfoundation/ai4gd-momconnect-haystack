@@ -13,7 +13,7 @@ class AssessmentType(str, Enum):
 
 
 class HistoryType(str, Enum):
-    anc = "anc"
+    anc = "anc-survey"
     onboarding = "onboarding"
 
 
@@ -21,3 +21,19 @@ class ReminderType(IntEnum):
     USER_REQUESTED = 1
     USER_REQUESTED_SECOND = 2
     SYSTEM_SCHEDULED_THREE_DAY = 3
+
+
+class TurnState(str, Enum):
+    RE_ENGAGEMENT = "RE_ENGAGEMENT"
+    NEW_SURVEY = "NEW_SURVEY"
+    AWAITING_INTRO_REPLY = "AWAITING_INTRO_REPLY"
+    ACTIVE_TURN = "ACTIVE_TURN"
+
+
+class Intent(str, Enum):
+    REQUEST_TO_BE_REMINDED = "REQUEST_TO_BE_REMINDED"
+    SKIP_QUESTION = "SKIP_QUESTION"
+    JOURNEY_RESPONSE = "JOURNEY_RESPONSE"
+    SYSTEM_ERROR = "SYSTEM_ERROR"
+    CHITCHAT = "CHITCHAT"
+    JOURNEY_RESUMED = "JOURNEY_RESUMED"

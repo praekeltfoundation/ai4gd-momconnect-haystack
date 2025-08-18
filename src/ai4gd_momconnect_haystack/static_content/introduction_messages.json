@@ -7,6 +7,10 @@
     {
       "id": "multiple_choice_intro",
       "content": "Hi Mama! Before we start, here are a few things to know:\n\nYou will be asked a few questions with multiple choice answers. Please reply with the letter that matches your answer (e.g. 'a').\nYou can *ask us questions about this study* any time.\nDon’t want to answer something? Just type *skip*.\n\nShall we begin? 😊"
+    },
+    {
+      "id": "survey_intro",
+      "content": "Hi mom 👋🏽, did you have your *pregnancy check-up* this week? 🏥\na. Yes, I went\nb. No, I'm not going\nc. I'm going soon"
     }
   ]
 }

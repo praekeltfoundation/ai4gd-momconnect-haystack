@@ -49,15 +49,12 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     OnboardingResponse,
     ResumeRequest,
     ResumeResponse,
-    SurveyRequest,
-    SurveyResponse,
+    OrchestratorSurveyRequest,
+    LegacySurveyResponse as SurveyResponse,  # Use LegacySurveyResponse for the API contract
 )
 from ai4gd_momconnect_haystack.tasks import (
-    classify_yes_no_response,
-    extract_anc_data_from_response,
     extract_assessment_data_from_response,
     format_user_data_summary_for_whatsapp,
-    get_anc_survey_question,
     get_assessment_question,
     get_next_onboarding_question,
     handle_conversational_repair,
@@ -71,13 +68,13 @@ from ai4gd_momconnect_haystack.tasks import (
     process_onboarding_step,
 )
 from ai4gd_momconnect_haystack.utilities import (
-    ANC_SURVEY_MAP,
     FLOWS_WITH_INTRO,
     all_onboarding_questions,
     assessment_end_flow_map,
     load_json_and_validate,
     prepend_valid_responses_with_alphabetical_index,
 )
+from . import survey_orchestrator
 
 from .enums import HistoryType
 
@@ -971,371 +968,17 @@ async def assessment_end(
 
 
 @app.post("/v1/survey", response_model=SurveyResponse)
-async def survey(request: SurveyRequest, token: str = Depends(verify_token)):
-    # --- RESUMPTION LOGIC ---
-    state = None  # Initialize state to None at the top
-    if request.user_context and request.user_context.get("resume") is True:
-        logger.info(
-            f"Resume flag detected for user {request.user_id} in survey request."
-        )
-        state = await get_user_journey_state(request.user_id)  # First call happens here
+async def survey(
+    request: OrchestratorSurveyRequest, token: str = Depends(verify_token)
+):
+    """
+    Handles all survey interactions by calling the main orchestrator.
 
-        is_resumable = False
-        if state and state.current_flow_id == "anc-survey":
-            if state.current_step_identifier and state.current_step_identifier != "":
-                is_resumable = True
-                logger.info(
-                    f"User {request.user_id} has a resumable survey at step: {state.current_step_identifier}."
-                )
-
-        if is_resumable:
-            return await handle_journey_resumption_prompt(
-                user_id=request.user_id, flow_id="anc-survey"
-            )
-        else:
-            logger.warning(
-                f"Ignoring resume flag for user {request.user_id}. State is not resumable. Starting fresh survey."
-            )
-            request.user_context.pop("resume", None)
-    # --- END OF RESUMPTION LOGIC ---
-
-    user_id = request.user_id
-    # Normalize user input to lowercase and strip whitespace
-    user_input = request.user_input.strip().lower() if request.user_input else ""
-    flow_id = "anc-survey"
-    user_context = request.user_context.copy()
-    previous_context = request.user_context.copy()
-
-    if not user_input:
-        await delete_chat_history_for_user(request.user_id, HistoryType.anc)
-        chat_history = []
-    else:
-        chat_history = await get_or_create_chat_history(
-            user_id=user_id, history_type=request.survey_id
-        )
-        # If we didn't fetch the state during the resume check, fetch it now.
-        if state is None:
-            state = await get_user_journey_state(
-                user_id
-            )  # Second call now only happens if needed
-
-    # Check if the user's last state was awaiting a response to a reminder
-    if state and state.current_step_identifier == "awaiting_reminder_response":
-        return await handle_reminder_response(user_id, user_input, state)
-
-    # --- 1. INTRO LOGIC ---
-    if not user_input:
-        if flow_id in FLOWS_WITH_INTRO:
-            chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
-            intro_message = INTRO_MESSAGES["free_text_intro"]
-            chat_history.append(
-                ChatMessage.from_assistant(
-                    text=intro_message, meta={"step_title": "intro"}
-                )
-            )
-            await save_chat_history(
-                user_id=user_id, messages=chat_history, history_type=request.survey_id
-            )
-            return SurveyResponse(
-                question=intro_message,
-                question_identifier="intro",
-                user_context=user_context,
-                survey_complete=False,
-                intent="SYSTEM_INTRO",
-                intent_related_response=None,
-                results_to_save=[],
-                failure_count=0,
-            )
-        else:
-            # This is a new survey for a flow WITHOUT an intro (e.g., ANC).
-            # Immediately fetch and return the first question.
-            question_result = await get_anc_survey_question(
-                user_id=user_id, user_context=user_context, chat_history=chat_history
-            )
-            if question_result:
-                question = question_result.get("contextualized_question", "")
-                next_step = question_result.get("question_identifier", "")
-                return SurveyResponse(
-                    question=question,
-                    question_identifier=next_step,
-                    user_context=user_context,
-                    survey_complete=question_result.get("is_final_step", False),
-                    intent="SYSTEM_INTRO",
-                    intent_related_response=None,
-                    results_to_save=[],
-                    failure_count=0,
-                    reengagement_info=None,
-                )
-            # FIX: If get_anc_survey_question fails, end the survey gracefully.
-            return SurveyResponse(
-                question="Sorry, there was a problem starting the survey.",
-                question_identifier="",
-                user_context=user_context,
-                survey_complete=True,
-                intent="SYSTEM_ERROR",
-                intent_related_response="Could not retrieve the first question.",
-                results_to_save=[],
-                failure_count=0,
-            )
-
-    last_assistant_message = next(
-        (msg for msg in reversed(chat_history) if msg.role.value == "assistant"), None
-    )
-    is_intro_response = (
-        last_assistant_message
-        and last_assistant_message.meta.get("step_title") == "intro"
-    )
-
-    # --- Initialize intent variables at a higher scope ---
-    intent: str | None = "JOURNEY_RESPONSE"
-    intent_related_response: str | None = ""
-
-    # Append user message to history early for all subsequent turns
-    if user_input:
-        chat_history.append(ChatMessage.from_user(text=user_input))
-
-    if is_intro_response:
-        result = handle_intro_response(user_input=user_input, flow_id=flow_id)
-        if result.get("action") == "PAUSE_AND_REMIND":
-            last_question = (
-                last_assistant_message.text if last_assistant_message else ""
-            )
-            return await handle_intro_reminder(
-                user_id=user_id,
-                flow_id=flow_id,
-                user_context=user_context,
-                last_question=last_question,
-                result=result,
-            )
-
-        response = await _handle_consent_result(
-            result=result,
-            response_model=SurveyResponse,
-            base_response_args={
-                "user_context": user_context,
-                "results_to_save": [],
-                "survey_complete": False,
-                "failure_count": 0,
-            },
-        )
-        if response:
-            return response
-        # Consent given, fall through to get the first question
-
-    # --- 2. CLARIFICATION LOOP (INCOMING) ---
-    elif "pending_confirmation" in previous_context:
-        pending_info = user_context.pop("pending_confirmation")
-        step_title_to_confirm = pending_info["step_title_to_confirm"]
-        potential_answer = pending_info["potential_answer"]
-
-        if user_input.lower().strip() in ["yes", "y", "yebo", "correct"]:
-            user_context[step_title_to_confirm] = potential_answer
-            # Fall through to get the next question
-        else:
-            original_question_data = ANC_SURVEY_MAP.get(step_title_to_confirm)
-            rephrased_question = handle_conversational_repair(
-                flow_id=flow_id,
-                question_identifier=step_title_to_confirm,
-                previous_question=original_question_data.content
-                if original_question_data
-                else "",
-                invalid_input=user_input,
-            )
-            return SurveyResponse(
-                question=rephrased_question,
-                question_identifier=step_title_to_confirm,
-                user_context=user_context,
-                survey_complete=False,
-                intent="REPAIR",
-                intent_related_response=None,
-                results_to_save=[],
-                failure_count=request.failure_count + 1,
-            )
-
-    # --- 3. REGULAR SURVEY LOGIC ---
-    else:
-        last_question = last_assistant_message.text if last_assistant_message else ""
-        last_step_title = (
-            last_assistant_message.meta.get("step_title", "")
-            if last_assistant_message
-            else ""
-        )
-        logger.debug(
-            f"Processing user_input: '{user_input}' for step '{last_step_title}'"
-        )
-
-        # For the critical 'intent' question, use the reliable classifier.
-        if last_step_title == "intent":
-            classification = classify_yes_no_response(user_input)
-            # Treat AMBIGUOUS as NEGATIVE to be cautious
-            user_context["intent"] = "YES" if classification == "AFFIRMATIVE" else "NO"
-            logger.info(
-                f"For step 'intent', classified response as '{classification}' -> '{user_context['intent']}'"
-            )
-        # For all other questions, use the original AI-based logic.
-        else:
-            last_question_data = ANC_SURVEY_MAP.get(last_step_title)
-            valid_responses_for_intent = (
-                last_question_data.valid_responses if last_question_data else []
-            )
-            intent, intent_related_response = handle_user_message(
-                last_question, user_input, valid_responses_for_intent
-            )
-
-            if intent == "SKIP_QUESTION":
-                user_context[last_step_title] = "Skip"
-            elif intent == "JOURNEY_RESPONSE":
-                user_context, action_dict = extract_anc_data_from_response(
-                    user_response=user_input,
-                    user_context=user_context,
-                    step_title=last_step_title,
-                    contextualized_question=last_question,
-                )
-
-                if action_dict and action_dict.get("status") == "needs_confirmation":
-                    user_context["pending_confirmation"] = action_dict
-                    confirmation_question = action_dict["message"]
-                    chat_history.append(
-                        ChatMessage.from_assistant(
-                            text=confirmation_question,
-                            meta={"step_title": "confirmation"},
-                        )
-                    )
-                    await save_chat_history(
-                        user_id=user_id,
-                        messages=chat_history,
-                        history_type=request.survey_id,
-                    )
-                    return SurveyResponse(
-                        question=confirmation_question,
-                        question_identifier="confirmation",
-                        user_context=user_context,
-                        survey_complete=False,
-                        intent="SYSTEM_CONFIRM",
-                        intent_related_response=None,
-                        results_to_save=[],
-                        failure_count=request.failure_count,
-                    )
-            elif intent == "REQUEST_TO_BE_REMINDED":
-                state = await get_user_journey_state(user_id)
-                current_reminder_count = state.reminder_count if state else 0
-                new_reminder_count = current_reminder_count + 1
-                reminder_type = 2 if new_reminder_count >= 2 else 1
-                user_context["reminder_count"] = new_reminder_count
-
-                message, reengagement_info = await handle_reminder_request(
-                    user_id=user_id,
-                    flow_id=flow_id,
-                    step_identifier=last_step_title,
-                    last_question=last_question,
-                    user_context=user_context,
-                    reminder_type=reminder_type,
-                )
-                return SurveyResponse(
-                    question=message,
-                    question_identifier=last_step_title,
-                    user_context=user_context,
-                    survey_complete=False,
-                    intent=intent,
-                    intent_related_response=None,
-                    results_to_save=[],
-                    failure_count=0,
-                    reengagement_info=reengagement_info,
-                )
-            else:  # Handle chitchat or other non-journey intents
-                # PREVENT INFINITE REPAIR LOOP BY ADDING AN ESCAPE HATCH
-                if request.failure_count >= 1:
-                    # After one failed repair, force-skip the question
-                    logger.warning(
-                        f"Repair failed twice for step '{last_step_title}'. Force-skipping."
-                    )
-                    user_context[last_step_title] = "Skipped - System"
-                    # Fall through to get the next question
-                else:
-                    # On the first failure, attempt conversational repair
-                    rephrased_question = handle_conversational_repair(
-                        flow_id=flow_id,
-                        question_identifier=last_step_title,
-                        previous_question=last_question,
-                        invalid_input=user_input,
-                    )
-                    return SurveyResponse(
-                        question=rephrased_question,
-                        question_identifier=last_step_title,
-                        user_context=previous_context,
-                        survey_complete=False,
-                        intent="REPAIR",
-                        intent_related_response=None,
-                        results_to_save=[],
-                        failure_count=request.failure_count + 1,
-                    )
-
-        if user_context == previous_context:
-            if request.failure_count >= 1:
-                user_context[last_step_title] = "Skipped - System"
-            else:
-                rephrased_question = handle_conversational_repair(
-                    flow_id=flow_id,
-                    question_identifier=last_step_title,
-                    previous_question=last_question,
-                    invalid_input=user_input,
-                )
-                return SurveyResponse(
-                    question=rephrased_question,
-                    question_identifier=last_step_title,
-                    user_context=previous_context,
-                    survey_complete=False,
-                    intent="REPAIR",
-                    intent_related_response=None,
-                    results_to_save=[],
-                    failure_count=request.failure_count + 1,
-                )
-
-    # --- 4. GET NEXT QUESTION ---
-    question_result = await get_anc_survey_question(
-        user_id=user_id, user_context=user_context, chat_history=chat_history
-    )
-
-    question, next_step, survey_complete = "", "", True
-    if question_result:
-        question = question_result.get("contextualized_question", "")
-        survey_complete = question_result.get("is_final_step", False)
-        next_step = question_result.get("question_identifier", "")
-
-    if not question and not survey_complete:
-        survey_complete = True
-        question = "Thank you for completing the survey!"
-
-    if question:
-        chat_history.append(
-            ChatMessage.from_assistant(text=question, meta={"step_title": next_step})
-        )
-
-    await save_chat_history(
-        user_id=user_id, messages=chat_history, history_type=request.survey_id
-    )
-    diff_keys = [
-        k for k in user_context if user_context.get(k) != previous_context.get(k)
-    ]
-
-    await save_user_journey_state(
-        user_id=user_id,
-        flow_id="anc-survey",
-        step_identifier=next_step,
-        last_question=question,
-        user_context=user_context,
-    )
-
-    return SurveyResponse(
-        question=question or "",
-        question_identifier=next_step,
-        user_context=user_context,
-        survey_complete=survey_complete,
-        intent=intent,
-        intent_related_response=intent_related_response,
-        results_to_save=diff_keys,
-        failure_count=0,
-    )
+    This endpoint uses the new, robust, and maintainable survey engine.
+    """
+    # The API endpoint is now just a clean pass-through to the orchestrator.
+    # All complex logic, state management, and error handling are managed inside.
+    return await survey_orchestrator.process_survey_turn(request)
 
 
 @app.post("/v1/catchall", response_model=CatchAllResponse)

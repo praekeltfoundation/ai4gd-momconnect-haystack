@@ -1,16 +1,6 @@
 {
     "anc-survey": [
         {
-            "title": "start",
-            "content": "Hi mom 👋🏽\n\nDid you go to your *pregnancy check-up* this week? 🏥",
-            "content_type": "follow_up_question",
-            "valid_responses": [
-                "Yes, I went",
-                "No, I'm not going",
-                "I'm going soon"
-            ]
-        },
-        {
             "title": "Q_seen",
             "content": "Good to hear. Before we continue, here are a few things to know:\n\nYou can answer *in your own words* — there’s no right or wrong!\nYou can *ask us questions about this study* any time.\nDon’t want to answer something? Just type *skip*.\n\nDid a health worker see you?",
             "content_type": "follow_up_question",
@@ -30,7 +20,7 @@
             "content_type": "follow_up_question",
             "valid_responses": [
                 "Yes",
-                "Remind me tomorrow"
+                "No"
             ]
         },
         {
@@ -60,7 +50,8 @@
             "content": "We’re sorry to hear you had a bad experience.\n\nBy telling us a bit more,  you can help us understand how to improve services for pregnant women in South Africa.\n\nReady to tell us?",
             "content_type": "follow_up_question",
             "valid_responses": [
-                "OK"
+                "Yes",
+                "No"
             ]
         },
         {
@@ -68,12 +59,13 @@
             "content": "Thank you for telling us.\n\nThere are just 2 more questions. Your answers to these will help us understand how we can make services better for pregnant women in South Africa.\n\nReady to go?",
             "content_type": "follow_up_question",
             "valid_responses": [
-                "Continue"
+                "Yes",
+                "No"
             ]
         },
         {
             "title": "Q_visit_bad",
-            "content": "Respond with an option from this list to share what made you the most uncomfortable or caused you *the biggest problem* at your check-up:",
+            "content": "Tell us what made you the most uncomfortable or caused you *the biggest problem* at your check-up",
             "content_type": "follow_up_question",
             "valid_responses": [
                 "No maternity record 📝",
@@ -130,7 +122,7 @@
             "content_type": "follow_up_question",
             "valid_responses": [
                 "Yes",
-                "Remind me tomorrow"
+                "No"
             ]
         },
         {
@@ -139,7 +131,7 @@
             "content_type": "follow_up_question",
             "valid_responses": [
                 "Yes",
-                "Remind me tomorrow"
+                "No"
             ]
         },
         {

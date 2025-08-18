@@ -105,9 +105,14 @@ class UserJourneyState(Base):
     user_id: Mapped[str] = mapped_column(String, primary_key=True, index=True)
     current_flow_id: Mapped[str] = mapped_column(String, nullable=False)
     current_step_identifier: Mapped[str] = mapped_column(String, nullable=False)
+    expected_step_id: Mapped[str] = mapped_column(String, nullable=True)
     last_question_sent: Mapped[str] = mapped_column(String, nullable=False)
     user_context: Mapped[dict] = mapped_column(JSON, nullable=True)
+    reminder_type: Mapped[int | None] = mapped_column(Integer, nullable=True)
     reminder_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    repair_strikes: Mapped[dict] = mapped_column(JSON, default={}, nullable=False)
+    # For optimistic locking to prevent race conditions
+    version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), onupdate=datetime.now, default=datetime.now
     )

@@ -20,7 +20,7 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     OnboardingResponse,
     ReengagementInfo,
     ResponseScore,
-    SurveyResponse,
+    LegacySurveyResponse as SurveyResponse,
     Turn,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import UserJourneyState
@@ -841,10 +841,18 @@ def test_create_response_to_key_map_generates_correct_keys():
 
 
 @pytest.mark.asyncio
-async def test_handle_reminder_response_affirmative_survey():
+@mock.patch(
+    "ai4gd_momconnect_haystack.tasks.get_or_create_chat_history",
+    new_callable=mock.AsyncMock,
+)
+async def test_handle_reminder_response_affirmative_survey(mock_get_history):
     """
-    Tests that when a user affirmatively responds to a reminder on surveys, the original question is returned.
+    Tests that when a user affirmatively responds to a reminder on surveys,
+    the original question is returned.
     """
+    # Arrange
+    mock_get_history.return_value = []
+
     mock_state = UserJourneyState(
         user_id="test-user",
         current_flow_id="anc-survey",
@@ -853,11 +861,14 @@ async def test_handle_reminder_response_affirmative_survey():
         user_context={},
     )
 
+    # Act
     response = await handle_reminder_response(
         user_id="test-user", user_input="a. Yes", state=mock_state
     )
 
+    # Assert
     assert isinstance(response, SurveyResponse)
+    # ✅ FIX: The assertion now correctly checks for the original question
     assert response.question == "This was the original question."
     assert response.intent == "JOURNEY_RESUMED"
 
