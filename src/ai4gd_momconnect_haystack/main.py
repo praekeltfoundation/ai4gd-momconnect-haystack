@@ -56,6 +56,7 @@ from ai4gd_momconnect_haystack.utilities import (
     save_json_file,
     FLOWS_WITH_INTRO,
     ANC_SURVEY_MAP,
+    prepend_valid_responses_with_alphabetical_index,
 )
 
 from .database import AsyncSessionLocal
@@ -825,6 +826,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 task = ""
                 if not messaging_history:
                     previous_message_nr = 0
+                    previous_message = ""
                     # previous_message_data: AssessmentEndItem = None
                     previous_message_valid_responses: list[str] | None = []
                 else:
@@ -881,9 +883,20 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 if not previous_message_valid_responses and previous_message_nr != 0:
                     logger.error("Valid responses not found.")
                     break
+
+                # Reconstruct the full message with options EARLIER, before intent detection.
+                previous_message_with_options = previous_message
+                if previous_message_valid_responses:
+                    options = "\n" + "\n".join(
+                        prepend_valid_responses_with_alphabetical_index(
+                            previous_message_valid_responses
+                        )
+                    )
+                    previous_message_with_options += options
+
                 if previous_message_nr > 0:
                     intent, intent_related_response = handle_user_message(
-                        previous_message, user_response
+                        previous_message_with_options, user_response
                     )
                 else:
                     intent, intent_related_response = "JOURNEY_RESPONSE", ""
@@ -913,10 +926,22 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         if not previous_message_valid_responses:
                             logger.error("Valid responses not found.")
                             break
+
+                        # FIX: Reconstruct the full message with options before validation
+                        previous_message_with_options = previous_message
+                        if previous_message_valid_responses:
+                            options = "\n" + "\n".join(
+                                prepend_valid_responses_with_alphabetical_index(
+                                    previous_message_valid_responses
+                                )
+                            )
+                            previous_message_with_options += options
+
                         result = validate_assessment_end_response(
-                            previous_message=previous_message,
+                            previous_message=previous_message_with_options,
                             previous_message_nr=next_message_nr - 1,
-                            previous_message_valid_responses=previous_message_valid_responses,
+                            previous_message_valid_responses=previous_message_valid_responses
+                            or [],
                             user_response=user_response,
                         )
                         if result["next_message_number"] == next_message_nr - 1:
@@ -1310,7 +1335,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     task = ""
                     if not messaging_history:
                         previous_message_nr = 0
-                        # previous_message_data = []
+                        previous_message = ""
                         previous_message_valid_responses = []
                     else:
                         previous_message_nr = messaging_history[-1].message_number
@@ -1368,9 +1393,21 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     ):
                         logger.error("Valid responses not found.")
                         break
+
+                    # Reconstruct the full message with options EARLIER, before intent detection.
+                    previous_message_with_options = previous_message
+                    if previous_message_valid_responses:
+                        options = "\n" + "\n".join(
+                            prepend_valid_responses_with_alphabetical_index(
+                                previous_message_valid_responses
+                            )
+                        )
+                        previous_message_with_options += options
+
                     if previous_message_nr > 0:
+                        # Use the corrected message variable for intent detection
                         intent, intent_related_response = handle_user_message(
-                            previous_message, user_response
+                            previous_message_with_options, user_response
                         )
                     else:
                         intent, intent_related_response = "JOURNEY_RESPONSE", ""
@@ -1397,13 +1434,11 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                                 and next_message_nr == 2
                             )
                         ):
-                            assert previous_message_valid_responses is not None, (
-                                "Valid responses not found!"
-                            )
                             result = validate_assessment_end_response(
-                                previous_message=previous_message,
+                                previous_message=previous_message_with_options,
                                 previous_message_nr=next_message_nr - 1,
-                                previous_message_valid_responses=previous_message_valid_responses,
+                                previous_message_valid_responses=previous_message_valid_responses
+                                or [],
                                 user_response=user_response,
                             )
                             if result["next_message_number"] == next_message_nr - 1:

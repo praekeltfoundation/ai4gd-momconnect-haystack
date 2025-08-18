@@ -458,3 +458,13 @@ async def get_user_journey_state(user_id: str) -> UserJourneyState | None:
             select(UserJourneyState).where(UserJourneyState.user_id == user_id)
         )
         return result.scalar_one_or_none()
+
+
+async def delete_user_journey_state(user_id: str) -> None:
+    """Deletes the user's journey state from the database."""
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            await session.execute(
+                delete(UserJourneyState).where(UserJourneyState.user_id == user_id)
+            )
+            await session.commit()

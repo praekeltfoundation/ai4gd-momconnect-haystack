@@ -1035,11 +1035,12 @@ async def handle_reminder_request(
     schedule = REMINDER_CONFIG[schedule_key]
 
     # 2. Determine which specific reminder config to use from that schedule
-    reminder_count = user_context.get("reminder_count", 1)
+    # reminder_count = user_context.get("reminder_count", 0)
+    # We'll try and user reminder type instead
 
     # This logic now explicitly chooses the reminder type based on the flow
     config_key = "DEFAULT"
-    if schedule_key in ["onboarding", "kab"] and reminder_count >= 2:
+    if schedule_key in ["onboarding", "kab"] and reminder_type == 2:
         config_key = "FOLLOW_UP"
 
     reminder_config = schedule[config_key]
@@ -1149,7 +1150,7 @@ async def handle_journey_resumption_prompt(
             user_id=user_id,
             flow_id="anc-survey",
             step_identifier=next_step,
-            last_question=question,
+            last_question=state.last_question_sent,
             user_context=restored_context,
         )
         return SurveyResponse(
@@ -1167,7 +1168,7 @@ async def handle_journey_resumption_prompt(
             user_id=user_id,
             flow_id=state.current_flow_id,
             step_identifier="awaiting_reminder_response",
-            last_question=resume_message,
+            last_question=state.last_question_sent,
             user_context=state.user_context,
         )
 
@@ -1276,42 +1277,40 @@ async def handle_reminder_response(
     if intent == "AFFIRMATIVE":
         # User wants to continue.
         restored_context = state.user_context
+        question_to_send = state.last_question_sent
         question_to_send = ""
         next_q_result = None
 
-        # Special case: For the 3-day system reminder, we re-ask the SAME question.
+        # Special case for the 3-day reminder first.
         if state.reminder_type == ReminderType.SYSTEM_SCHEDULED_THREE_DAY:
             question_to_send = state.last_question_sent
         else:
-            # For all other reminders, we get the NEXT question.
-            chat_history = await get_or_create_chat_history(
-                user_id, HistoryType(state.current_flow_id)
-            )
+            # The standard behavior is to re-send the last question asked.
+            question_to_send = state.last_question_sent
 
-            if "survey" in state.current_flow_id:
-                next_q_result = await get_anc_survey_question(
-                    user_id=user_id,
-                    user_context=restored_context,
-                    chat_history=chat_history,
+            if not question_to_send:
+                chat_history = await get_or_create_chat_history(
+                    user_id, HistoryType(state.current_flow_id)
                 )
-            elif "onboarding" in state.current_flow_id:
-                next_q_result = get_next_onboarding_question(
-                    user_context=restored_context
-                )
-            else:
-                next_q_result = await get_assessment_question(
-                    user_id=user_id,
-                    flow_id=AssessmentType(state.current_flow_id),
-                    question_number=int(state.current_step_identifier) + 1,
-                    user_context=restored_context,
-                )
-
-            if next_q_result:
-                question_to_send = next_q_result.get("contextualized_question", "")
-
-        # Fallback if no next question is found
-        if not question_to_send:
-            question_to_send = "Thank you for continuing! It looks like you've already completed this section."
+                if "survey" in state.current_flow_id:
+                    next_q_result = await get_anc_survey_question(
+                        user_id=user_id,
+                        user_context=restored_context,
+                        chat_history=chat_history,
+                    )
+                elif "onboarding" in state.current_flow_id:
+                    next_q_result = get_next_onboarding_question(
+                        user_context=restored_context
+                    )
+                else:
+                    next_q_result = await get_assessment_question(
+                        user_id=user_id,
+                        flow_id=AssessmentType(state.current_flow_id),
+                        question_number=int(state.current_step_identifier) + 1,
+                        user_context=restored_context,
+                    )
+                if next_q_result:
+                    question_to_send = next_q_result.get("contextualized_question", "")
 
         if "onboarding" in state.current_flow_id:
             return OnboardingResponse(

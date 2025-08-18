@@ -855,6 +855,7 @@ async def test_assessment_consent_proceeds(
         "action": "PROCEED",
         "intent": "JOURNEY_RESPONSE",
         "intent_related_response": "",
+        "message": "Hello! Shall we begin?",
     }
     mock_handle_user_message.return_value = ("JOURNEY_RESPONSE", "")
     mock_get_q.return_value = {"contextualized_question": "This is Question 1"}
