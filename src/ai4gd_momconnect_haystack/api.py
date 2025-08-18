@@ -976,8 +976,8 @@ def survey(request: OrchestratorSurveyRequest, token: str = Depends(verify_token
     """
     if not request.user_input:
         logger.info("New survey session detected. Clearing previous survey state.")
-        await delete_chat_history_for_user(request.user_id, HistoryType.anc)
-        await delete_user_journey_state(request.user_id)
+        delete_chat_history_for_user(request.user_id, HistoryType.anc)
+        delete_user_journey_state(request.user_id)
 
     if request.survey_id == "anc":
         logger.warning("Received legacy survey_id 'anc'. Converting to 'anc-survey'.")
