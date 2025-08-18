@@ -26,10 +26,12 @@ def upgrade() -> None:
         "user_journey_state", sa.Column("expected_step_id", sa.String(), nullable=True)
     )
     op.add_column(
-        "user_journey_state", sa.Column("repair_strikes", sa.JSON(), nullable=False)
+        "user_journey_state",
+        sa.Column("repair_strikes", sa.JSON(), nullable=False, server_default="{}"),
     )
     op.add_column(
-        "user_journey_state", sa.Column("version", sa.Integer(), nullable=False)
+        "user_journey_state",
+        sa.Column("version", sa.Integer(), nullable=False, server_default="0"),
     )
     # ### end Alembic commands ###
 
