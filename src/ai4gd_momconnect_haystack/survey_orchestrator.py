@@ -23,12 +23,14 @@ MAX_REPAIR_STRIKES = 2
 
 # --- Main Orchestrator ---
 async def process_survey_turn(request: SurveyRequest) -> SurveyResponse:
-    context = await _initialize_turn_context(request)
     try:
+        context = await _initialize_turn_context(request)
         return await _handle_turn(context)
-    except Exception:
+    except Exception as e:
+        trace_id = request.trace_id or str(uuid.uuid4())
         logger.exception(
-            "survey_turn_unhandled_exception", extra={"trace_id": context.trace_id}
+            "survey_turn_unhandled_exception",
+            extra={"trace_id": trace_id, "error": str(e)},
         )
         return SurveyResponse(
             question="Sorry, we’ve run into a technical problem. Please try again later.",
@@ -118,10 +120,12 @@ async def _handle_turn(ctx: SurveyTurnContext) -> SurveyResponse:
 async def _handle_re_engagement(ctx: SurveyTurnContext) -> SurveyResponse:
     if not ctx.journey_state or not ctx.journey_state.last_question_sent:
         return await _handle_new_survey(ctx)
+
     return await _finalise_and_respond(
         ctx,
         assistant_message=f"Welcome back! Let's continue.\n\n{ctx.journey_state.last_question_sent}",
         next_step_id=ctx.journey_state.current_step_identifier,
+        intent=Intent.JOURNEY_RESUMED.value,
     )
 
 
@@ -292,12 +296,13 @@ async def _finalise_and_respond(
     next_step_id: str,
     survey_complete: bool = False,
     reengagement_info: ReengagementInfo | None = None,
+    intent: str = Intent.JOURNEY_RESPONSE.value,
 ) -> SurveyResponse:
     diff = {
         k: v for k, v in ctx.current_context.items() if v != ctx.previous_context.get(k)
     }
 
-    # FIX: The user's message is already in the history. We only need to append the assistant's reply.
+    # The user's message is already in the history. We only need to append the assistant's reply.
     ctx.history.append(
         ChatMessage.from_assistant(
             text=assistant_message, meta={"step_id": next_step_id}
@@ -320,7 +325,7 @@ async def _finalise_and_respond(
         question_identifier=next_step_id,
         user_context=ctx.current_context,
         survey_complete=survey_complete,
-        intent=Intent.JOURNEY_RESPONSE.value,
+        intent=intent,
         intent_related_response=None,
         results_to_save=sorted(list(diff.keys())),
         failure_count=0,

@@ -849,6 +849,7 @@ async def test_handle_reminder_response_affirmative_survey():
         current_step_identifier="start",
         last_question_sent="This was the original question.",
         user_context={},
+        reminder_type=1,
     )
 
     response = await handle_reminder_response(

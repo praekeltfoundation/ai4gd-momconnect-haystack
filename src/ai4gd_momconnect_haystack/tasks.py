@@ -1059,6 +1059,7 @@ async def handle_reminder_request(
         step_identifier=step_identifier,
         last_question=last_question,
         user_context=user_context,
+        reminder_type=reminder_type,
     )
 
     # 4. Return the specific acknowledgement message from the config

@@ -85,7 +85,7 @@ async def save_chat_history(
             if db_history:
                 if history_type.value == "onboarding":
                     db_history.onboarding_history = history_json
-                elif history_type.value == "anc":
+                elif history_type.value == "anc-survey":
                     db_history.anc_survey_history = history_json
                 else:
                     logger.error(f"Unknown chat history type to update: {history_type}")
@@ -97,7 +97,7 @@ async def save_chat_history(
                         onboarding_history=history_json,
                         anc_survey_history=[],
                     )
-                elif history_type.value == "anc":
+                elif history_type.value == "anc-survey":
                     db_history = ChatHistory(
                         user_id=user_id,
                         onboarding_history=[],
@@ -408,6 +408,7 @@ async def save_user_journey_state(
     step_identifier: str,
     last_question: str,
     user_context: dict[str, Any],
+    reminder_type: int | None = None,
 ):
     """
     Creates or updates the user's last known state in the database.
@@ -433,6 +434,7 @@ async def save_user_journey_state(
                 existing_state.current_step_identifier = str(step_identifier)
                 existing_state.last_question_sent = last_question
                 existing_state.user_context = user_context
+                existing_state.reminder_type = reminder_type
                 logger.info(f"Updated journey state for user {user_id}.")
             else:
                 # Create new record
@@ -442,6 +444,7 @@ async def save_user_journey_state(
                     current_step_identifier=str(step_identifier),
                     last_question_sent=last_question,
                     user_context=user_context,
+                    reminder_type=reminder_type,
                 )
                 session.add(new_state)
                 logger.info(f"Created new journey state for user {user_id}.")

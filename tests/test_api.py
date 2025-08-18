@@ -962,7 +962,6 @@ async def test_repair_on_intro_consent(mock_handle_intro, mock_get_q):
     [
         ("dma-pre-assessment", 1, "/v1/assessment"),
         ("onboarding", 1, "/v1/onboarding"),
-        ("anc-survey", "start", "/v1/survey"),
     ],
 )
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
@@ -974,13 +973,6 @@ async def test_repair_on_intro_consent(mock_handle_intro, mock_get_q):
 @mock.patch(
     "ai4gd_momconnect_haystack.api.handle_conversational_repair",
     return_value="This is the rephrased question.",
-)
-@mock.patch(
-    "ai4gd_momconnect_haystack.api.extract_anc_data_from_response",
-    side_effect=lambda user_response,
-    user_context,
-    step_title,
-    contextualized_question: (user_context, None),
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.process_onboarding_step", return_value=({}, None)
@@ -997,7 +989,6 @@ async def test_flow_repair_on_invalid_answer(
     mock_handle_message,
     mock_validate,
     mock_process_onboarding,
-    mock_extract_anc,
     mock_repair,
     mock_get_history,
     flow_id,
@@ -1010,14 +1001,6 @@ async def test_flow_repair_on_invalid_answer(
     if endpoint == "/v1/onboarding":
         json_payload = {
             "user_id": "TestUser",
-            "user_context": {},
-            "user_input": "invalid answer",
-            "failure_count": 0,
-        }
-    elif endpoint == "/v1/survey":
-        json_payload = {
-            "user_id": "TestUser",
-            "survey_id": "anc",
             "user_context": {},
             "user_input": "invalid answer",
             "failure_count": 0,
@@ -1052,7 +1035,6 @@ async def test_flow_repair_on_invalid_answer(
     [
         ("dma-pre-assessment", 1, "/v1/assessment"),
         ("onboarding", 1, "/v1/onboarding"),
-        ("anc-survey", "start", "/v1/survey"),
     ],
 )
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
@@ -1060,11 +1042,6 @@ async def test_flow_repair_on_invalid_answer(
     "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
     new_callable=mock.AsyncMock,
     return_value=[ChatMessage.from_assistant("Original question?")],
-)
-@mock.patch(
-    "ai4gd_momconnect_haystack.api.get_anc_survey_question",
-    new_callable=mock.AsyncMock,
-    return_value={"contextualized_question": "Next survey Q"},
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_next_onboarding_question",
@@ -1076,13 +1053,6 @@ async def test_flow_repair_on_invalid_answer(
     return_value={"contextualized_question": "Next assessment Q"},
 )
 @mock.patch("ai4gd_momconnect_haystack.api.handle_conversational_repair")
-@mock.patch(
-    "ai4gd_momconnect_haystack.api.extract_anc_data_from_response",
-    side_effect=lambda user_response,
-    user_context,
-    step_title,
-    contextualized_question: (user_context, None),
-)
 @mock.patch(
     "ai4gd_momconnect_haystack.api.process_onboarding_step", return_value=({}, None)
 )
@@ -1098,11 +1068,9 @@ async def test_flow_repair_escape_hatch(
     mock_handle_message,
     mock_validate,
     mock_process_onboarding,
-    mock_extract_anc,
     mock_repair,
     mock_get_assessment_q,
     mock_get_onboarding_q,
-    mock_get_survey_q,
     mock_get_history,
     flow_id,
     question_number,
@@ -1114,14 +1082,6 @@ async def test_flow_repair_escape_hatch(
     if endpoint == "/v1/onboarding":
         json_payload = {
             "user_id": "TestUser",
-            "user_context": {},
-            "user_input": "another invalid",
-            "failure_count": 1,
-        }
-    elif endpoint == "/v1/survey":
-        json_payload = {
-            "user_id": "TestUser",
-            "survey_id": "anc",
             "user_context": {},
             "user_input": "another invalid",
             "failure_count": 1,
