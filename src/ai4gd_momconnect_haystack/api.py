@@ -761,12 +761,14 @@ def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
     if question:
         contextualized_question = question.get("contextualized_question", "")
         if contextualized_question:
+            user_context = request.user_context.copy()
+            user_context["next_question_number"] = str(next_question_number)
             save_user_journey_state(
                 user_id=request.user_id,
                 flow_id=request.flow_id.value,
                 step_identifier=str(next_question_number),
                 last_question=contextualized_question,
-                user_context=request.user_context,
+                user_context=user_context,
             )
 
             save_assessment_question(
@@ -972,8 +974,15 @@ def survey(request: OrchestratorSurveyRequest, token: str = Depends(verify_token
 
     This endpoint uses the new, robust, and maintainable survey engine.
     """
-    # The API endpoint is now just a clean pass-through to the orchestrator.
-    # All complex logic, state management, and error handling are managed inside.
+    if request.survey_id == "anc":
+        logger.warning("Received legacy survey_id 'anc'. Converting to 'anc-survey'.")
+        request.survey_id = "anc-survey"
+
+    if request.user_context and request.user_context.get("resume") is True:
+        return await handle_journey_resumption_prompt(
+            user_id=request.user_id, flow_id=request.survey_id
+        )
+
     return survey_orchestrator.process_survey_turn(request)
 
 
