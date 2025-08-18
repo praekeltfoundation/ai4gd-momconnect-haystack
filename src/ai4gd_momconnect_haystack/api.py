@@ -978,8 +978,15 @@ async def survey(
 
     This endpoint uses the new, robust, and maintainable survey engine.
     """
-    # The API endpoint is now just a clean pass-through to the orchestrator.
-    # All complex logic, state management, and error handling are managed inside.
+    if request.survey_id == "anc":
+        logger.warning("Received legacy survey_id 'anc'. Converting to 'anc-survey'.")
+        request.survey_id = "anc-survey"
+
+    if request.user_context and request.user_context.get("resume") is True:
+        return await handle_journey_resumption_prompt(
+            user_id=request.user_id, flow_id=request.survey_id
+        )
+
     return await survey_orchestrator.process_survey_turn(request)
 
 
