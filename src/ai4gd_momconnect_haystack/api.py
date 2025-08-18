@@ -763,12 +763,14 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
     if question:
         contextualized_question = question.get("contextualized_question", "")
         if contextualized_question:
+            user_context = request.user_context.copy()
+            user_context["next_question_number"] = str(next_question_number)
             await save_user_journey_state(
                 user_id=request.user_id,
                 flow_id=request.flow_id.value,
                 step_identifier=str(next_question_number),
                 last_question=contextualized_question,
-                user_context=request.user_context,
+                user_context=user_context,
             )
 
             await save_assessment_question(
