@@ -1306,7 +1306,10 @@ async def handle_reminder_response(
                     question_to_send = next_q.get("contextualized_question", "")
             else:
                 # For KAB flows, we assume the next question is the first one
-                next_q_num = state.current_step_identifier or 0
+                try:
+                    next_q_num = int(state.current_step_identifier)
+                except (TypeError, ValueError):
+                    next_q_num = 0
                 question_result = await get_assessment_question(
                     user_id=user_id,
                     flow_id=state.flow_id,
