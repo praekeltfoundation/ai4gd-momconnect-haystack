@@ -541,8 +541,10 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
 
 @app.post("/v1/assessment")
 async def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
+    logger.info("Processing assessment request for user: %s", request.user_id)
     # --- RESUMPTION LOGIC ---
     if request.user_context and request.user_context.get("resume") is True:
+        logger.info(f"Resume flag detected for user {request.user_id}.")
         return await handle_journey_resumption_prompt(
             user_id=request.user_id, flow_id=request.flow_id.value
         )
@@ -550,9 +552,11 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
 
     # --- 1. HANDLE START OF A NEW ASSESSMENT ---
     if not request.user_input:
+        logger.info("No user input provided, checking for intro message.")
         await delete_assessment_history_for_user(request.user_id, request.flow_id)
 
         # Now, check if this specific flow needs an intro message.
+        logger.info(f"Intro present: {request.flow_id.value in FLOWS_WITH_INTRO}")
         if request.flow_id.value in FLOWS_WITH_INTRO:
             intro_message = (
                 INTRO_MESSAGES["free_text_intro"]
@@ -579,9 +583,12 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
 
     # --- 2. HANDLE THE USER'S RESPONSE TO THE INTRO ---
     if request.question_number == 0:
+        logger.info("User is responding to the intro message.")
         result = handle_intro_response(
             user_input=request.user_input, flow_id=request.flow_id.value
         )
+
+        logger.info(f"Intro response result: {result}")
         if result.get("action") == "PAUSE_AND_REMIND":
             intro_message = (
                 INTRO_MESSAGES["free_text_intro"]
@@ -616,6 +623,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
     current_question_number = (
         1 if request.question_number == 0 else request.question_number
     )
+    logger.info(f"Current question number: {current_question_number}")
     next_question_number = current_question_number
     processed_answer = None
     intent: str | None = "JOURNEY_RESPONSE"
@@ -627,6 +635,10 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
             request.previous_question, request.user_input
         )
         intent = intent or ""
+
+        logger.info(f"User intent: {intent}")
+        logger.info(f"User intent-related response: {intent_related_response}")
+        logger.info(f"failure_count: {failure_count}")
 
         if intent == "SKIP_QUESTION":
             processed_answer = "Skip"
