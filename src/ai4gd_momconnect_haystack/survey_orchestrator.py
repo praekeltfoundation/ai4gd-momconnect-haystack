@@ -321,6 +321,7 @@ def _finalise_and_respond(
         step_identifier=next_step_id,
         last_question=assistant_message,
         user_context=ctx.current_context,
+        expected_step_id=next_step_id,
     )
     crud.save_chat_history(
         ctx.request.user_id, ctx.history, HistoryType(ctx.request.survey_id)

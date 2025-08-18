@@ -1322,9 +1322,8 @@ def handle_reminder_response(
                 if next_q_result:
                     question_to_send = next_q_result.get("contextualized_question", "")
 
-        delete_user_journey_state(user_id)
-
         if "onboarding" in state.current_flow_id:
+            delete_user_journey_state(user_id)
             return OnboardingResponse(
                 question=question_to_send,
                 user_context=restored_context,
@@ -1334,6 +1333,14 @@ def handle_reminder_response(
                 failure_count=0,
             )
         elif "survey" in state.current_flow_id:
+            save_user_journey_state(
+                user_id=user_id,
+                flow_id=state.current_flow_id,
+                step_identifier=state.expected_step_id,
+                last_question=question_to_send,
+                user_context=restored_context,
+                expected_step_id=state.expected_step_id,
+            )
             return SurveyResponse(
                 question=question_to_send,
                 user_context=restored_context,
@@ -1349,6 +1356,7 @@ def handle_reminder_response(
             #     if state.current_step_identifier.isdigit()
             #     else int(restored_context.get("next_question_number", 0))
             # )
+            delete_user_journey_state(user_id)
             next_q_num = state.next_question_number or 0
             return AssessmentResponse(
                 question=question_to_send,
