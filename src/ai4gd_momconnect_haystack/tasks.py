@@ -1388,7 +1388,7 @@ async def handle_reminder_response(
         else:
             return AssessmentResponse(
                 question=message,
-                next_question=int(restored_context.get("next_question_number", 0)),
+                next_question=int(state.user_context.get("next_question_number", 0)),
                 intent="REQUEST_TO_BE_REMINDED",
                 intent_related_response=None,
                 processed_answer=None,
