@@ -973,19 +973,27 @@ def survey(request: OrchestratorSurveyRequest, token: str = Depends(verify_token
 
     This endpoint uses the new, robust, and maintainable survey engine.
     """
-    if not request.user_input:
-        logger.info("New survey session detected. Clearing previous survey state.")
-        delete_chat_history_for_user(request.user_id, HistoryType.anc)
-        delete_user_journey_state(request.user_id)
 
     if request.survey_id == "anc":
         logger.warning("Received legacy survey_id 'anc'. Converting to 'anc-survey'.")
         request.survey_id = "anc-survey"
 
     if request.user_context and request.user_context.get("resume") is True:
+        logger.info(f"Resume flag detected for user {request.user_id}.")
         return handle_journey_resumption_prompt(
             user_id=request.user_id, flow_id=request.survey_id
         )
+
+    if not request.user_input:
+        logger.info("New survey session detected. Clearing previous survey state.")
+        delete_chat_history_for_user(request.user_id, HistoryType.anc)
+        delete_user_journey_state(request.user_id)
+
+    # Check if the user's last state was awaiting a response to a reminder
+    state = get_user_journey_state(request.user_id)
+    if state and state.current_step_identifier == "awaiting_reminder_response":
+        logger.info("User is responding to a reminder prompt.")
+        return handle_reminder_response(request.user_id, request.user_input, state)
 
     return survey_orchestrator.process_survey_turn(request)
 

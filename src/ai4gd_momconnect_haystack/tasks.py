@@ -1185,6 +1185,16 @@ def handle_journey_resumption_prompt(
                 results_to_save=[],
                 failure_count=0,
             )
+        elif "survey" in state.current_flow_id:
+            return SurveyResponse(
+                question=resume_message,
+                user_context=state.user_context,
+                survey_complete=False,
+                intent="SYSTEM_REMINDER_PROMPT",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=0,
+            )
         else:  # Default to AssessmentResponse for KAB flows
             # Check if the step identifier is a digit before converting to int.
             # If not (e.g., it's 'awaiting_reminder_response'), we can't determine a
