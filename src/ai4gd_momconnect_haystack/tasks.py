@@ -30,6 +30,8 @@ from .pydantic_models import (
     AssessmentResponse,
     OnboardingResponse,
     ReengagementInfo,
+)
+from .pydantic_models import (
     LegacySurveyResponse as SurveyResponse,
 )
 from .utilities import (
@@ -1335,7 +1337,7 @@ async def handle_reminder_response(
             next_q_num = (
                 (int(state.current_step_identifier) + 1)
                 if state.current_step_identifier.isdigit()
-                else 0
+                else int(restored_context.get("next_question_number", 0))
             )
             return AssessmentResponse(
                 question=question_to_send,
