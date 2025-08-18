@@ -30,6 +30,8 @@ from .pydantic_models import (
     AssessmentResponse,
     OnboardingResponse,
     ReengagementInfo,
+)
+from .pydantic_models import (
     LegacySurveyResponse as SurveyResponse,
 )
 from .utilities import (
@@ -221,7 +223,7 @@ def process_onboarding_step(
     return updated_context, next_question
 
 
-async def get_assessment_question(
+def get_assessment_question(
     user_id: str, flow_id: AssessmentType, question_number: int, user_context: dict
 ) -> dict:
     """
@@ -233,7 +235,7 @@ async def get_assessment_question(
     # the pre-assessment history. This might happen if the user dropped off
     # and is now returning to continue.
     pre_assessment_flow_id = assessment_map_to_their_pre[flow_id.value]
-    question_history: list[AssessmentHistory] = await get_assessment_history(
+    question_history: list[AssessmentHistory] = get_assessment_history(
         user_id, pre_assessment_flow_id
     )
     if question_history:
@@ -407,7 +409,7 @@ def extract_assessment_data_from_response(
         }
 
 
-async def get_anc_survey_question(
+def get_anc_survey_question(
     user_id: str, user_context: dict, chat_history: list[ChatMessage]
 ) -> dict | None:
     """
@@ -418,7 +420,7 @@ async def get_anc_survey_question(
     user_context["first_survey"] = True
 
     # Determine the current step.
-    state = await get_user_journey_state(user_id)
+    state = get_user_journey_state(user_id)
     current_step = "intro"
     if state and state.current_step_identifier:
         current_step = state.current_step_identifier
@@ -446,7 +448,7 @@ async def get_anc_survey_question(
             reminder_type=ReminderType.SYSTEM_SCHEDULED_THREE_DAY,
         )
 
-        await save_user_journey_state(
+        save_user_journey_state(
             user_id=user_id,
             flow_id="anc-survey",
             step_identifier="start_going_soon",
@@ -469,7 +471,7 @@ async def get_anc_survey_question(
         reminder_type = ReminderType.USER_REQUESTED
         user_context["reminder_count"] = new_reminder_count
 
-        message, reengagement_info = await handle_reminder_request(
+        message, reengagement_info = handle_reminder_request(
             user_id=user_id,
             flow_id="anc-survey",
             step_identifier=last_step,
@@ -1011,7 +1013,7 @@ def classify_yes_no_response(user_input: str) -> str:
     return "AMBIGUOUS"
 
 
-async def handle_reminder_request(
+def handle_reminder_request(
     user_id: str,
     flow_id: str,
     step_identifier: str,
@@ -1054,7 +1056,7 @@ async def handle_reminder_request(
         reminder_type=reminder_type,
     )
 
-    await save_user_journey_state(
+    save_user_journey_state(
         user_id=user_id,
         flow_id=flow_id,
         step_identifier=step_identifier,
@@ -1087,7 +1089,7 @@ def classify_ussd_intro_response(user_input: str) -> str:
     return "AMBIGUOUS"
 
 
-async def handle_journey_resumption_prompt(
+def handle_journey_resumption_prompt(
     user_id: str,
     flow_id: str,
 ) -> OnboardingResponse | AssessmentResponse | SurveyResponse:
@@ -1097,7 +1099,7 @@ async def handle_journey_resumption_prompt(
     Determines whether to send a "Ready to continue?" meta-prompt or to
     resume a flow (like ANC survey) directly with the next question.
     """
-    state = await get_user_journey_state(user_id)
+    state = get_user_journey_state(user_id)
     if not state:
         raise HTTPException(status_code=404, detail="Saved state for user not found.")
 
@@ -1127,8 +1129,8 @@ async def handle_journey_resumption_prompt(
     if resume_message is None:
         # ANC SURVEY CASE: No resume message, go directly to the next question.
         restored_context = state.user_context
-        chat_history = await get_or_create_chat_history(user_id, HistoryType.anc)
-        question_result = await get_anc_survey_question(
+        chat_history = get_or_create_chat_history(user_id, HistoryType.anc)
+        question_result = get_anc_survey_question(
             user_id=user_id, user_context=restored_context, chat_history=chat_history
         )
 
@@ -1146,7 +1148,7 @@ async def handle_journey_resumption_prompt(
         question = question_result.get("contextualized_question", "")
         next_step = question_result.get("question_identifier", "")
 
-        await save_user_journey_state(
+        save_user_journey_state(
             user_id=user_id,
             flow_id="anc-survey",
             step_identifier=next_step,
@@ -1164,7 +1166,7 @@ async def handle_journey_resumption_prompt(
         )
     else:
         # ONBOARDING/KAB CASE: Send the resume meta-prompt.
-        await save_user_journey_state(
+        save_user_journey_state(
             user_id=user_id,
             flow_id=state.current_flow_id,
             step_identifier="awaiting_reminder_response",
@@ -1200,7 +1202,7 @@ async def handle_journey_resumption_prompt(
             )
 
 
-async def handle_intro_reminder(
+def handle_intro_reminder(
     user_id: str,
     flow_id: str,
     user_context: dict,
@@ -1211,13 +1213,13 @@ async def handle_intro_reminder(
     Handles the specific case where a user asks for a reminder during an
     introductory message.
     """
-    state = await get_user_journey_state(user_id)
+    state = get_user_journey_state(user_id)
     current_reminder_count = state.reminder_count if state else 0
     new_reminder_count = current_reminder_count + 1
     reminder_type = ReminderType.USER_REQUESTED
     user_context["reminder_count"] = new_reminder_count
 
-    message, reengagement_info = await handle_reminder_request(
+    message, reengagement_info = handle_reminder_request(
         user_id=user_id,
         flow_id=flow_id,
         step_identifier="intro",
@@ -1260,7 +1262,7 @@ async def handle_intro_reminder(
         )
 
 
-async def handle_reminder_response(
+def handle_reminder_response(
     user_id: str,
     user_input: str,
     state: UserJourneyState,  # The user's saved state
@@ -1289,11 +1291,11 @@ async def handle_reminder_response(
             question_to_send = state.last_question_sent
 
             if not question_to_send:
-                chat_history = await get_or_create_chat_history(
+                chat_history = get_or_create_chat_history(
                     user_id, HistoryType(state.current_flow_id)
                 )
                 if "survey" in state.current_flow_id:
-                    next_q_result = await get_anc_survey_question(
+                    next_q_result = get_anc_survey_question(
                         user_id=user_id,
                         user_context=restored_context,
                         chat_history=chat_history,
@@ -1303,7 +1305,7 @@ async def handle_reminder_response(
                         user_context=restored_context
                     )
                 else:
-                    next_q_result = await get_assessment_question(
+                    next_q_result = get_assessment_question(
                         user_id=user_id,
                         flow_id=AssessmentType(state.current_flow_id),
                         question_number=int(state.current_step_identifier) + 1,
@@ -1349,7 +1351,7 @@ async def handle_reminder_response(
     elif intent == "REMIND_LATER":
         # User wants another reminder. Schedule it.
         # This re-uses the existing reminder logic for DRYness.
-        message, reengagement_info = await handle_reminder_request(
+        message, reengagement_info = handle_reminder_request(
             user_id=user_id,
             flow_id=state.current_flow_id,
             step_identifier=state.current_step_identifier,

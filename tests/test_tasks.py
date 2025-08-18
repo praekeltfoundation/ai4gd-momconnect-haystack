@@ -20,14 +20,17 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     OnboardingResponse,
     ReengagementInfo,
     ResponseScore,
-    LegacySurveyResponse as SurveyResponse,
     Turn,
+)
+from ai4gd_momconnect_haystack.pydantic_models import (
+    LegacySurveyResponse as SurveyResponse,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import UserJourneyState
 from ai4gd_momconnect_haystack.tasks import (
     classify_ussd_intro_response,
     classify_yes_no_response,
     extract_anc_data_from_response,
+    extract_assessment_data_from_response,
     extract_onboarding_data_from_response,
     format_user_data_summary_for_whatsapp,
     get_anc_survey_question,
@@ -38,7 +41,6 @@ from ai4gd_momconnect_haystack.tasks import (
     handle_reminder_request,
     handle_reminder_response,
     handle_summary_confirmation_step,
-    extract_assessment_data_from_response,
 )
 from ai4gd_momconnect_haystack.utilities import create_response_to_key_map
 
@@ -218,8 +220,7 @@ def test_score_assessment_from_simulation_no_valid_run(validated_assessment_ques
 # --- Tests for the question fetching logic ---
 
 
-@pytest.mark.asyncio
-async def test_get_assessment_question():
+def test_get_assessment_question():
     with (
         mock.patch(
             "ai4gd_momconnect_haystack.tasks.pipelines.run_assessment_contextualization_pipeline",
@@ -227,11 +228,11 @@ async def test_get_assessment_question():
         ) as mock_run_pipeline,
         mock.patch(
             "ai4gd_momconnect_haystack.tasks.get_assessment_history",
-            new_callable=mock.AsyncMock,
+            new_callable=mock.Mock,
             return_value=[],
         ) as mock_get_history,
     ):
-        result = await get_assessment_question(
+        result = get_assessment_question(
             user_id="TestUser",
             flow_id=AssessmentType.dma_pre_assessment,
             question_number=1,
@@ -242,11 +243,10 @@ async def test_get_assessment_question():
         }
 
         mock_run_pipeline.assert_called_once()
-        mock_get_history.assert_awaited_once()
+        mock_get_history.assert_called_once()
 
 
-@pytest.mark.asyncio
-async def test_get_last_assessment_question():
+def test_get_last_assessment_question():
     with (
         mock.patch(
             "ai4gd_momconnect_haystack.tasks.pipelines.run_assessment_contextualization_pipeline",
@@ -254,12 +254,12 @@ async def test_get_last_assessment_question():
         ) as mock_run_pipeline,
         mock.patch(
             "ai4gd_momconnect_haystack.tasks.get_assessment_history",
-            new_callable=mock.AsyncMock,
+            new_callable=mock.Mock,
             return_value=[],
         ) as mock_get_history,
     ):
         # This call should succeed and use the mocks.
-        result = await get_assessment_question(
+        result = get_assessment_question(
             user_id="TestUser",
             flow_id=AssessmentType.dma_pre_assessment,
             question_number=5,
@@ -271,7 +271,7 @@ async def test_get_last_assessment_question():
 
         # This call should fail before the pipeline is even created or run,
         # because the question number is out of bounds.
-        result = await get_assessment_question(
+        result = get_assessment_question(
             user_id="TestUser",
             flow_id=AssessmentType.dma_pre_assessment,
             question_number=6,
@@ -280,7 +280,7 @@ async def test_get_last_assessment_question():
         assert result == {}
 
         mock_run_pipeline.assert_called_once()
-        mock_get_history.assert_awaited()
+        mock_get_history.assert_called()
 
 
 @mock.patch(
@@ -741,7 +741,6 @@ def test_validate_dma_answer_prepares_aligned_prompts(mock_run_pipeline):
     )
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "flow_id, reminder_type, expected_delay_hours",
     [
@@ -753,10 +752,10 @@ def test_validate_dma_answer_prepares_aligned_prompts(mock_run_pipeline):
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.tasks.save_user_journey_state",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch("ai4gd_momconnect_haystack.tasks.datetime")  # NEW: Mock the datetime object
-async def test_handle_reminder_request_dynamic_schedule(
+def test_handle_reminder_request_dynamic_schedule(
     mock_datetime,  # NEW: Add the mock as an argument
     mock_save_state,
     flow_id,
@@ -775,7 +774,7 @@ async def test_handle_reminder_request_dynamic_schedule(
     # user_context = {"reminder_count": reminder_count}
 
     # Act
-    _, reengagement_info = await handle_reminder_request(
+    _, reengagement_info = handle_reminder_request(
         user_id="test-user",
         flow_id=flow_id,
         step_identifier="intro",
@@ -840,12 +839,11 @@ def test_create_response_to_key_map_generates_correct_keys():
     assert key_map == expected_map
 
 
-@pytest.mark.asyncio
 @mock.patch(
     "ai4gd_momconnect_haystack.tasks.get_or_create_chat_history",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
-async def test_handle_reminder_response_affirmative_survey(mock_get_history):
+def test_handle_reminder_response_affirmative_survey(mock_get_history):
     """
     Tests that when a user affirmatively responds to a reminder on surveys,
     the original question is returned.
@@ -862,7 +860,7 @@ async def test_handle_reminder_response_affirmative_survey(mock_get_history):
     )
 
     # Act
-    response = await handle_reminder_response(
+    response = handle_reminder_response(
         user_id="test-user", user_input="a. Yes", state=mock_state
     )
 
@@ -873,8 +871,7 @@ async def test_handle_reminder_response_affirmative_survey(mock_get_history):
     assert response.intent == "JOURNEY_RESUMED"
 
 
-@pytest.mark.asyncio
-async def test_handle_reminder_response_affirmative_onboarding():
+def test_handle_reminder_response_affirmative_onboarding():
     """
     Tests that when a user affirmatively responds to a reminder on onboarding, the original question is returned.
     """
@@ -886,7 +883,7 @@ async def test_handle_reminder_response_affirmative_onboarding():
         user_context={},
     )
 
-    response = await handle_reminder_response(
+    response = handle_reminder_response(
         user_id="test-user", user_input="a. Yes", state=mock_state
     )
 
@@ -895,8 +892,7 @@ async def test_handle_reminder_response_affirmative_onboarding():
     assert response.intent == "JOURNEY_RESUMED"
 
 
-@pytest.mark.asyncio
-async def test_handle_reminder_response_affirmative_assessment():
+def test_handle_reminder_response_affirmative_assessment():
     """
     Tests that when a user affirmatively responds to a reminder on assessment, the original question is returned.
     """
@@ -908,7 +904,7 @@ async def test_handle_reminder_response_affirmative_assessment():
         user_context={},
     )
 
-    response = await handle_reminder_response(
+    response = handle_reminder_response(
         user_id="test-user", user_input="a. Yes", state=mock_state
     )
 
@@ -917,12 +913,11 @@ async def test_handle_reminder_response_affirmative_assessment():
     assert response.intent == "JOURNEY_RESUMED"
 
 
-@pytest.mark.asyncio
 @mock.patch(
     "ai4gd_momconnect_haystack.tasks.handle_reminder_request",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
-async def test_handle_reminder_response_remind_later(mock_reminder_request):
+def test_handle_reminder_response_remind_later(mock_reminder_request):
     """
     Tests that when a user asks for another reminder, the request is handled correctly.
     """
@@ -946,18 +941,17 @@ async def test_handle_reminder_response_remind_later(mock_reminder_request):
         user_context={"reminder_count": 1},
     )
 
-    response = await handle_reminder_response(
+    response = handle_reminder_response(
         user_id="test-user", user_input="b. Remind me tomorrow", state=mock_state
     )
 
-    mock_reminder_request.assert_awaited_once()
+    mock_reminder_request.assert_called_once()
     assert response.intent == "REQUEST_TO_BE_REMINDED"
     assert response.question == "OK, we'll remind you again."
     assert response.reengagement_info == reengagement_info
 
 
-@pytest.mark.asyncio
-async def test_handle_reminder_response_ambiguous():
+def test_handle_reminder_response_ambiguous():
     """
     Tests that an ambiguous response to a reminder re-sends the reminder prompt.
     """
@@ -969,7 +963,7 @@ async def test_handle_reminder_response_ambiguous():
         user_context={},
     )
 
-    response = await handle_reminder_response(
+    response = handle_reminder_response(
         user_id="test-user", user_input="maybe later", state=mock_state
     )
 
@@ -978,14 +972,13 @@ async def test_handle_reminder_response_ambiguous():
     assert "asked us to remind you" in response.question
 
 
-@pytest.mark.asyncio
 @mock.patch("ai4gd_momconnect_haystack.tasks.run_anc_survey_contextualization_pipeline")
 @mock.patch("ai4gd_momconnect_haystack.tasks.get_next_anc_survey_step")
 @mock.patch(
     "ai4gd_momconnect_haystack.tasks.get_or_create_chat_history",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
-async def test_get_anc_survey_question_appends_ussd_options(
+def test_get_anc_survey_question_appends_ussd_options(
     mock_get_history,
     mock_get_next_step,
     mock_contextualize,
@@ -1005,7 +998,7 @@ async def test_get_anc_survey_question_appends_ussd_options(
     mock_get_history.return_value = []
 
     # Act
-    result = await get_anc_survey_question(
+    result = get_anc_survey_question(
         user_id="test-user", user_context={}, chat_history=[]
     )
 
@@ -1023,17 +1016,16 @@ async def test_get_anc_survey_question_appends_ussd_options(
     assert "\ne. Very bad" in final_question
 
 
-@pytest.mark.asyncio
 @mock.patch(
     "ai4gd_momconnect_haystack.tasks.get_next_anc_survey_step",
     return_value="start_going_soon",
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.tasks.save_user_journey_state",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch("ai4gd_momconnect_haystack.tasks.datetime")
-async def test_get_anc_survey_question_sets_3_day_reminder(
+def test_get_anc_survey_question_sets_3_day_reminder(
     mock_datetime, mock_save_state, mock_get_next_step
 ):
     """
@@ -1046,7 +1038,7 @@ async def test_get_anc_survey_question_sets_3_day_reminder(
     expected_trigger_time = fake_now + timedelta(days=3)
 
     # 2. Act: Call the function we want to test
-    result = await get_anc_survey_question(
+    result = get_anc_survey_question(
         user_id="test-user", user_context={}, chat_history=[]
     )
 
@@ -1064,7 +1056,7 @@ async def test_get_anc_survey_question_sets_3_day_reminder(
     assert reengagement_info.type == "SYSTEM_SCHEDULED"
 
     # Assert that the user's state was saved
-    mock_save_state.assert_awaited_once()
+    mock_save_state.assert_called_once()
 
 
 @pytest.mark.parametrize(

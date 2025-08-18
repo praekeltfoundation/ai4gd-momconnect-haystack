@@ -1,24 +1,24 @@
 # tests/conftest.py
 
-import os
-import pytest
 import asyncio
+import os
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 
 # Set the environment variable for the test database BEFORE any app code is imported.
 # This is critical to ensure all modules use the correct test database URL from the start.
 TEST_DB_FILE = "./test.db"
-os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{TEST_DB_FILE}"
+os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_FILE}"
 
 # Now that the environment is configured, we can safely import app and database code.
-from ai4gd_momconnect_haystack.database import Base  # noqa: E402
-from ai4gd_momconnect_haystack.api import app  # noqa: E402
-
 # CRITICAL: Import the models module. This registers your table definitions
 # (UserJourneyState, ChatHistory, etc.) with SQLAlchemy's Base metadata,
 # so that Base.metadata.create_all() knows what tables to build.
 from ai4gd_momconnect_haystack import sqlalchemy_models  # noqa: F401, E402
+from ai4gd_momconnect_haystack.api import app  # noqa: E402
+from ai4gd_momconnect_haystack.database import Base  # noqa: E402
 
 
 @pytest.fixture(scope="session")

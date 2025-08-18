@@ -17,7 +17,7 @@ from ai4gd_momconnect_haystack.pydantic_models import (
 )
 from ai4gd_momconnect_haystack.utilities import chat_messages_to_json
 
-from .database import AsyncSessionLocal
+from .database import SessionLocal
 from .sqlalchemy_models import (
     AssessmentEndMessagingHistory,
     AssessmentHistory,
@@ -29,15 +29,15 @@ from .sqlalchemy_models import (
 logger = logging.getLogger(__name__)
 
 
-async def get_or_create_chat_history(
+def get_or_create_chat_history(
     user_id: str, history_type: HistoryType
 ) -> list[ChatMessage]:
     """
     Retrieves an Onboarding chat history for a given user_id.
     If it doesn't exist, an empty history is returned.
     """
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
+    with SessionLocal() as session:
+        result = session.execute(
             select(ChatHistory).filter(ChatHistory.user_id == user_id)
         )
         db_history = result.scalar_one_or_none()
@@ -69,13 +69,13 @@ async def get_or_create_chat_history(
         return chat_history
 
 
-async def save_chat_history(
+def save_chat_history(
     user_id: str, messages: list[ChatMessage], history_type: HistoryType
 ) -> None:
     """Saves or updates the chat history for a given user_id."""
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            result = await session.execute(
+    with SessionLocal() as session:
+        with session.begin():
+            result = session.execute(
                 select(ChatHistory).filter(ChatHistory.user_id == user_id)
             )
             db_history = result.scalar_one_or_none()
@@ -108,18 +108,18 @@ async def save_chat_history(
                     return
                 session.add(db_history)
 
-            await session.commit()
+            session.commit()
 
 
-async def get_assessment_history(
+def get_assessment_history(
     user_id: str, assessment_type: AssessmentType
 ) -> list[AssessmentHistory]:
     """
     Retrieves assessment question history for a given user and assessment type.
     If no history exists, an empty list is returned.
     """
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
+    with SessionLocal() as session:
+        result = session.execute(
             select(AssessmentHistory).filter(
                 AssessmentHistory.user_id == user_id,
                 AssessmentHistory.assessment_id == assessment_type.value,
@@ -129,7 +129,7 @@ async def get_assessment_history(
         return list(history)
 
 
-async def save_assessment_question(
+def save_assessment_question(
     user_id: str,
     assessment_type: AssessmentType,
     question_number: int,
@@ -143,9 +143,9 @@ async def save_assessment_question(
     print(
         f"Saving user response '{user_response}' with score '{score}' to question number {question_number}"
     )
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            result = await session.execute(
+    with SessionLocal() as session:
+        with session.begin():
+            result = session.execute(
                 select(AssessmentHistory).where(
                     AssessmentHistory.user_id == user_id,
                     AssessmentHistory.assessment_id == assessment_type.value,
@@ -170,16 +170,16 @@ async def save_assessment_question(
                 historic_record.score = score
 
 
-async def calculate_and_store_assessment_result(
+def calculate_and_store_assessment_result(
     user_id: str, assessment_type: AssessmentType
 ) -> None:
     """
     Checks if an assessment is complete and, if so, calculates and stores the final result.
     """
     # Check if all scores are available for the given assessment
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            result = await session.execute(
+    with SessionLocal() as session:
+        with session.begin():
+            result = session.execute(
                 select(AssessmentHistory)
                 .where(
                     AssessmentHistory.user_id == user_id,
@@ -224,7 +224,7 @@ async def calculate_and_store_assessment_result(
                 AssessmentResultHistory.assessment_id == assessment_type.value,
             )
             result_history_record = (
-                await session.execute(result_history_stmt)
+                session.execute(result_history_stmt)
             ).scalar_one_or_none()
 
             if not result_history_record:
@@ -242,15 +242,15 @@ async def calculate_and_store_assessment_result(
             )
 
 
-async def get_assessment_result(
+def get_assessment_result(
     user_id: str, assessment_type: AssessmentType
 ) -> AssessmentResult | None:
     print(
         f"Trying to get assessment results for {user_id} for assessment {assessment_type.value}"
     )
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            result = await session.execute(
+    with SessionLocal() as session:
+        with session.begin():
+            result = session.execute(
                 select(AssessmentResultHistory).where(
                     AssessmentResultHistory.user_id == user_id,
                     AssessmentResultHistory.assessment_id == assessment_type.value,
@@ -269,15 +269,15 @@ async def get_assessment_result(
     return None
 
 
-async def get_assessment_end_messaging_history(
+def get_assessment_end_messaging_history(
     user_id: str, assessment_type: AssessmentType
 ) -> list[AssessmentEndMessagingHistory]:
     """
     Retrieves assessment end messaging history for a given user and assessment type.
     If no history exists, an empty list is returned.
     """
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
+    with SessionLocal() as session:
+        result = session.execute(
             select(AssessmentEndMessagingHistory)
             .filter(
                 AssessmentEndMessagingHistory.user_id == user_id,
@@ -289,7 +289,7 @@ async def get_assessment_end_messaging_history(
         return list(history)
 
 
-async def save_assessment_end_message(
+def save_assessment_end_message(
     user_id: str,
     assessment_type: AssessmentType,
     message_number: int,
@@ -299,11 +299,11 @@ async def save_assessment_end_message(
     Saves the end-of-assessment messaging history for a given user, assessment type and question number.
     This will overwrite any existing history for the same user, assessment type and question number.
     """
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
+    with SessionLocal() as session:
+        with session.begin():
             # If a user_response is present, the question should already exist in the database and we can just update it.
             if user_response:
-                await session.execute(
+                session.execute(
                     update(AssessmentEndMessagingHistory)
                     .where(
                         AssessmentEndMessagingHistory.user_id == user_id,
@@ -315,7 +315,7 @@ async def save_assessment_end_message(
                 )
             else:
                 # First, delete any existing history in case there is one
-                await session.execute(
+                session.execute(
                     delete(AssessmentEndMessagingHistory).where(
                         AssessmentEndMessagingHistory.user_id == user_id,
                         AssessmentEndMessagingHistory.assessment_id
@@ -331,13 +331,13 @@ async def save_assessment_end_message(
                     user_response=None,
                 )
                 session.add(new_historic_record)
-            await session.commit()
+            session.commit()
 
 
-async def delete_chat_history_for_user(user_id: str, history_type: HistoryType):
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            result = await session.execute(
+def delete_chat_history_for_user(user_id: str, history_type: HistoryType):
+    with SessionLocal() as session:
+        with session.begin():
+            result = session.execute(
                 select(ChatHistory).filter(ChatHistory.user_id == user_id)
             )
             db_history = result.scalar_one_or_none()
@@ -352,24 +352,22 @@ async def delete_chat_history_for_user(user_id: str, history_type: HistoryType):
                     return
 
 
-async def delete_assessment_history_for_user(
-    user_id: str, assessment_type: AssessmentType
-):
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            await session.execute(
+def delete_assessment_history_for_user(user_id: str, assessment_type: AssessmentType):
+    with SessionLocal() as session:
+        with session.begin():
+            session.execute(
                 delete(AssessmentHistory).where(
                     AssessmentHistory.user_id == user_id,
                     AssessmentHistory.assessment_id == assessment_type.value,
                 )
             )
-            await session.execute(
+            session.execute(
                 delete(AssessmentResultHistory).where(
                     AssessmentResultHistory.user_id == user_id,
                     AssessmentResultHistory.assessment_id == assessment_type.value,
                 )
             )
-            await session.execute(
+            session.execute(
                 delete(AssessmentEndMessagingHistory).where(
                     AssessmentEndMessagingHistory.user_id == user_id,
                     AssessmentEndMessagingHistory.assessment_id
@@ -378,31 +376,31 @@ async def delete_assessment_history_for_user(
             )
 
 
-async def truncate_chat_history():
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            await session.execute(delete(ChatHistory))
+def truncate_chat_history():
+    with SessionLocal() as session:
+        with session.begin():
+            session.execute(delete(ChatHistory))
 
 
-async def truncate_assessment_history():
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            await session.execute(delete(AssessmentHistory))
+def truncate_assessment_history():
+    with SessionLocal() as session:
+        with session.begin():
+            session.execute(delete(AssessmentHistory))
 
 
-async def truncate_assessment_result_history():
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            await session.execute(delete(AssessmentResultHistory))
+def truncate_assessment_result_history():
+    with SessionLocal() as session:
+        with session.begin():
+            session.execute(delete(AssessmentResultHistory))
 
 
-async def truncate_assessment_end_messaging_history():
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            await session.execute(delete(AssessmentEndMessagingHistory))
+def truncate_assessment_end_messaging_history():
+    with SessionLocal() as session:
+        with session.begin():
+            session.execute(delete(AssessmentEndMessagingHistory))
 
 
-async def save_user_journey_state(
+def save_user_journey_state(
     user_id: str,
     flow_id: str,
     step_identifier: str,
@@ -420,10 +418,10 @@ async def save_user_journey_state(
         )
         return
 
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
+    with SessionLocal() as session:
+        with session.begin():
             # Try to get the existing state
-            result = await session.execute(
+            result = session.execute(
                 select(UserJourneyState).where(UserJourneyState.user_id == user_id)
             )
             existing_state = result.scalar_one_or_none()
@@ -448,23 +446,23 @@ async def save_user_journey_state(
                 )
                 session.add(new_state)
                 logger.info(f"Created new journey state for user {user_id}.")
-            await session.commit()
+            session.commit()
 
 
-async def get_user_journey_state(user_id: str) -> UserJourneyState | None:
+def get_user_journey_state(user_id: str) -> UserJourneyState | None:
     """Retrieves the last known journey state for a given user."""
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
+    with SessionLocal() as session:
+        result = session.execute(
             select(UserJourneyState).where(UserJourneyState.user_id == user_id)
         )
         return result.scalar_one_or_none()
 
 
-async def delete_user_journey_state(user_id: str) -> None:
+def delete_user_journey_state(user_id: str) -> None:
     """Deletes the user's journey state from the database."""
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            await session.execute(
+    with SessionLocal() as session:
+        with session.begin():
+            session.execute(
                 delete(UserJourneyState).where(UserJourneyState.user_id == user_id)
             )
-            await session.commit()
+            session.commit()
