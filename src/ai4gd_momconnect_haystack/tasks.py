@@ -1337,7 +1337,7 @@ def handle_reminder_response(
             return SurveyResponse(
                 question=question_to_send,
                 user_context=restored_context,
-                survey_complete=not bool(next_q_result),
+                survey_complete=False,
                 intent="JOURNEY_RESUMED",
                 intent_related_response=None,
                 results_to_save=[],
