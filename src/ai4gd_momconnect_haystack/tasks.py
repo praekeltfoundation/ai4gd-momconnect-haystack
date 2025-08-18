@@ -1306,7 +1306,7 @@ async def handle_reminder_response(
                 )
 
             if next_q_result:
-                question_to_send = next_q_result.get("contextualized_question")
+                question_to_send = next_q_result.get("contextualized_question", "")
 
         # Fallback if no next question is found
         if not question_to_send:
