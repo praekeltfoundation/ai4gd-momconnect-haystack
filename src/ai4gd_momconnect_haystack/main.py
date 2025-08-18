@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from haystack.dataclasses import ChatMessage
 from pydantic import ValidationError
 from sqlalchemy import delete
+from .database import run_migrations
 
 from ai4gd_momconnect_haystack.assessment_logic import (
     _score_single_turn,
@@ -26,17 +27,17 @@ from ai4gd_momconnect_haystack.crud import (
     save_assessment_end_message,
     save_assessment_question,
     save_chat_history,
+    get_user_journey_state,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import (
     AssessmentEndMessagingHistory,
     AssessmentHistory,
     AssessmentResultHistory,
     ChatHistory,
+    UserJourneyState,
 )
 from ai4gd_momconnect_haystack.tasks import (
-    extract_anc_data_from_response,
     update_context_from_onboarding_response,
-    get_anc_survey_question,
     get_assessment_question,
     extract_assessment_data_from_response,
     get_next_onboarding_question,
@@ -55,15 +56,17 @@ from ai4gd_momconnect_haystack.utilities import (
     save_json_file,
     FLOWS_WITH_INTRO,
     ANC_SURVEY_MAP,
+    prepend_valid_responses_with_alphabetical_index,
 )
 
-from .database import AsyncSessionLocal, init_db
+from .database import AsyncSessionLocal
 from .enums import AssessmentType, HistoryType
 from .pydantic_models import (
     AssessmentEndScoreBasedMessage,
     AssessmentEndSimpleMessage,
     AssessmentRun,
     Turn,
+    OrchestratorSurveyRequest,
 )
 
 load_dotenv()
@@ -260,7 +263,6 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
     sim_onboarding = "onboarding" in gt_lookup_by_flow
     sim_dma = False
     sim_kab = False
-    sim_anc_survey = False
 
     if not gt_scenarios:
         while True:
@@ -824,6 +826,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 task = ""
                 if not messaging_history:
                     previous_message_nr = 0
+                    previous_message = ""
                     # previous_message_data: AssessmentEndItem = None
                     previous_message_valid_responses: list[str] | None = []
                 else:
@@ -880,9 +883,20 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 if not previous_message_valid_responses and previous_message_nr != 0:
                     logger.error("Valid responses not found.")
                     break
+
+                # Reconstruct the full message with options EARLIER, before intent detection.
+                previous_message_with_options = previous_message
+                if previous_message_valid_responses:
+                    options = "\n" + "\n".join(
+                        prepend_valid_responses_with_alphabetical_index(
+                            previous_message_valid_responses
+                        )
+                    )
+                    previous_message_with_options += options
+
                 if previous_message_nr > 0:
                     intent, intent_related_response = handle_user_message(
-                        previous_message, user_response
+                        previous_message_with_options, user_response
                     )
                 else:
                     intent, intent_related_response = "JOURNEY_RESPONSE", ""
@@ -912,10 +926,22 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         if not previous_message_valid_responses:
                             logger.error("Valid responses not found.")
                             break
+
+                        # FIX: Reconstruct the full message with options before validation
+                        previous_message_with_options = previous_message
+                        if previous_message_valid_responses:
+                            options = "\n" + "\n".join(
+                                prepend_valid_responses_with_alphabetical_index(
+                                    previous_message_valid_responses
+                                )
+                            )
+                            previous_message_with_options += options
+
                         result = validate_assessment_end_response(
-                            previous_message=previous_message,
+                            previous_message=previous_message_with_options,
                             previous_message_nr=next_message_nr - 1,
-                            previous_message_valid_responses=previous_message_valid_responses,
+                            previous_message_valid_responses=previous_message_valid_responses
+                            or [],
                             user_response=user_response,
                         )
                         if result["next_message_number"] == next_message_nr - 1:
@@ -1309,7 +1335,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     task = ""
                     if not messaging_history:
                         previous_message_nr = 0
-                        # previous_message_data = []
+                        previous_message = ""
                         previous_message_valid_responses = []
                     else:
                         previous_message_nr = messaging_history[-1].message_number
@@ -1367,9 +1393,21 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     ):
                         logger.error("Valid responses not found.")
                         break
+
+                    # Reconstruct the full message with options EARLIER, before intent detection.
+                    previous_message_with_options = previous_message
+                    if previous_message_valid_responses:
+                        options = "\n" + "\n".join(
+                            prepend_valid_responses_with_alphabetical_index(
+                                previous_message_valid_responses
+                            )
+                        )
+                        previous_message_with_options += options
+
                     if previous_message_nr > 0:
+                        # Use the corrected message variable for intent detection
                         intent, intent_related_response = handle_user_message(
-                            previous_message, user_response
+                            previous_message_with_options, user_response
                         )
                     else:
                         intent, intent_related_response = "JOURNEY_RESPONSE", ""
@@ -1396,13 +1434,11 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                                 and next_message_nr == 2
                             )
                         ):
-                            assert previous_message_valid_responses is not None, (
-                                "Valid responses not found!"
-                            )
                             result = validate_assessment_end_response(
-                                previous_message=previous_message,
+                                previous_message=previous_message_with_options,
                                 previous_message_nr=next_message_nr - 1,
-                                previous_message_valid_responses=previous_message_valid_responses,
+                                previous_message_valid_responses=previous_message_valid_responses
+                                or [],
                                 user_response=user_response,
                             )
                             if result["next_message_number"] == next_message_nr - 1:
@@ -1554,260 +1590,86 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 run_results["turns"] = kab_turns
                 simulation_results.append(run_results)
 
-    # ** ANC Survey Scenario **
-    sim_anc_survey = "anc-survey" in gt_lookup_by_flow
+    # ** NEW: Simulate the new Survey Orchestrator **
+    sim_new_survey = "anc-survey" in gt_lookup_by_flow  # Auto-run if in ground truth
     if not gt_scenarios:
         print("")
         while True:
-            sim = input("Simulate ANC Survey? (Y/N)\n> ")
+            sim = input("Simulate New Survey Orchestrator? (Y/N)\n> ")
             if sim.lower() in ["y", "yes"]:
-                sim_anc_survey = True
+                sim_new_survey = True
                 break
             elif sim.lower() in ["n", "no"]:
                 break
             else:
                 print("Please enter 'Y' or 'N'.")
 
-    if sim_anc_survey:
-        logger.info("\n--- Simulating ANC Survey ---")
+    if sim_new_survey:
+        logger.info("\n--- Simulating New Survey Orchestrator ---")
+        # Import the new orchestrator and request model
+        from .survey_orchestrator import process_survey_turn
+
+        # Reset state for the new simulation
+        user_id = "OrchestratorTestUser"
+        user_context = {}
+        survey_complete = False
+        user_input = ""
+        failure_count = 0
+
+        # Clear previous history for this user if any
         async with AsyncSessionLocal() as session:
             async with session.begin():
                 await session.execute(
-                    delete(ChatHistory).where(
-                        ChatHistory.user_id == user_id,
-                    )
+                    delete(ChatHistory).where(ChatHistory.user_id == user_id)
                 )
-        chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
-        anc_user_context = {
-            "age": user_context.get("age"),
-            "gender": user_context.get("gender"),
-            "goal": "Complete the ANC survey",
-        }
-        survey_complete = False
-        max_survey_steps = 25
-
-        MAX_CONSECUTIVE_FAILURES = 2
-        consecutive_failures = 0
-
-        flow_id = "anc-survey"
-        gt_scenario = gt_lookup_by_flow.get(flow_id)
-        scenario_id_to_use = (
-            gt_scenario.get("scenario_id")
-            if gt_scenario
-            else generate_scenario_id(flow_type=flow_id, username="user_123")
-        )
-        run_results = {
-            "scenario_id": scenario_id_to_use,
-            "flow_type": flow_id,
-            "turns": [],
-        }
-        anc_survey_turns = []
-
-        should_proceed = await handle_intro_simulation(
-            gt_lookup=gt_lookup_by_flow,
-            flow_id=flow_id,
-            turn_identifier_key="title",
-            turn_identifier_value="intro",
-            chat_history=chat_history,
-            user_id=user_id,
-            history_type=HistoryType.anc,
-        )
-
-        if should_proceed:
-            for _ in range(max_survey_steps):
-                if survey_complete:
-                    break
-
-                print("-" * 20)
-                result = await get_anc_survey_question(
-                    user_id=user_id,
-                    user_context=anc_user_context,
-                    chat_history=chat_history,
+                await session.execute(
+                    delete(UserJourneyState).where(UserJourneyState.user_id == user_id)
                 )
 
-                if not result:
-                    break
+        while not survey_complete:
+            print("-" * 20)
+            # 1. Create the request object for the orchestrator
+            request = OrchestratorSurveyRequest(
+                user_id=user_id,
+                survey_id="anc-survey",
+                user_input=user_input,
+                user_context=user_context,
+                failure_count=failure_count,
+            )
 
-                contextualized_question = result.get("contextualized_question")
-                question_identifier = result.get("question_identifier")
-                survey_complete = result.get("is_final_step", False)
+            # 2. Call the single, powerful orchestrator function
+            response = await process_survey_turn(request)
 
-                if not question_identifier:
-                    logger.warning(
-                        "Could not get question identifier from survey step. Ending flow."
-                    )
-                    break
+            # 3. Process the response
+            print(f"ASSISTANT:\n{response.question}")
 
-                if not contextualized_question:
-                    if survey_complete:
-                        logger.info(f"Survey ended with action: {question_identifier}")
-                    else:
-                        logger.info("Could not get next survey question. Ending flow.")
-                    break
+            survey_complete = response.survey_complete
+            if survey_complete:
+                print("\n--- Survey Complete ---")
+                break
 
-                print(f"Question title: {question_identifier}")
+            # Update state for the next turn
+            user_context = response.user_context
+            failure_count = response.failure_count
 
-                has_deflected = False
-                final_user_response = None
-                initial_predicted_intent = None
-                final_predicted_intent = None
-                current_prompt = contextualized_question
-                gt_turn = None
-
-                first_user_utterance = None
-
-                while True:
-                    user_response, gt_turn = await _get_user_response(
-                        gt_lookup=gt_lookup_by_flow,
-                        flow_id=flow_id,
-                        contextualized_question=current_prompt,
-                        turn_identifier_key="question_name",
-                        turn_identifier_value=question_identifier,
-                        use_follow_up=has_deflected,
-                    )
-                    if user_response is None:
-                        break
-
-                    if not has_deflected:
-                        first_user_utterance = user_response
-
-                    question_data = ANC_SURVEY_MAP.get(question_identifier)
-                    valid_responses = (
-                        question_data.valid_responses if question_data else []
-                    )
-
-                    intent, intent_related_response = handle_user_message(
-                        current_prompt, user_response, valid_responses
-                    )
-
-                    if not has_deflected:
-                        initial_predicted_intent = intent
-                    else:
-                        final_predicted_intent = intent
-
-                    if intent == "JOURNEY_RESPONSE":
-                        final_user_response = user_response
-                        if not has_deflected:
-                            final_predicted_intent = initial_predicted_intent
-                        break
-                    elif intent == "SKIP_QUESTION":
-                        final_user_response = "Skip"
-                        final_predicted_intent = "SKIP_QUESTION"
-                        break
-                    else:
+            # ---
+            # FIX: Add diagnostic printing to see the current state
+            if user_context:
+                # We need to get the last step from the saved state to know what question we're on
+                # In a real app, this state would be loaded at the start of the turn
+                temp_state = await get_user_journey_state(user_id)
+                if temp_state:
+                    step_title = temp_state.current_step_identifier
+                    question_data = ANC_SURVEY_MAP.get(step_title)
+                    print(f"DEBUG: Current Question Title = {step_title}")
+                    if question_data:
                         print(
-                            f"Predicted Intent: {intent}"
-                        )  # CORRECTED: Moved print statement here
-                        if intent in [
-                            "HEALTH_QUESTION",
-                            "QUESTION_ABOUT_STUDY",
-                            "CHITCHAT",
-                        ]:
-                            print(intent_related_response)
-                        elif intent in [
-                            "ASKING_TO_STOP_MESSAGES",
-                            "ASKING_TO_DELETE_DATA",
-                            "REPORTING_AIRTIME_NOT_RECEIVED",
-                        ]:
-                            print(f"Turn must be notified that user is {intent}")
-
-                        has_deflected = True
-                        if not gt_scenario:
-                            current_prompt = f"Thanks. To continue, please answer:\n> {contextualized_question}"
-
-                if final_user_response is None:
-                    continue
-
-                print(
-                    f"Final User Response: {final_user_response}"
-                )  # CORRECTED: Added for clarity
-                print(
-                    f"Final Predicted Intent: {final_predicted_intent}"
-                )  # CORRECTED: Added for clarity
-
-                previous_context = anc_user_context.copy()
-                action_dict = None
-
-                action_dict = None
-                if final_predicted_intent == "SKIP_QUESTION":
-                    anc_user_context[question_identifier] = "Skip"
-                elif final_predicted_intent == "JOURNEY_RESPONSE":
-                    anc_user_context, action_dict = extract_anc_data_from_response(
-                        final_user_response,
-                        anc_user_context,
-                        question_identifier,
-                        contextualized_question,
-                    )
-
-                    if (
-                        action_dict
-                        and action_dict.get("status") == "needs_confirmation"
-                    ):
-                        print(f"Confirmation Question: {action_dict['message']}")
-                        confirm_response, _ = await _get_user_response(
-                            gt_lookup={},
-                            flow_id=flow_id,
-                            contextualized_question=action_dict["message"],
-                            turn_identifier_key="question_name",
-                            turn_identifier_value=f"{question_identifier}_confirm",
+                            f"DEBUG: Valid Responses = {question_data.valid_responses}"
                         )
-                        if confirm_response and confirm_response.lower().strip() in [
-                            "yes",
-                            "y",
-                            "yebo",
-                        ]:
-                            anc_user_context[question_identifier] = action_dict[
-                                "potential_answer"
-                            ]
+            # --- End of diagnostic printing ---
 
-                if anc_user_context == previous_context:
-                    consecutive_failures += 1
-                    if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                        anc_user_context[question_identifier] = "Skipped - System"
-                        consecutive_failures = 0
-                else:
-                    consecutive_failures = 0
-
-                if diff_keys := [
-                    k
-                    for k in anc_user_context
-                    if anc_user_context[k] != previous_context.get(k)
-                ]:
-                    chat_history.append(
-                        ChatMessage.from_assistant(
-                            text=contextualized_question,
-                            meta={"step_title": question_identifier},
-                        )
-                    )
-                    for updated_field in diff_keys:
-                        # CORRECTED LOGIC: Use first_user_utterance and handle follow_up correctly
-                        user_utterance_for_turn = first_user_utterance
-                        follow_up_for_turn = (
-                            final_user_response if has_deflected else None
-                        )
-
-                        anc_survey_turns.append(
-                            {
-                                "question_name": question_identifier,
-                                "llm_utterance": contextualized_question,
-                                "user_utterance": user_utterance_for_turn,
-                                "follow_up_utterance": follow_up_for_turn,
-                                "llm_initial_predicted_intent": initial_predicted_intent,
-                                "llm_final_predicted_intent": final_predicted_intent,
-                                "llm_extracted_user_response": anc_user_context[
-                                    updated_field
-                                ],
-                            }
-                        )
-                    chat_history.append(ChatMessage.from_user(text=final_user_response))
-                    await save_chat_history(user_id, chat_history, HistoryType.anc)
-
-                if survey_complete:
-                    break
-
-            run_results["turns"] = anc_survey_turns
-            simulation_results.append(run_results)
-
+            # 4. Get the next user input
+            user_input = input("USER:\n> ")
     # --- End of Simulation ---
 
     logger.info("--- Simulation Complete ---")
@@ -1865,7 +1727,8 @@ async def async_main(
     """
     try:
         logging.info("Initializing database...")
-        await init_db()
+        # await init_db()
+        run_migrations()
         logging.info("Database initialized.")
         logging.info("Starting interactive simulation...")
 

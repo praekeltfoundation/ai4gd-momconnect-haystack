@@ -258,7 +258,6 @@ def prepare_valid_responses_to_display_to_anc_survey_user(
 
     # Only show options for the specified multiple-choice questions.
     if valid_responses and step_title in [
-        "start",
         "Q_experience",
         "feedback_if_first_survey",
     ]:
@@ -275,7 +274,7 @@ def prepare_valid_responses_to_use_in_anc_survey_system_prompt(
 ) -> str:
     final_question_text = question
     if valid_responses:
-        if step_title in ["start", "seen_yes", "Q_seen_no", "start_not_going"]:
+        if step_title in ["seen_yes", "Q_seen_no", "start_not_going"]:
             options = "\n\n" + "\n".join(
                 ["Please reply with one of the following:"]
                 + [f"- '{vr}'" for vr in valid_responses]

@@ -10,6 +10,7 @@ from ai4gd_momconnect_haystack.assessment_logic import (
     _score_single_turn,
     score_assessment_from_simulation,
     validate_assessment_answer,
+    validate_assessment_end_response,
 )
 from ai4gd_momconnect_haystack.enums import AssessmentType
 from ai4gd_momconnect_haystack.pydantic_models import (
@@ -19,7 +20,7 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     OnboardingResponse,
     ReengagementInfo,
     ResponseScore,
-    SurveyResponse,
+    LegacySurveyResponse as SurveyResponse,
     Turn,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import UserJourneyState
@@ -37,6 +38,7 @@ from ai4gd_momconnect_haystack.tasks import (
     handle_reminder_request,
     handle_reminder_response,
     handle_summary_confirmation_step,
+    extract_assessment_data_from_response,
 )
 from ai4gd_momconnect_haystack.utilities import create_response_to_key_map
 
@@ -839,10 +841,18 @@ def test_create_response_to_key_map_generates_correct_keys():
 
 
 @pytest.mark.asyncio
-async def test_handle_reminder_response_affirmative_survey():
+@mock.patch(
+    "ai4gd_momconnect_haystack.tasks.get_or_create_chat_history",
+    new_callable=mock.AsyncMock,
+)
+async def test_handle_reminder_response_affirmative_survey(mock_get_history):
     """
-    Tests that when a user affirmatively responds to a reminder on surveys, the original question is returned.
+    Tests that when a user affirmatively responds to a reminder on surveys,
+    the original question is returned.
     """
+    # Arrange
+    mock_get_history.return_value = []
+
     mock_state = UserJourneyState(
         user_id="test-user",
         current_flow_id="anc-survey",
@@ -851,11 +861,14 @@ async def test_handle_reminder_response_affirmative_survey():
         user_context={},
     )
 
+    # Act
     response = await handle_reminder_response(
         user_id="test-user", user_input="a. Yes", state=mock_state
     )
 
+    # Assert
     assert isinstance(response, SurveyResponse)
+    # ✅ FIX: The assertion now correctly checks for the original question
     assert response.question == "This was the original question."
     assert response.intent == "JOURNEY_RESUMED"
 
@@ -1102,3 +1115,114 @@ def test_handle_conversational_repair_for_ussd_style_flows(
 
     # Assert that the second message is identical to the first, proving no stacking occurred
     assert second_repair_message == first_repair_message
+
+
+@pytest.mark.parametrize(
+    "user_input",
+    ["easy", "EASY", "EaSy", " a ", "A", "  easy  "],
+    ids=[
+        "lowercase_keyword",
+        "uppercase_keyword",
+        "mixed_case_keyword",
+        "letter_with_whitespace",
+        "uppercase_letter",
+        "keyword_with_whitespace",
+    ],
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.assessment_logic.pipelines.run_assessment_end_response_validator_pipeline"
+)
+def test_validate_assessment_end_response_is_case_insensitive(
+    mock_run_pipeline, user_input
+):
+    """
+    Tests that validate_assessment_end_response correctly normalizes various
+    user inputs (keywords and alphabets, with different cases and whitespace)
+    before passing them to the validation pipeline.
+    """
+    # Arrange: Mock the pipeline to return a successful validation
+    mock_run_pipeline.return_value = "Very easy"
+    previous_message = "How easy was it?\na. Very easy\nb. OK"
+    valid_responses = ["Very easy", "OK"]
+
+    # This calculates the expected outcome of the normalization logic
+    # that is being tested inside the function.
+    expected_normalized_input = user_input.lower().strip()
+
+    # Act
+    result = validate_assessment_end_response(
+        previous_message=previous_message,
+        previous_message_nr=1,
+        previous_message_valid_responses=valid_responses,
+        user_response=user_input,
+    )
+
+    # Assert
+    # 1. The function should return the correct, successful result
+    assert result["processed_user_response"] == "Very easy"
+    assert result["next_message_number"] == 2
+
+    # 2. Crucially, assert the pipeline was called with the NORMALIZED input
+    mock_run_pipeline.assert_called_once_with(
+        expected_normalized_input,
+        valid_responses,
+        previous_message,
+    )
+
+
+@pytest.mark.parametrize(
+    "user_input, expected_answer",
+    [
+        ("I drink wine", "Yes"),
+        ("Yebo", "Yes"),
+        ("I don't drink", "No"),
+        ("I stopped drinking", "No"),
+        ("nope", "No"),
+    ],
+    ids=[
+        "conversational_yes",
+        "direct_yes",
+        "conversational_no",
+        "contextual_no",
+        "direct_no",
+    ],
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.tasks.pipelines.run_behaviour_data_extraction_pipeline"
+)
+def test_extract_assessment_data_from_response_with_mocking(
+    mock_run_pipeline, user_input, expected_answer
+):
+    """
+    Tests that the KAB Behaviour data extraction correctly handles various
+    conversational inputs by mocking the AI pipeline.
+
+    This unit test is fast, reliable, and does not require a real API key.
+    """
+    # Arrange: Configure the mock to return the expected answer for this test run.
+    mock_run_pipeline.return_value = expected_answer
+
+    # The question data the function will look up
+    # FIX: Use the correct question content from the application
+    question_content = (
+        "*Since becoming pregnant, have you drunk any alcohol or smoked at all?* 🫃🏽"
+    )
+
+    # Act: Call the function that we are testing
+    result = extract_assessment_data_from_response(
+        user_response=user_input,
+        flow_id="behaviour-pre-assessment",
+        question_number=4,
+    )
+
+    # Assert
+    # 1. Check that the function returned the correct structure with the mocked data.
+    assert result["processed_user_response"] == expected_answer
+    assert result["next_question_number"] == 5
+
+    # 2. Verify that our function called the AI pipeline correctly.
+    mock_run_pipeline.assert_called_once_with(
+        user_response=user_input,
+        previous_service_message=question_content,
+        valid_responses=["Yes", "No"],  # The options for this specific question
+    )

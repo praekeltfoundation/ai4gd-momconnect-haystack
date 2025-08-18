@@ -8,7 +8,6 @@ from fastapi import HTTPException
 from haystack.dataclasses import ChatMessage
 
 from ai4gd_momconnect_haystack.crud import (
-    delete_user_journey_state,
     get_assessment_history,
     get_or_create_chat_history,
     get_user_journey_state,
@@ -31,7 +30,9 @@ from .pydantic_models import (
     AssessmentResponse,
     OnboardingResponse,
     ReengagementInfo,
-    SurveyResponse,
+)
+from .pydantic_models import (
+    LegacySurveyResponse as SurveyResponse,
 )
 from .utilities import (
     ANC_SURVEY_MAP,
@@ -412,25 +413,21 @@ async def get_anc_survey_question(
     user_id: str, user_context: dict, chat_history: list[ChatMessage]
 ) -> dict | None:
     """
-    Gets the next contextualized ANC survey question or identifies a special action step.
+    Gets the next contextualized ANC survey question using the reliable,
+    persisted journey state.
     """
     # TODO: Improve survey histories to know when it's truly a user's first time completing one. For now we are forcing "first_survey" to True.
     user_context["first_survey"] = True
-    chat_history = await get_or_create_chat_history(user_id, HistoryType.anc)
 
-    # Find the last message from the assistant that has a step title.
-    last_assistant_msg = next(
-        (
-            msg
-            for msg in reversed(chat_history)
-            if msg.role.value == "assistant" and msg.meta.get("step_title")
-        ),
-        None,
-    )
-
+    # Determine the current step.
+    state = await get_user_journey_state(user_id)
     current_step = "intro"
-    if last_assistant_msg and last_assistant_msg.meta.get("step_title"):
-        current_step = last_assistant_msg.meta.get("step_title")
+    if state and state.current_step_identifier:
+        current_step = state.current_step_identifier
+
+    last_question = state.last_question_sent if state else ""
+
+    logger.info(f"get_anc_survey_question: Determined current_step is '{current_step}'")
     next_step = get_next_anc_survey_step(current_step, user_context)
 
     # --- Consolidated "Going Soon" Logic with 3-Day Reminder ---
@@ -468,9 +465,7 @@ async def get_anc_survey_question(
     elif next_step == "__USER_REQUESTED_REMINDER__":
         logger.info("Handling user-requested reminder.")
         last_step = current_step  # The step the user was on
-        last_question = last_assistant_msg.text if last_assistant_msg else ""
 
-        state = await get_user_journey_state(user_id)
         current_reminder_count = state.reminder_count if state else 0
         new_reminder_count = current_reminder_count + 1
         reminder_type = ReminderType.USER_REQUESTED
@@ -492,9 +487,7 @@ async def get_anc_survey_question(
         }
 
     if not next_step:
-        logger.warning(
-            f"End of survey reached! Last step was: {current_step if last_assistant_msg else 'None'}"
-        )
+        logger.warning(f"End of survey reached! Last step was: {current_step}")
         return None
 
     # --- Check for special action steps before treating it as a question ---
@@ -527,6 +520,10 @@ async def get_anc_survey_question(
     if not question_data:
         logger.error(f"Could not find question content for step_id: '{next_step}'")
         return None
+
+    is_final = False
+    if question_data.content_type in ["end_message", "reminder_confirmation"]:
+        is_final = True
 
     original_question_content = question_data.content
     valid_responses = question_data.valid_responses
@@ -1065,6 +1062,7 @@ async def handle_reminder_request(
         step_identifier=step_identifier,
         last_question=last_question,
         user_context=user_context,
+        reminder_type=reminder_type,
     )
 
     # 4. Return the specific acknowledgement message from the config
@@ -1280,48 +1278,41 @@ async def handle_reminder_response(
 
     if intent == "AFFIRMATIVE":
         # User wants to continue.
-        # We fetch the original question they missed and send it again.
         restored_context = state.user_context
         question_to_send = state.last_question_sent
+        question_to_send = ""
+        next_q_result = None
 
-        # If for some reason the last question was empty, get the next logical one
-        if not question_to_send:
-            # Handle different flow types when resuming without a stored last question
-            if "survey" in state.current_flow_id:
+        # Special case for the 3-day reminder first.
+        if state.reminder_type == ReminderType.SYSTEM_SCHEDULED_THREE_DAY:
+            question_to_send = state.last_question_sent
+        else:
+            # The standard behavior is to re-send the last question asked.
+            question_to_send = state.last_question_sent
+
+            if not question_to_send:
                 chat_history = await get_or_create_chat_history(
-                    user_id, HistoryType.anc
+                    user_id, HistoryType(state.current_flow_id)
                 )
-                question_result = await get_anc_survey_question(
-                    user_id=user_id,
-                    user_context=restored_context,
-                    chat_history=chat_history,
-                )
-                if question_result:
-                    question_to_send = question_result.get(
-                        "contextualized_question", ""
+                if "survey" in state.current_flow_id:
+                    next_q_result = await get_anc_survey_question(
+                        user_id=user_id,
+                        user_context=restored_context,
+                        chat_history=chat_history,
                     )
-            elif "onboarding" in state.current_flow_id:
-                next_q = get_next_onboarding_question(user_context=restored_context)
-                if next_q:
-                    question_to_send = next_q.get("contextualized_question", "")
-            else:
-                # For KAB flows, we assume the next question is the first one
-                try:
-                    next_q_num = int(state.current_step_identifier)
-                except (TypeError, ValueError):
-                    next_q_num = 0
-                question_result = await get_assessment_question(
-                    user_id=user_id,
-                    flow_id=state.flow_id,
-                    question_number=next_q_num,
-                    user_context=state.user_context,
-                )
-                if question_result:
-                    question_to_send = question_result.get(
-                        "contextualized_question", ""
+                elif "onboarding" in state.current_flow_id:
+                    next_q_result = get_next_onboarding_question(
+                        user_context=restored_context
                     )
-
-        await delete_user_journey_state(user_id)
+                else:
+                    next_q_result = await get_assessment_question(
+                        user_id=user_id,
+                        flow_id=AssessmentType(state.current_flow_id),
+                        question_number=int(state.current_step_identifier) + 1,
+                        user_context=restored_context,
+                    )
+                if next_q_result:
+                    question_to_send = next_q_result.get("contextualized_question", "")
 
         if "onboarding" in state.current_flow_id:
             return OnboardingResponse(
@@ -1336,16 +1327,21 @@ async def handle_reminder_response(
             return SurveyResponse(
                 question=question_to_send,
                 user_context=restored_context,
-                survey_complete=False,
+                survey_complete=not bool(next_q_result),
                 intent="JOURNEY_RESUMED",
                 intent_related_response=None,
                 results_to_save=[],
                 failure_count=0,
             )
         else:
+            next_q_num = (
+                (int(state.current_step_identifier) + 1)
+                if state.current_step_identifier.isdigit()
+                else int(restored_context.get("next_question_number", 0))
+            )
             return AssessmentResponse(
                 question=question_to_send,
-                next_question=int(restored_context.get("next_question_number", 0)),
+                next_question=next_q_num,
                 intent="JOURNEY_RESUMED",
                 intent_related_response=None,
                 processed_answer=None,
@@ -1363,7 +1359,6 @@ async def handle_reminder_response(
             user_context=state.user_context,
             reminder_type=2,  # This is at least the second reminder
         )
-        # Return the appropriate response type for the current flow
         if "onboarding" in state.current_flow_id:
             return OnboardingResponse(
                 question=message,
@@ -1385,10 +1380,10 @@ async def handle_reminder_response(
                 failure_count=0,
                 reengagement_info=reengagement_info,
             )
-        else:
+        else:  # Assessments
             return AssessmentResponse(
                 question=message,
-                next_question=int(state.user_context.get("next_question_number", 0)),
+                next_question=0,
                 intent="REQUEST_TO_BE_REMINDED",
                 intent_related_response=None,
                 processed_answer=None,
@@ -1398,7 +1393,6 @@ async def handle_reminder_response(
 
     else:  # Ambiguous response
         # Re-send the reminder prompt to clarify
-        # FIX: Correctly determine the schedule key to get the right resume message
         schedule_key = "default"
         if "survey" in state.current_flow_id:
             schedule_key = "survey"
@@ -1408,13 +1402,14 @@ async def handle_reminder_response(
             schedule_key = "kab"
 
         schedule = REMINDER_CONFIG.get(schedule_key, REMINDER_CONFIG["default"])
-        # Always use the DEFAULT resume message when re-prompting
-        rephrased_question = schedule["DEFAULT"].get("resume_message")
+        rephrased_question = (
+            schedule["DEFAULT"].get("resume_message") or "Are you ready to continue?"
+        )
 
-        # Return the appropriate response type for the current flow
+        # Return the correct response type for each flow
         if "onboarding" in state.current_flow_id:
             return OnboardingResponse(
-                question=rephrased_question or "",
+                question=rephrased_question,
                 user_context=state.user_context,
                 intent="REPAIR",
                 intent_related_response=None,
@@ -1431,12 +1426,44 @@ async def handle_reminder_response(
                 results_to_save=[],
                 failure_count=0,
             )
-        else:
+        else:  # Assessments
             return AssessmentResponse(
-                question=rephrased_question or "",
-                next_question=None,
+                question=rephrased_question,
+                next_question=0,
                 intent="REPAIR",
                 intent_related_response=None,
                 processed_answer=None,
                 failure_count=0,
             )
+
+
+def classify_anc_start_response(user_input: str) -> str | None:
+    """
+    Reliably classifies the user's response to the first ANC survey question.
+    Returns a standardized key: 'YES', 'NO', 'SOON', or None if ambiguous.
+    """
+    text = user_input.lower().strip()
+    print(f"[ANC Start Response]: {text}")
+
+    # Check for alphabetical options first
+    if text == "a":
+        return "YES"
+    if text == "b":
+        return "NO"
+    if text == "c":
+        return "SOON"
+
+    # Check for keywords
+    went_pattern = r"\b(yes|went|i went)\b"
+    not_going_pattern = r"\b(no|not going)\b"
+    going_soon_pattern = r"\b(soon|going soon)\b"
+
+    if re.search(went_pattern, text):
+        return "YES"
+    if re.search(not_going_pattern, text):
+        return "NO"
+    if re.search(going_soon_pattern, text):
+        print(f"[ANC Start Response]: Detected 'going soon' in response: {text}")
+        return "SOON"
+
+    return None  # Return None if the response is ambiguous
