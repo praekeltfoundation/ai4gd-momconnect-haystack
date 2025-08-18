@@ -5,14 +5,20 @@ import uuid
 from haystack.dataclasses import ChatMessage
 
 # --- Reuse your existing project modules ---
-from . import crud, tasks, doc_store
-from .enums import HistoryType, Intent, TurnState, ReminderType
+from . import crud, doc_store, tasks
+from .enums import HistoryType, Intent, ReminderType, TurnState
 from .pydantic_models import (
     LegacySurveyResponse as SurveyResponse,
+)
+from .pydantic_models import (
     OrchestratorSurveyRequest as SurveyRequest,
+)
+from .pydantic_models import (
     OrchestratorUserJourneyState as UserJourneyState,
-    SurveyTurnContext,
+)
+from .pydantic_models import (
     ReengagementInfo,
+    SurveyTurnContext,
 )
 
 logger = logging.getLogger(__name__)
@@ -22,10 +28,10 @@ MAX_REPAIR_STRIKES = 2
 
 
 # --- Main Orchestrator ---
-async def process_survey_turn(request: SurveyRequest) -> SurveyResponse:
+def process_survey_turn(request: SurveyRequest) -> SurveyResponse:
     try:
-        context = await _initialize_turn_context(request)
-        return await _handle_turn(context)
+        context = _initialize_turn_context(request)
+        return _handle_turn(context)
     except Exception as e:
         trace_id = request.trace_id or str(uuid.uuid4())
         logger.exception(
@@ -44,10 +50,10 @@ async def process_survey_turn(request: SurveyRequest) -> SurveyResponse:
 
 
 # --- State Machine & Routing ---
-async def _initialize_turn_context(request: SurveyRequest) -> SurveyTurnContext:
+def _initialize_turn_context(request: SurveyRequest) -> SurveyTurnContext:
     """Creates the fully hydrated SurveyTurnContext object by loading history and journey state."""
-    journey_alchemy = await crud.get_user_journey_state(request.user_id)
-    history_messages = await crud.get_or_create_chat_history(
+    journey_alchemy = crud.get_user_journey_state(request.user_id)
+    history_messages = crud.get_or_create_chat_history(
         request.user_id, HistoryType(request.survey_id)
     )
 
@@ -105,7 +111,7 @@ def _compute_turn_state(ctx: SurveyTurnContext) -> TurnState:
     return TurnState.ACTIVE_TURN
 
 
-async def _handle_turn(ctx: SurveyTurnContext) -> SurveyResponse:
+def _handle_turn(ctx: SurveyTurnContext) -> SurveyResponse:
     state = _compute_turn_state(ctx)
     router = {
         TurnState.RE_ENGAGEMENT: _handle_re_engagement,
@@ -113,15 +119,15 @@ async def _handle_turn(ctx: SurveyTurnContext) -> SurveyResponse:
         TurnState.AWAITING_INTRO_REPLY: _handle_intro_response,
         TurnState.ACTIVE_TURN: _process_active_response,
     }
-    return await router[state](ctx)
+    return router[state](ctx)
 
 
 # --- State Handlers ---
-async def _handle_re_engagement(ctx: SurveyTurnContext) -> SurveyResponse:
+def _handle_re_engagement(ctx: SurveyTurnContext) -> SurveyResponse:
     if not ctx.journey_state or not ctx.journey_state.last_question_sent:
-        return await _handle_new_survey(ctx)
+        return _handle_new_survey(ctx)
 
-    return await _finalise_and_respond(
+    return _finalise_and_respond(
         ctx,
         assistant_message=f"Welcome back! Let's continue.\n\n{ctx.journey_state.last_question_sent}",
         next_step_id=ctx.journey_state.current_step_identifier,
@@ -129,7 +135,7 @@ async def _handle_re_engagement(ctx: SurveyTurnContext) -> SurveyResponse:
     )
 
 
-async def _handle_new_survey(ctx: SurveyTurnContext) -> SurveyResponse:
+def _handle_new_survey(ctx: SurveyTurnContext) -> SurveyResponse:
     """
     Handles the first turn of a survey by sending the correct static intro message.
     """
@@ -149,12 +155,12 @@ async def _handle_new_survey(ctx: SurveyTurnContext) -> SurveyResponse:
         intro_message = "Welcome! Shall we begin?"
 
     # The next step for ANY new survey is now consistently "intro"
-    return await _finalise_and_respond(
+    return _finalise_and_respond(
         ctx, assistant_message=intro_message, next_step_id="intro"
     )
 
 
-async def _handle_intro_response(ctx: SurveyTurnContext) -> SurveyResponse:
+def _handle_intro_response(ctx: SurveyTurnContext) -> SurveyResponse:
     """
     Handles the user's reply to ANY intro message by dispatching to the
     correct reliable classifier based on the survey_id.
@@ -172,7 +178,7 @@ async def _handle_intro_response(ctx: SurveyTurnContext) -> SurveyResponse:
         if classification:  # Returns 'YES', 'NO', or 'SOON'
             logger.info(f"[{ctx.turn_id}] ANC intro classified as: {classification}")
             ctx.current_context["intro"] = classification  # Store result under 'intro'
-            return await _conclude_valid_turn(ctx)
+            return _conclude_valid_turn(ctx)
         else:  # Ambiguous
             logger.warning(
                 f"[{ctx.turn_id}] ANC intro response is ambiguous. Triggering repair."
@@ -180,16 +186,16 @@ async def _handle_intro_response(ctx: SurveyTurnContext) -> SurveyResponse:
             repair_message = (
                 "Sorry, I didn't quite get that. Please reply with a, b, or c."
             )
-            return await _handle_repair(ctx, "intro", repair_message)
+            return _handle_repair(ctx, "intro", repair_message)
     else:
         print(f"[{ctx.turn_id}] Unsupported survey type: {ctx.request.survey_id}")
         repair_message = (
             "Sorry, I didn't quite understand. Could you say that differently?"
         )
-        return await _handle_repair(ctx, "intro", repair_message)
+        return _handle_repair(ctx, "intro", repair_message)
 
 
-async def _process_active_response(ctx: SurveyTurnContext) -> SurveyResponse:
+def _process_active_response(ctx: SurveyTurnContext) -> SurveyResponse:
     """
     Handles a standard active turn with a simplified and corrected logic flow.
     """
@@ -208,7 +214,7 @@ async def _process_active_response(ctx: SurveyTurnContext) -> SurveyResponse:
             ctx.current_context[step_title] = (
                 "YES" if classification == "AFFIRMATIVE" else "NO"
             )
-            return await _conclude_valid_turn(ctx)
+            return _conclude_valid_turn(ctx)
 
         logger.info(
             f"[{ctx.turn_id}] Classifier was ambiguous for '{step_title}'. Falling back to LLM."
@@ -224,16 +230,16 @@ async def _process_active_response(ctx: SurveyTurnContext) -> SurveyResponse:
 
         if classification == "AFFIRMATIVE":
             ctx.current_context[step_title] = "YES"
-            return await _conclude_valid_turn(ctx)
+            return _conclude_valid_turn(ctx)
         elif classification == "NEGATIVE":
             ctx.current_context[step_title] = "NO"
-            return await _conclude_valid_turn(ctx)
+            return _conclude_valid_turn(ctx)
 
         # If the response is AMBIGUOUS for these steps, trigger a repair.
         logger.warning(
             f"[{ctx.turn_id}] Ambiguous response for '{step_title}'. Triggering repair."
         )
-        return await _handle_repair_or_system_skip(ctx)
+        return _handle_repair_or_system_skip(ctx)
 
     # --- STEP 2: Fallback to the powerful LLM data extractor ---
     tasks.extract_anc_data_from_response(
@@ -245,7 +251,7 @@ async def _process_active_response(ctx: SurveyTurnContext) -> SurveyResponse:
 
     if ctx.current_context != ctx.previous_context:
         logger.info(f"[{ctx.turn_id}] Extraction successful. Context was updated.")
-        return await _conclude_valid_turn(ctx)
+        return _conclude_valid_turn(ctx)
 
     # --- STEP 3: The final fallback logic you asked about ---
     logger.warning(
@@ -257,30 +263,30 @@ async def _process_active_response(ctx: SurveyTurnContext) -> SurveyResponse:
     logger.info(f"[{ctx.turn_id}] Fallback intent detected: {intent}")
 
     if intent == Intent.REQUEST_TO_BE_REMINDED.value:
-        return await _handle_reminder_request(ctx)
+        return _handle_reminder_request(ctx)
     if intent == Intent.SKIP_QUESTION.value:
         if step_title:
             ctx.current_context[step_title] = "Skip"
-        return await _conclude_valid_turn(ctx)
+        return _conclude_valid_turn(ctx)
 
-    return await _handle_repair_or_system_skip(ctx)
+    return _handle_repair_or_system_skip(ctx)
 
 
-async def _conclude_valid_turn(ctx: SurveyTurnContext) -> SurveyResponse:
-    next_q = await tasks.get_anc_survey_question(
+def _conclude_valid_turn(ctx: SurveyTurnContext) -> SurveyResponse:
+    next_q = tasks.get_anc_survey_question(
         user_id=ctx.request.user_id,
         user_context=ctx.current_context,
         chat_history=ctx.history,
     )
     if not next_q:
-        return await _finalise_and_respond(
+        return _finalise_and_respond(
             ctx,
             assistant_message="Thank you!",
             next_step_id="end_of_survey",
             survey_complete=True,
         )
 
-    return await _finalise_and_respond(
+    return _finalise_and_respond(
         ctx,
         assistant_message=next_q.get("contextualized_question", "Thank you!"),
         next_step_id=next_q.get("question_identifier", "end_of_survey"),
@@ -289,7 +295,7 @@ async def _conclude_valid_turn(ctx: SurveyTurnContext) -> SurveyResponse:
     )
 
 
-async def _finalise_and_respond(
+def _finalise_and_respond(
     ctx: SurveyTurnContext,
     *,
     assistant_message: str,
@@ -309,14 +315,14 @@ async def _finalise_and_respond(
         )
     )
 
-    await crud.save_user_journey_state(
+    crud.save_user_journey_state(
         user_id=ctx.request.user_id,
         flow_id=ctx.request.survey_id,
         step_identifier=next_step_id,
         last_question=assistant_message,
         user_context=ctx.current_context,
     )
-    await crud.save_chat_history(
+    crud.save_chat_history(
         ctx.request.user_id, ctx.history, HistoryType(ctx.request.survey_id)
     )
 
@@ -333,18 +339,18 @@ async def _finalise_and_respond(
     )
 
 
-async def _handle_repair(
+def _handle_repair(
     ctx: SurveyTurnContext, step: str, message: str | None
 ) -> SurveyResponse:
     repair_message = (
         message or "Sorry, I didn't quite understand. Could you say that differently?"
     )
-    return await _finalise_and_respond(
+    return _finalise_and_respond(
         ctx, assistant_message=repair_message, next_step_id=step
     )
 
 
-async def _handle_repair_or_system_skip(ctx: SurveyTurnContext) -> SurveyResponse:
+def _handle_repair_or_system_skip(ctx: SurveyTurnContext) -> SurveyResponse:
     step = (
         ctx.journey_state.current_step_identifier
         if ctx.journey_state
@@ -354,7 +360,7 @@ async def _handle_repair_or_system_skip(ctx: SurveyTurnContext) -> SurveyRespons
     if ctx.request.failure_count + 1 >= MAX_REPAIR_STRIKES:
         if step != "unknown_step":
             ctx.current_context[step] = "Skipped - System"
-        return await _conclude_valid_turn(ctx)
+        return _conclude_valid_turn(ctx)
 
     # FIX: Define and provide default "" values for optional fields
     last_question = ctx.journey_state.last_question_sent if ctx.journey_state else ""
@@ -379,11 +385,11 @@ async def _handle_repair_or_system_skip(ctx: SurveyTurnContext) -> SurveyRespons
     )
 
 
-async def _handle_reminder_request(ctx: SurveyTurnContext) -> SurveyResponse:
+def _handle_reminder_request(ctx: SurveyTurnContext) -> SurveyResponse:
     step = ctx.journey_state.current_step_identifier if ctx.journey_state else "intro"
     last_question = ctx.journey_state.last_question_sent if ctx.journey_state else ""
 
-    message, reengagement_info = await tasks.handle_reminder_request(
+    message, reengagement_info = tasks.handle_reminder_request(
         user_id=ctx.request.user_id,
         flow_id=ctx.request.survey_id,
         step_identifier=step,
@@ -391,7 +397,7 @@ async def _handle_reminder_request(ctx: SurveyTurnContext) -> SurveyResponse:
         user_context=ctx.current_context,
         reminder_type=ReminderType.USER_REQUESTED,
     )
-    return await _finalise_and_respond(
+    return _finalise_and_respond(
         ctx,
         assistant_message=message,
         next_step_id=step,

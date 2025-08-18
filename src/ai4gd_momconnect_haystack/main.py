@@ -1,7 +1,6 @@
-import asyncio
-from datetime import datetime
-import logging
 import json
+import logging
+from datetime import datetime
 from os import environ
 from pathlib import Path
 from typing import Any
@@ -10,7 +9,6 @@ from dotenv import load_dotenv
 from haystack.dataclasses import ChatMessage
 from pydantic import ValidationError
 from sqlalchemy import delete
-from .database import run_migrations
 
 from ai4gd_momconnect_haystack.assessment_logic import (
     _score_single_turn,
@@ -19,15 +17,14 @@ from ai4gd_momconnect_haystack.assessment_logic import (
     validate_assessment_answer,
     validate_assessment_end_response,
 )
-from .doc_store import INTRO_MESSAGES  # setup_document_store
 from ai4gd_momconnect_haystack.crud import (
     calculate_and_store_assessment_result,
     get_assessment_end_messaging_history,
     get_assessment_result,
+    get_user_journey_state,
     save_assessment_end_message,
     save_assessment_question,
     save_chat_history,
-    get_user_journey_state,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import (
     AssessmentEndMessagingHistory,
@@ -37,36 +34,37 @@ from ai4gd_momconnect_haystack.sqlalchemy_models import (
     UserJourneyState,
 )
 from ai4gd_momconnect_haystack.tasks import (
-    update_context_from_onboarding_response,
-    get_assessment_question,
     extract_assessment_data_from_response,
+    format_user_data_summary_for_whatsapp,
+    get_assessment_question,
     get_next_onboarding_question,
-    handle_user_message,
+    handle_conversational_repair,
     handle_intro_response,
     handle_summary_confirmation_step,
-    format_user_data_summary_for_whatsapp,
-    handle_conversational_repair,
+    handle_user_message,
+    update_context_from_onboarding_response,
 )
 from ai4gd_momconnect_haystack.utilities import (
-    assessment_map_to_their_pre,
-    assessment_end_flow_map,
+    ANC_SURVEY_MAP,
+    FLOWS_WITH_INTRO,
     all_onboarding_questions,
+    assessment_end_flow_map,
+    assessment_map_to_their_pre,
     generate_scenario_id,
     load_json_and_validate,
-    save_json_file,
-    FLOWS_WITH_INTRO,
-    ANC_SURVEY_MAP,
     prepend_valid_responses_with_alphabetical_index,
+    save_json_file,
 )
 
-from .database import AsyncSessionLocal
+from .database import SessionLocal, run_migrations
+from .doc_store import INTRO_MESSAGES  # setup_document_store
 from .enums import AssessmentType, HistoryType
 from .pydantic_models import (
     AssessmentEndScoreBasedMessage,
     AssessmentEndSimpleMessage,
     AssessmentRun,
-    Turn,
     OrchestratorSurveyRequest,
+    Turn,
 )
 
 load_dotenv()
@@ -112,7 +110,7 @@ def read_json(filepath: Path) -> dict:
         raise
 
 
-async def _get_user_response(
+def _get_user_response(
     gt_lookup: dict[str, dict],
     flow_id: str,
     contextualized_question: str,
@@ -159,7 +157,7 @@ async def _get_user_response(
         return input(contextualized_question + "\n> "), None
 
 
-async def handle_intro_simulation(
+def handle_intro_simulation(
     gt_lookup: dict,
     flow_id: str,
     turn_identifier_key: str,
@@ -185,7 +183,7 @@ async def handle_intro_simulation(
     # print(f"Intro Message: {intro_message}")
     logger.info(f"Intro Message: {intro_message}")
 
-    consent_response, _ = await _get_user_response(
+    consent_response, _ = _get_user_response(
         gt_lookup=gt_lookup,
         flow_id=flow_id,
         contextualized_question=intro_message,
@@ -212,13 +210,13 @@ async def handle_intro_simulation(
         ChatMessage.from_assistant(text=intro_message, meta={"step_title": "intro"})
     )
     chat_history.append(ChatMessage.from_user(text=consent_response))
-    await save_chat_history(user_id, chat_history, history_type)
+    save_chat_history(user_id, chat_history, history_type)
 
     logger.info(f"User consented. Starting {flow_id}...")
     return True
 
 
-async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
+def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
     """
     Runs a simulation of the onboarding and assessment process using the pipelines.
     """
@@ -277,9 +275,9 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
     if sim_onboarding:
         # Simulate Onboarding
-        async with AsyncSessionLocal() as session:
-            async with session.begin():
-                await session.execute(
+        with SessionLocal() as session:
+            with session.begin():
+                session.execute(
                     delete(ChatHistory).where(ChatHistory.user_id == user_id)
                 )
         chat_history: list[ChatMessage] = [
@@ -298,7 +296,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             "turns": None,
         }
 
-        should_proceed = await handle_intro_simulation(
+        should_proceed = handle_intro_simulation(
             gt_lookup=gt_lookup_by_flow,
             flow_id=flow_id,
             turn_identifier_key="question_number",
@@ -338,7 +336,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 current_prompt = contextualized_question
 
                 while True:
-                    user_response, gt_turn = await _get_user_response(
+                    user_response, gt_turn = _get_user_response(
                         gt_lookup=gt_lookup_by_flow,
                         flow_id=flow_id,
                         contextualized_question=current_prompt,
@@ -544,7 +542,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 print("Onboarding Summary Screen:")
 
                 # Get the user's confirmation or update request
-                summary_response, _ = await _get_user_response(
+                summary_response, _ = _get_user_response(
                     gt_lookup=gt_lookup_by_flow,
                     flow_id=flow_id,
                     contextualized_question=summary_message,
@@ -614,9 +612,9 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)
         ]  # Initialize here
 
-        async with AsyncSessionLocal() as session:
-            async with session.begin():
-                await session.execute(
+        with SessionLocal() as session:
+            with session.begin():
+                session.execute(
                     delete(AssessmentHistory).where(
                         AssessmentHistory.user_id == user_id,
                         AssessmentHistory.assessment_id == flow_id.value,
@@ -637,7 +635,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
         }
         dma_turns = []
 
-        should_proceed = await handle_intro_simulation(
+        should_proceed = handle_intro_simulation(
             gt_lookup=gt_lookup_by_flow,
             flow_id=flow_id.value,
             turn_identifier_key="question_number",
@@ -652,7 +650,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 print("-" * 20)
                 logger.info(f"Assessment Step: Requesting question {question_number}")
 
-                result = await get_assessment_question(
+                result = get_assessment_question(
                     user_id=user_id,
                     flow_id=flow_id,
                     question_number=question_number,
@@ -662,7 +660,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     logger.info("Assessment flow complete.")
                     break
                 contextualized_question = result["contextualized_question"]
-                await save_assessment_question(
+                save_assessment_question(
                     user_id=user_id,
                     assessment_type=flow_id,
                     question_number=question_number,
@@ -679,7 +677,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 current_prompt = contextualized_question
 
                 while True:
-                    user_response, gt_turn = await _get_user_response(
+                    user_response, gt_turn = _get_user_response(
                         gt_lookup=gt_lookup_by_flow,
                         flow_id=flow_id.value,
                         contextualized_question=contextualized_question,
@@ -785,7 +783,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         Turn.model_validate(dma_turns[-1]),
                         question_lookup,
                     )
-                    await save_assessment_question(
+                    save_assessment_question(
                         user_id=user_id,
                         assessment_type=flow_id,
                         question=None,
@@ -794,15 +792,15 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         score=score_result["score"],
                     )
 
-            await calculate_and_store_assessment_result(user_id, flow_id)
+            calculate_and_store_assessment_result(user_id, flow_id)
 
             # Start of assessment-end messaging
             next_message = "placeholder"
             user_response = ""
             previous_message: str = ""
-            async with AsyncSessionLocal() as session:
-                async with session.begin():
-                    await session.execute(
+            with SessionLocal() as session:
+                with session.begin():
+                    session.execute(
                         delete(AssessmentEndMessagingHistory).where(
                             AssessmentEndMessagingHistory.user_id == user_id,
                             AssessmentEndMessagingHistory.assessment_id
@@ -810,7 +808,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         )
                     )
             while next_message:
-                assessment_result = await get_assessment_result(user_id, flow_id)
+                assessment_result = get_assessment_result(user_id, flow_id)
                 if not assessment_result:
                     logger.error(
                         f"Overall assessment result for {flow_id.value} not found!"
@@ -819,7 +817,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 score_category = assessment_result.category
                 if assessment_result.crossed_skip_threshold:
                     score_category = "skipped-many"
-                messaging_history = await get_assessment_end_messaging_history(
+                messaging_history = get_assessment_end_messaging_history(
                     user_id=user_id, assessment_type=flow_id
                 )
                 flow_content = assessment_end_flow_map[flow_id.value]
@@ -950,7 +948,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         else:
                             processed_user_response = result["processed_user_response"]
                             # If the user response was valid, save it to the existing AssessmentEndMessagingHistory record
-                            await save_assessment_end_message(
+                            save_assessment_end_message(
                                 user_response,
                                 flow_id,
                                 next_message_nr - 1,
@@ -1040,12 +1038,10 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
                 # If a new question is being sent, save it in a new AssessmentEndMessagingHistory record
                 if next_message and next_message_nr == previous_message_nr + 1:
-                    await save_assessment_end_message(
-                        user_id, flow_id, next_message_nr, ""
-                    )
+                    save_assessment_end_message(user_id, flow_id, next_message_nr, "")
                 print(f"Task: {task}")
                 print(f"Question #: {next_message_nr}")
-                user_response, gt_turn = await _get_user_response(
+                user_response, gt_turn = _get_user_response(
                     gt_lookup={},
                     flow_id=flow_id.value,
                     contextualized_question=next_message,
@@ -1057,22 +1053,22 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 print(f"User_response: {user_response}")
             # End of assessment-end messaging
 
-            async with AsyncSessionLocal() as session:
-                async with session.begin():
-                    await session.execute(
+            with SessionLocal() as session:
+                with session.begin():
+                    session.execute(
                         delete(AssessmentHistory).where(
                             AssessmentHistory.user_id == user_id,
                             AssessmentHistory.assessment_id == flow_id.value,
                         )
                     )
             # And also the overall assessment result, if there is one:
-            assessment_result = await get_assessment_result(user_id, flow_id)
+            assessment_result = get_assessment_result(user_id, flow_id)
             if assessment_result:
                 print("Assessment Result:")
                 print(assessment_result)
-                async with AsyncSessionLocal() as session:
-                    async with session.begin():
-                        await session.execute(
+                with SessionLocal() as session:
+                    with session.begin():
+                        session.execute(
                             delete(AssessmentResultHistory).where(
                                 AssessmentResultHistory.user_id == user_id,
                                 AssessmentResultHistory.assessment_id == flow_id.value,
@@ -1106,9 +1102,9 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
         flows_to_run = kab_flows_in_gt if gt_scenarios else kab_flow_ids
 
         for flow_id in flows_to_run:
-            async with AsyncSessionLocal() as session:
-                async with session.begin():
-                    await session.execute(
+            with SessionLocal() as session:
+                with session.begin():
+                    session.execute(
                         delete(AssessmentHistory).where(
                             AssessmentHistory.user_id == user_id,
                             AssessmentHistory.assessment_id == flow_id.value,
@@ -1120,9 +1116,9 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             question_number = 1
             user_context["goal"] = "Complete the assessment"
             max_assessment_steps = 20  # Safety break
-            async with AsyncSessionLocal() as session:
-                async with session.begin():
-                    await session.execute(
+            with SessionLocal() as session:
+                with session.begin():
+                    session.execute(
                         delete(ChatHistory).where(ChatHistory.user_id == user_id)
                     )
             chat_history = [
@@ -1142,7 +1138,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 "turns": [],
             }
             kab_turns = []
-            should_proceed = await handle_intro_simulation(
+            should_proceed = handle_intro_simulation(
                 gt_lookup=gt_lookup_by_flow,
                 flow_id=flow_id.value,
                 turn_identifier_key="question_number",
@@ -1160,7 +1156,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         f"Assessment Step: Requesting question {question_number}"
                     )
 
-                    result = await get_assessment_question(
+                    result = get_assessment_question(
                         user_id=user_id,
                         flow_id=flow_id,
                         question_number=question_number,
@@ -1170,7 +1166,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         logger.info("Assessment flow complete.")
                         break
                     contextualized_question = result["contextualized_question"]
-                    await save_assessment_question(
+                    save_assessment_question(
                         user_id=user_id,
                         assessment_type=flow_id,
                         question_number=question_number,
@@ -1188,7 +1184,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     current_prompt = contextualized_question
 
                     while True:
-                        user_response, gt_turn = await _get_user_response(
+                        user_response, gt_turn = _get_user_response(
                             gt_lookup=gt_lookup_by_flow,
                             flow_id=flow_id.value,
                             contextualized_question=contextualized_question,
@@ -1295,7 +1291,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                             Turn.model_validate(kab_turns[-1]),
                             question_lookup,
                         )
-                        await save_assessment_question(
+                        save_assessment_question(
                             user_id=user_id,
                             assessment_type=flow_id,
                             question=None,
@@ -1304,14 +1300,14 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                             score=score_result["score"],
                         )
 
-                await calculate_and_store_assessment_result(user_id, flow_id)
+                calculate_and_store_assessment_result(user_id, flow_id)
 
                 # Start of assessment-end messaging
                 next_message = "placeholder"
                 user_response = ""
-                async with AsyncSessionLocal() as session:
-                    async with session.begin():
-                        await session.execute(
+                with SessionLocal() as session:
+                    with session.begin():
+                        session.execute(
                             delete(AssessmentEndMessagingHistory).where(
                                 AssessmentEndMessagingHistory.user_id == user_id,
                                 AssessmentEndMessagingHistory.assessment_id
@@ -1319,7 +1315,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                             )
                         )
                 while next_message:
-                    assessment_result = await get_assessment_result(user_id, flow_id)
+                    assessment_result = get_assessment_result(user_id, flow_id)
                     if not assessment_result:
                         logger.error(
                             f"Overall assessment result for {flow_id.value} not found!"
@@ -1328,7 +1324,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     score_category = assessment_result.category
                     if assessment_result.crossed_skip_threshold:
                         score_category = "skipped-many"
-                    messaging_history = await get_assessment_end_messaging_history(
+                    messaging_history = get_assessment_end_messaging_history(
                         user_id=user_id, assessment_type=flow_id
                     )
                     flow_content = assessment_end_flow_map[flow_id.value]
@@ -1449,7 +1445,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                                     "processed_user_response"
                                 ]
                                 # If the user response was valid, save it to the existing AssessmentEndMessagingHistory record
-                                await save_assessment_end_message(
+                                save_assessment_end_message(
                                     user_response,
                                     flow_id,
                                     next_message_nr - 1,
@@ -1549,12 +1545,12 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
                     # If a new question is being sent, save it in a new AssessmentEndMessagingHistory record
                     if next_message and next_message_nr == previous_message_nr + 1:
-                        await save_assessment_end_message(
+                        save_assessment_end_message(
                             user_id, flow_id, next_message_nr, ""
                         )
                     print(f"Task: {task}")
                     print(f"Question #: {next_message_nr}")
-                    user_response, gt_turn = await _get_user_response(
+                    user_response, gt_turn = _get_user_response(
                         gt_lookup={},
                         flow_id=flow_id.value,
                         contextualized_question=next_message,
@@ -1566,20 +1562,20 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     print(f"User_response: {user_response}")
                 # End of assessment-end messaging
 
-                async with AsyncSessionLocal() as session:
-                    async with session.begin():
-                        await session.execute(
+                with SessionLocal() as session:
+                    with session.begin():
+                        session.execute(
                             delete(AssessmentHistory).where(
                                 AssessmentHistory.user_id == user_id,
                                 AssessmentHistory.assessment_id == flow_id.value,
                             )
                         )
                 # And also the overall assessment result, if there is one:
-                assessment_result = await get_assessment_result(user_id, flow_id)
+                assessment_result = get_assessment_result(user_id, flow_id)
                 if assessment_result:
-                    async with AsyncSessionLocal() as session:
-                        async with session.begin():
-                            await session.execute(
+                    with SessionLocal() as session:
+                        with session.begin():
+                            session.execute(
                                 delete(AssessmentResultHistory).where(
                                     AssessmentResultHistory.user_id == user_id,
                                     AssessmentResultHistory.assessment_id
@@ -1617,12 +1613,12 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
         failure_count = 0
 
         # Clear previous history for this user if any
-        async with AsyncSessionLocal() as session:
-            async with session.begin():
-                await session.execute(
+        with SessionLocal() as session:
+            with session.begin():
+                session.execute(
                     delete(ChatHistory).where(ChatHistory.user_id == user_id)
                 )
-                await session.execute(
+                session.execute(
                     delete(UserJourneyState).where(UserJourneyState.user_id == user_id)
                 )
 
@@ -1638,7 +1634,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             )
 
             # 2. Call the single, powerful orchestrator function
-            response = await process_survey_turn(request)
+            response = process_survey_turn(request)
 
             # 3. Process the response
             print(f"ASSISTANT:\n{response.question}")
@@ -1657,7 +1653,7 @@ async def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
             if user_context:
                 # We need to get the last step from the saved state to know what question we're on
                 # In a real app, this state would be loaded at the start of the turn
-                temp_state = await get_user_journey_state(user_id)
+                temp_state = get_user_journey_state(user_id)
                 if temp_state:
                     step_title = temp_state.current_step_identifier
                     question_data = ANC_SURVEY_MAP.get(step_title)
@@ -1715,7 +1711,7 @@ def _process_run(run: AssessmentRun) -> dict:
     return run.model_dump()
 
 
-async def async_main(
+def main(
     GT_FILE_PATH=GT_FILE_PATH,
     is_automated=False,
     save_simulation=False,
@@ -1755,10 +1751,10 @@ async def async_main(
                     f"Failed to load ground truth file from {GT_FILE_PATH}. Exiting."
                 )
                 return None
-            raw_simulation_output = await run_simulation(gt_scenarios=gt_scenarios)
+            raw_simulation_output = run_simulation(gt_scenarios=gt_scenarios)
         else:
             logging.info("Starting simulation in INTERACTIVE mode...")
-            raw_simulation_output = await run_simulation(gt_scenarios=None)
+            raw_simulation_output = run_simulation(gt_scenarios=None)
 
         print("_________ COMPLETED SIMULATION__________")
 
@@ -1811,13 +1807,8 @@ async def async_main(
         logging.info("Simulation finished. Resources should be released.")
 
 
-def main() -> None:
-    """The synchronous entry point for the script."""
+if __name__ == "__main__":
     try:
-        asyncio.run(async_main())
+        main()
     except KeyboardInterrupt:
         print("\nSimulation cancelled by user.")
-
-
-if __name__ == "__main__":
-    main()

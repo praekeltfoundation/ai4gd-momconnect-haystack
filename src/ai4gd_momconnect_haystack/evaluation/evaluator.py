@@ -7,23 +7,22 @@ A script to evaluate LLM performance based on three criteria for each turn:
 """
 
 import argparse
-import asyncio
 import json
 import logging
 import os
 import re
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
+import polars as pl
 from deepeval import evaluate
 from deepeval.metrics import AnswerRelevancyMetric, BaseMetric
 from deepeval.test_case import LLMTestCase
-import polars as pl
 from sklearn.metrics import classification_report, confusion_matrix  # type: ignore
 
 # This allows the evaluator to call the main simulation script directly.
-from ai4gd_momconnect_haystack.main import async_main as run_main_simulation
+from ai4gd_momconnect_haystack.main import main as run_main_simulation
 
 # Configure logging to show only important messages and suppress third-party warnings
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
@@ -442,13 +441,11 @@ def main() -> None:
         else:
             RESULT_FILE_PATH = None
 
-        output_path = asyncio.run(
-            run_main_simulation(
-                GT_FILE_PATH=args.gt_file,
-                RESULT_FILE_PATH=RESULT_FILE_PATH,
-                is_automated=True,
-                save_simulation=True,
-            )
+        output_path = run_main_simulation(
+            GT_FILE_PATH=args.gt_file,
+            RESULT_FILE_PATH=RESULT_FILE_PATH,
+            is_automated=True,
+            save_simulation=True,
         )
         if not output_path or not output_path.exists():
             exit("Simulation failed or did not produce an output file. Aborting.")

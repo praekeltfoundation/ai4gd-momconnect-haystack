@@ -1,17 +1,19 @@
 # tests/test_survey_tasks.py
 
-import pytest
 from unittest import mock
-from unittest.mock import AsyncMock
+from unittest.mock import Mock
 
+import pytest
 from haystack.dataclasses import ChatMessage
 
-from ai4gd_momconnect_haystack.survey_orchestrator import process_survey_turn
+from ai4gd_momconnect_haystack.enums import Intent
 from ai4gd_momconnect_haystack.pydantic_models import (
     OrchestratorSurveyRequest as SurveyRequest,
+)
+from ai4gd_momconnect_haystack.pydantic_models import (
     OrchestratorUserJourneyState as UserJourneyState,
 )
-from ai4gd_momconnect_haystack.enums import Intent
+from ai4gd_momconnect_haystack.survey_orchestrator import process_survey_turn
 
 # --- Test Fixtures for Reusable Test Data ---
 
@@ -57,15 +59,10 @@ def mock_journey_state_active() -> UserJourneyState:
 # --- Tests for survey_orchestrator.py ---
 
 
-@pytest.mark.asyncio
-@mock.patch(
-    "ai4gd_momconnect_haystack.survey_orchestrator.crud", new_callable=AsyncMock
-)
-@mock.patch(
-    "ai4gd_momconnect_haystack.survey_orchestrator.tasks", new_callable=AsyncMock
-)
-async def test_new_survey_starts_correctly(
-    mock_tasks: AsyncMock, mock_crud: AsyncMock, mock_request: SurveyRequest
+@mock.patch("ai4gd_momconnect_haystack.survey_orchestrator.crud", new_callable=Mock)
+@mock.patch("ai4gd_momconnect_haystack.survey_orchestrator.tasks", new_callable=Mock)
+def test_new_survey_starts_correctly(
+    mock_tasks: Mock, mock_crud: Mock, mock_request: SurveyRequest
 ):
     """
     Verifies that the first turn of a survey (no user_input) correctly
@@ -77,17 +74,16 @@ async def test_new_survey_starts_correctly(
     mock_crud.get_or_create_chat_history.return_value = []
 
     # Act
-    response = await process_survey_turn(mock_request)
+    response = process_survey_turn(mock_request)
 
     # Assert
     assert response.question_identifier == "intro"
     assert not response.survey_complete
-    mock_crud.save_user_journey_state.assert_awaited_once()
+    mock_crud.save_user_journey_state.assert_called_once()
     saved_state_args = mock_crud.save_user_journey_state.call_args.kwargs
     assert saved_state_args["step_identifier"] == "intro"
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "user_input, classified_as, expected_context_value, expected_next_step",
     [
@@ -97,15 +93,11 @@ async def test_new_survey_starts_correctly(
     ],
     ids=["Yes response", "No response", "Soon response"],
 )
-@mock.patch(
-    "ai4gd_momconnect_haystack.survey_orchestrator.crud", new_callable=AsyncMock
-)
-@mock.patch(
-    "ai4gd_momconnect_haystack.survey_orchestrator.tasks", new_callable=AsyncMock
-)
-async def test_intro_response_branching(
-    mock_tasks: AsyncMock,
-    mock_crud: AsyncMock,
+@mock.patch("ai4gd_momconnect_haystack.survey_orchestrator.crud", new_callable=Mock)
+@mock.patch("ai4gd_momconnect_haystack.survey_orchestrator.tasks", new_callable=Mock)
+def test_intro_response_branching(
+    mock_tasks: Mock,
+    mock_crud: Mock,
     mock_request: SurveyRequest,
     mock_journey_state_intro: UserJourneyState,
     user_input,
@@ -126,32 +118,27 @@ async def test_intro_response_branching(
     # Configure the synchronous classifier to be a standard mock
     mock_tasks.classify_anc_start_response = mock.Mock(return_value=classified_as)
 
-    # The get_anc_survey_question function is async, so its mock setup is correct
+    # The get_anc_survey_question function is sync, so its mock setup is correct
     mock_tasks.get_anc_survey_question.return_value = {
         "question_identifier": expected_next_step,
         "contextualized_question": "Next question text",
     }
 
     # Act
-    response = await process_survey_turn(mock_request)
+    response = process_survey_turn(mock_request)
 
     # Assert
     assert response.question_identifier == expected_next_step
-    mock_tasks.get_anc_survey_question.assert_awaited_once()
+    mock_tasks.get_anc_survey_question.assert_called_once()
     call_context = mock_tasks.get_anc_survey_question.call_args.kwargs["user_context"]
     assert call_context.get("intro") == expected_context_value
 
 
-@pytest.mark.asyncio
-@mock.patch(
-    "ai4gd_momconnect_haystack.survey_orchestrator.crud", new_callable=AsyncMock
-)
-@mock.patch(
-    "ai4gd_momconnect_haystack.survey_orchestrator.tasks", new_callable=AsyncMock
-)
-async def test_active_turn_successful_extraction(
-    mock_tasks: AsyncMock,
-    mock_crud: AsyncMock,
+@mock.patch("ai4gd_momconnect_haystack.survey_orchestrator.crud", new_callable=Mock)
+@mock.patch("ai4gd_momconnect_haystack.survey_orchestrator.tasks", new_callable=Mock)
+def test_active_turn_successful_extraction(
+    mock_tasks: Mock,
+    mock_crud: Mock,
     mock_request: SurveyRequest,
     mock_journey_state_active: UserJourneyState,
 ):
@@ -178,25 +165,20 @@ async def test_active_turn_successful_extraction(
     }
 
     # Act
-    response = await process_survey_turn(mock_request)
+    response = process_survey_turn(mock_request)
 
     # Assert
     assert response.question_identifier == "seen_yes"
-    mock_tasks.get_anc_survey_question.assert_awaited_once()
+    mock_tasks.get_anc_survey_question.assert_called_once()
     call_context = mock_tasks.get_anc_survey_question.call_args.kwargs["user_context"]
     assert call_context.get("Q_seen") == "YES"
 
 
-@pytest.mark.asyncio
-@mock.patch(
-    "ai4gd_momconnect_haystack.survey_orchestrator.crud", new_callable=AsyncMock
-)
-@mock.patch(
-    "ai4gd_momconnect_haystack.survey_orchestrator.tasks", new_callable=AsyncMock
-)
-async def test_active_turn_extraction_failure_triggers_repair(
-    mock_tasks: AsyncMock,
-    mock_crud: AsyncMock,
+@mock.patch("ai4gd_momconnect_haystack.survey_orchestrator.crud", new_callable=Mock)
+@mock.patch("ai4gd_momconnect_haystack.survey_orchestrator.tasks", new_callable=Mock)
+def test_active_turn_extraction_failure_triggers_repair(
+    mock_tasks: Mock,
+    mock_crud: Mock,
     mock_request: SurveyRequest,
     mock_journey_state_active: UserJourneyState,
 ):
@@ -223,7 +205,7 @@ async def test_active_turn_extraction_failure_triggers_repair(
     )
 
     # Act
-    response = await process_survey_turn(mock_request)
+    response = process_survey_turn(mock_request)
 
     # Assert
     assert response.question == "Sorry, please try again."
@@ -231,16 +213,11 @@ async def test_active_turn_extraction_failure_triggers_repair(
     assert response.failure_count == 1
 
 
-@pytest.mark.asyncio
-@mock.patch(
-    "ai4gd_momconnect_haystack.survey_orchestrator.crud", new_callable=AsyncMock
-)
-@mock.patch(
-    "ai4gd_momconnect_haystack.survey_orchestrator.tasks", new_callable=AsyncMock
-)
-async def test_system_skip_after_max_failures(
-    mock_tasks: AsyncMock,
-    mock_crud: AsyncMock,
+@mock.patch("ai4gd_momconnect_haystack.survey_orchestrator.crud", new_callable=Mock)
+@mock.patch("ai4gd_momconnect_haystack.survey_orchestrator.tasks", new_callable=Mock)
+def test_system_skip_after_max_failures(
+    mock_tasks: Mock,
+    mock_crud: Mock,
     mock_request: SurveyRequest,
     mock_journey_state_active: UserJourneyState,
 ):
@@ -269,26 +246,21 @@ async def test_system_skip_after_max_failures(
     }
 
     # Act
-    response = await process_survey_turn(mock_request)
+    response = process_survey_turn(mock_request)
 
     # Assert
     assert response.question_identifier == "seen_yes"
-    mock_tasks.get_anc_survey_question.assert_awaited_once()
+    mock_tasks.get_anc_survey_question.assert_called_once()
     call_context = mock_tasks.get_anc_survey_question.call_args.kwargs["user_context"]
     assert call_context.get("Q_seen") == "Skipped - System"
     assert response.failure_count == 0
 
 
-@pytest.mark.asyncio
-@mock.patch(
-    "ai4gd_momconnect_haystack.survey_orchestrator.crud", new_callable=AsyncMock
-)
-@mock.patch(
-    "ai4gd_momconnect_haystack.survey_orchestrator.tasks", new_callable=AsyncMock
-)
-async def test_end_of_survey_is_handled(
-    mock_tasks: AsyncMock,
-    mock_crud: AsyncMock,
+@mock.patch("ai4gd_momconnect_haystack.survey_orchestrator.crud", new_callable=Mock)
+@mock.patch("ai4gd_momconnect_haystack.survey_orchestrator.tasks", new_callable=Mock)
+def test_end_of_survey_is_handled(
+    mock_tasks: Mock,
+    mock_crud: Mock,
     mock_request: SurveyRequest,
     mock_journey_state_active: UserJourneyState,
 ):
@@ -317,7 +289,7 @@ async def test_end_of_survey_is_handled(
     mock_tasks.get_anc_survey_question.return_value = None
 
     # Act
-    response = await process_survey_turn(mock_request)
+    response = process_survey_turn(mock_request)
 
     # Assert
     assert response.survey_complete is True
@@ -325,16 +297,11 @@ async def test_end_of_survey_is_handled(
     assert "Thank you" in response.question
 
 
-@pytest.mark.asyncio
-@mock.patch(
-    "ai4gd_momconnect_haystack.survey_orchestrator.crud", new_callable=AsyncMock
-)
-@mock.patch(
-    "ai4gd_momconnect_haystack.survey_orchestrator.tasks", new_callable=AsyncMock
-)
-async def test_re_engagement_ping_resumes_correctly(
-    mock_tasks: AsyncMock,
-    mock_crud: AsyncMock,
+@mock.patch("ai4gd_momconnect_haystack.survey_orchestrator.crud", new_callable=Mock)
+@mock.patch("ai4gd_momconnect_haystack.survey_orchestrator.tasks", new_callable=Mock)
+def test_re_engagement_ping_resumes_correctly(
+    mock_tasks: Mock,
+    mock_crud: Mock,
     mock_request: SurveyRequest,
     mock_journey_state_active: UserJourneyState,
 ):
@@ -349,7 +316,7 @@ async def test_re_engagement_ping_resumes_correctly(
     mock_crud.get_or_create_chat_history.return_value = []
 
     # Act
-    response = await process_survey_turn(mock_request)
+    response = process_survey_turn(mock_request)
 
     # Assert
     assert response.question is not None
@@ -360,15 +327,10 @@ async def test_re_engagement_ping_resumes_correctly(
     mock_tasks.get_anc_survey_question.assert_not_called()
 
 
-@pytest.mark.asyncio
-@mock.patch(
-    "ai4gd_momconnect_haystack.survey_orchestrator.crud", new_callable=AsyncMock
-)
-@mock.patch(
-    "ai4gd_momconnect_haystack.survey_orchestrator.tasks", new_callable=AsyncMock
-)
-async def test_unexpected_error_returns_safe_response(
-    mock_tasks: AsyncMock, mock_crud: AsyncMock, mock_request: SurveyRequest
+@mock.patch("ai4gd_momconnect_haystack.survey_orchestrator.crud", new_callable=Mock)
+@mock.patch("ai4gd_momconnect_haystack.survey_orchestrator.tasks", new_callable=Mock)
+def test_unexpected_error_returns_safe_response(
+    mock_tasks: Mock, mock_crud: Mock, mock_request: SurveyRequest
 ):
     """
     Verifies that if a dependency raises an unexpected exception, the
@@ -380,7 +342,7 @@ async def test_unexpected_error_returns_safe_response(
     )
 
     # Act
-    response = await process_survey_turn(mock_request)
+    response = process_survey_turn(mock_request)
 
     # Assert
     assert response.question is not None

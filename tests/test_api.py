@@ -7,22 +7,18 @@ from haystack.dataclasses import ChatMessage
 from sentry_sdk import get_client as get_sentry_client
 
 from ai4gd_momconnect_haystack.api import app, setup_sentry
-from ai4gd_momconnect_haystack.database import AsyncSessionLocal
+from ai4gd_momconnect_haystack.database import SessionLocal
 from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentEndScoreBasedMessage,
     AssessmentResult,
+    LegacySurveyResponse,
+    OrchestratorSurveyRequest,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import (
     AssessmentEndMessagingHistory,
     UserJourneyState,
 )
-
-from ai4gd_momconnect_haystack.pydantic_models import (
-    OrchestratorSurveyRequest,
-    LegacySurveyResponse,
-)
-
 
 SERVICE_PERSONA_TEXT = "Test Persona"
 
@@ -75,17 +71,14 @@ def test_onboarding_invalid_auth_token():
     assert response.status_code == 401
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch("ai4gd_momconnect_haystack.api.handle_conversational_repair")
 @mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
-async def test_onboarding_chitchat(
-    mock_get_history, mock_handle_user_message, mock_repair
-):
+def test_onboarding_chitchat(mock_get_history, mock_handle_user_message, mock_repair):
     """
     Tests that when a user provides a chitchat response during the onboarding flow,
     the system triggers the conversational repair mechanism instead of proceeding.
@@ -119,23 +112,22 @@ async def test_onboarding_chitchat(
     mock_repair.assert_called_once()
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch("ai4gd_momconnect_haystack.api.SERVICE_PERSONA_TEXT", "Test Persona")
 @mock.patch("ai4gd_momconnect_haystack.api.get_next_onboarding_question")
 @mock.patch(
     "ai4gd_momconnect_haystack.api.save_chat_history",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.delete_chat_history_for_user",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
-async def test_onboarding_first_question(
+def test_onboarding_first_question(
     get_or_create_chat_history,
     delete_chat_history_for_user,
     save_chat_history,
@@ -159,17 +151,17 @@ async def test_onboarding_first_question(
     assert json_response["intent"] == "SYSTEM_INTRO"
 
     # 2. Assert that history creation was attempted first
-    get_or_create_chat_history.assert_awaited_once_with(
+    get_or_create_chat_history.assert_called_once_with(
         user_id="TestUser", history_type=HistoryType.onboarding
     )
 
     # 3. Assert that the old history was then deleted
-    delete_chat_history_for_user.assert_awaited_once_with(
+    delete_chat_history_for_user.assert_called_once_with(
         "TestUser", HistoryType.onboarding
     )
 
     # 4. Assert that the new history is saved correctly
-    save_chat_history.assert_awaited_once_with(
+    save_chat_history.assert_called_once_with(
         user_id="TestUser", messages=mock.ANY, history_type=HistoryType.onboarding
     )
     saved_messages = save_chat_history.call_args.kwargs["messages"]
@@ -185,7 +177,6 @@ async def test_onboarding_first_question(
     get_next_onboarding_question.assert_not_called()
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch("ai4gd_momconnect_haystack.api.process_onboarding_step")
 @mock.patch(
@@ -194,13 +185,13 @@ async def test_onboarding_first_question(
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.save_chat_history",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
-async def test_onboarding(
+def test_onboarding(
     get_or_create_chat_history,
     save_chat_history,
     handle_user_message,
@@ -236,11 +227,10 @@ async def test_onboarding(
     )
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch("ai4gd_momconnect_haystack.api.handle_conversational_repair")
 @mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
-async def test_assessment_chitchat(mock_handle_user_message, mock_repair):
+def test_assessment_chitchat(mock_handle_user_message, mock_repair):
     """
     Tests that a chitchat response during an assessment correctly triggers the
     conversational repair flow, re-phrasing the question rather than attempting
@@ -271,22 +261,21 @@ async def test_assessment_chitchat(mock_handle_user_message, mock_repair):
     mock_repair.assert_called_once()
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
 @mock.patch(
-    "ai4gd_momconnect_haystack.api.get_assessment_question", new_callable=mock.AsyncMock
+    "ai4gd_momconnect_haystack.api.get_assessment_question", new_callable=mock.Mock
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.delete_assessment_history_for_user",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_answer")
 @mock.patch(
     "ai4gd_momconnect_haystack.api.save_assessment_question",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
-async def test_assessment_initial_message(
+def test_assessment_initial_message(
     save_assessment_question,
     validate_assessment_answer,
     delete_assessment_history_for_user,
@@ -330,30 +319,29 @@ async def test_assessment_initial_message(
 
     handle_user_message.assert_not_called()
     validate_assessment_answer.assert_not_called()
-    delete_assessment_history_for_user.assert_awaited_once_with(
+    delete_assessment_history_for_user.assert_called_once_with(
         "TestUser", AssessmentType.dma_pre_assessment
     )
-    get_assessment_question.assert_awaited_once()
-    save_assessment_question.assert_awaited_once()
+    get_assessment_question.assert_called_once()
+    save_assessment_question.assert_called_once()
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
 @mock.patch(
-    "ai4gd_momconnect_haystack.api.get_assessment_question", new_callable=mock.AsyncMock
+    "ai4gd_momconnect_haystack.api.get_assessment_question", new_callable=mock.Mock
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.calculate_and_store_assessment_result",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_answer")
 @mock.patch("ai4gd_momconnect_haystack.api.score_assessment_question")
 @mock.patch(
     "ai4gd_momconnect_haystack.api.save_assessment_question",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
-async def test_assessment_valid_journey_response(
+def test_assessment_valid_journey_response(
     save_assessment_question,
     score_assessment_question,
     validate_assessment_answer,
@@ -426,11 +414,11 @@ async def test_assessment_valid_journey_response(
         "very confident", 1, "dma-pre-assessment"
     )
 
-    calculate_and_store_assessment_result.assert_awaited_once_with(
+    calculate_and_store_assessment_result.assert_called_once_with(
         "TestUser", "dma-pre-assessment"
     )
 
-    get_assessment_question.assert_awaited_once_with(
+    get_assessment_question.assert_called_once_with(
         user_id="TestUser",
         flow_id="dma-pre-assessment",
         question_number=2,  # Importantly, it asks for the *next* question
@@ -438,7 +426,7 @@ async def test_assessment_valid_journey_response(
     )
 
     # Assert that the data was saved correctly in two separate calls
-    assert save_assessment_question.await_count == 2
+    assert save_assessment_question.call_count == 2
 
     # Check the call to save the user's answer and score
     call_to_save_answer = mock.call(
@@ -459,23 +447,22 @@ async def test_assessment_valid_journey_response(
         score=None,
     )
 
-    save_assessment_question.assert_has_awaits(
+    save_assessment_question.assert_has_calls(
         [call_to_save_answer, call_to_save_question], any_order=False
     )
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch(
-    "ai4gd_momconnect_haystack.api.get_assessment_result", new_callable=mock.AsyncMock
+    "ai4gd_momconnect_haystack.api.get_assessment_result", new_callable=mock.Mock
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_assessment_end_messaging_history",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.save_assessment_end_message",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch("ai4gd_momconnect_haystack.api.get_content_from_message_data")
 @mock.patch(
@@ -494,7 +481,7 @@ async def test_assessment_valid_journey_response(
         ]
     },
 )
-async def test_assessment_end_initial_message(
+def test_assessment_end_initial_message(
     mock_get_content,
     mock_save_message,
     mock_get_history,
@@ -533,23 +520,22 @@ async def test_assessment_end_initial_message(
         "reengagement_info": None,
     }
 
-    mock_get_result.assert_awaited_once()
-    mock_get_history.assert_awaited_once()
-    mock_save_message.assert_awaited_once_with("TestUser", "dma-pre-assessment", 1, "")
+    mock_get_result.assert_called_once()
+    mock_get_history.assert_called_once()
+    mock_save_message.assert_called_once_with("TestUser", "dma-pre-assessment", 1, "")
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch(
-    "ai4gd_momconnect_haystack.api.get_assessment_result", new_callable=mock.AsyncMock
+    "ai4gd_momconnect_haystack.api.get_assessment_result", new_callable=mock.Mock
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_assessment_end_messaging_history",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.save_assessment_end_message",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch("ai4gd_momconnect_haystack.api.get_content_from_message_data")
 @mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
@@ -557,7 +543,7 @@ async def test_assessment_end_initial_message(
 @mock.patch("ai4gd_momconnect_haystack.api.determine_task")
 @mock.patch("ai4gd_momconnect_haystack.api.assessment_end_flow_map")
 @mock.patch("ai4gd_momconnect_haystack.api.response_is_required_for")
-async def test_assessment_end_valid_response_to_required_question(
+def test_assessment_end_valid_response_to_required_question(
     mock_response_required,
     mock_flow_map,
     mock_determine_task,
@@ -642,33 +628,32 @@ async def test_assessment_end_valid_response_to_required_question(
 
     mock_validate_response.assert_called_once()
     mock_determine_task.assert_called_once()
-    assert mock_save_message.await_count == 2
+    assert mock_save_message.call_count == 2
     call_to_save_answer = mock.call("TestUser", "dma-pre-assessment", 2, "Yes")
     call_to_save_question = mock.call("TestUser", "dma-pre-assessment", 3, "")
-    mock_save_message.assert_has_awaits(
+    mock_save_message.assert_has_calls(
         [call_to_save_answer, call_to_save_question], any_order=True
     )
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch(
-    "ai4gd_momconnect_haystack.api.get_assessment_result", new_callable=mock.AsyncMock
+    "ai4gd_momconnect_haystack.api.get_assessment_result", new_callable=mock.Mock
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_assessment_end_messaging_history",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.save_assessment_end_message",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch("ai4gd_momconnect_haystack.api.get_content_from_message_data")
 @mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
 @mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_end_response")
 @mock.patch("ai4gd_momconnect_haystack.api.assessment_end_flow_map")
 @mock.patch("ai4gd_momconnect_haystack.api.response_is_required_for")
-async def test_assessment_end_invalid_response(
+def test_assessment_end_invalid_response(
     mock_response_required,
     mock_flow_map,
     mock_validate_response,
@@ -736,7 +721,7 @@ async def test_assessment_end_invalid_response(
     assert response.json()["task"] == ""
 
     mock_validate_response.assert_called_once()
-    mock_save_message.assert_not_awaited()
+    mock_save_message.assert_not_called()
 
 
 @mock.patch.dict(
@@ -766,7 +751,7 @@ def test_prometheus_metrics():
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch(
     "ai4gd_momconnect_haystack.api.delete_assessment_history_for_user",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 def test_assessment_initial_message_with_intro(mock_delete_history):
     """
@@ -792,23 +777,22 @@ def test_assessment_initial_message_with_intro(mock_delete_history):
     assert "Shall we begin?" in json_response["question"]
     assert json_response["next_question"] == 0
     assert json_response["intent"] == "SYSTEM_INTRO"
-    mock_delete_history.assert_awaited_once()
+    mock_delete_history.assert_called_once()
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch(
     "ai4gd_momconnect_haystack.api.delete_assessment_history_for_user",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.save_assessment_question",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch(
-    "ai4gd_momconnect_haystack.api.get_assessment_question", new_callable=mock.AsyncMock
+    "ai4gd_momconnect_haystack.api.get_assessment_question", new_callable=mock.Mock
 )
-async def test_assessment_initial_message_skips_intro(
+def test_assessment_initial_message_skips_intro(
     mock_get_q, mock_save_q, mock_delete_history
 ):
     """
@@ -835,21 +819,20 @@ async def test_assessment_initial_message_skips_intro(
     assert json_response["question"] == "Question 1"
     assert json_response["next_question"] == 1
     assert json_response["intent"] == "JOURNEY_RESPONSE"
-    mock_delete_history.assert_awaited_once()
+    mock_delete_history.assert_called_once()
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch(
     "ai4gd_momconnect_haystack.api.save_assessment_question",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch(
-    "ai4gd_momconnect_haystack.api.get_assessment_question", new_callable=mock.AsyncMock
+    "ai4gd_momconnect_haystack.api.get_assessment_question", new_callable=mock.Mock
 )
 @mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
 @mock.patch("ai4gd_momconnect_haystack.api.handle_intro_response")
-async def test_assessment_consent_proceeds(
+def test_assessment_consent_proceeds(
     mock_handle_intro, mock_handle_user_message, mock_get_q, mock_save_q
 ):
     """
@@ -921,7 +904,6 @@ def test_assessment_consent_aborts(mock_handle_intro):
     mock_handle_intro.assert_called_once()
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch("ai4gd_momconnect_haystack.api.get_assessment_question")
 @mock.patch(
@@ -933,7 +915,7 @@ def test_assessment_consent_aborts(mock_handle_intro):
         "intent_related_response": None,
     },
 )
-async def test_repair_on_intro_consent(mock_handle_intro, mock_get_q):
+def test_repair_on_intro_consent(mock_handle_intro, mock_get_q):
     """
     Tests that a repair is triggered if the user gives a confusing response
     to the initial consent question.
@@ -962,7 +944,6 @@ async def test_repair_on_intro_consent(mock_handle_intro, mock_get_q):
     mock_get_q.assert_not_called()
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "flow_id, question_number, endpoint",
     [
@@ -973,7 +954,7 @@ async def test_repair_on_intro_consent(mock_handle_intro, mock_get_q):
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
     return_value=[ChatMessage.from_assistant("Original question?")],
 )
 @mock.patch(
@@ -991,7 +972,7 @@ async def test_repair_on_intro_consent(mock_handle_intro, mock_get_q):
     "ai4gd_momconnect_haystack.api.handle_user_message",
     return_value=("JOURNEY_RESPONSE", ""),
 )
-async def test_flow_repair_on_invalid_answer(
+def test_flow_repair_on_invalid_answer(
     mock_handle_message,
     mock_validate,
     mock_process_onboarding,
@@ -1035,7 +1016,6 @@ async def test_flow_repair_on_invalid_answer(
     mock_repair.assert_called_once()
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "flow_id, question_number, endpoint",
     [
@@ -1046,7 +1026,7 @@ async def test_flow_repair_on_invalid_answer(
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
     return_value=[ChatMessage.from_assistant("Original question?")],
 )
 @mock.patch(
@@ -1055,7 +1035,7 @@ async def test_flow_repair_on_invalid_answer(
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_assessment_question",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
     return_value={"contextualized_question": "Next assessment Q"},
 )
 @mock.patch("ai4gd_momconnect_haystack.api.handle_conversational_repair")
@@ -1070,7 +1050,7 @@ async def test_flow_repair_on_invalid_answer(
     "ai4gd_momconnect_haystack.api.handle_user_message",
     return_value=("JOURNEY_RESPONSE", ""),
 )
-async def test_flow_repair_escape_hatch(
+def test_flow_repair_escape_hatch(
     mock_handle_message,
     mock_validate,
     mock_process_onboarding,
@@ -1120,11 +1100,10 @@ async def test_flow_repair_escape_hatch(
     mock_repair.assert_not_called()
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch(
     "ai4gd_momconnect_haystack.api.save_chat_history",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_next_onboarding_question",
@@ -1138,9 +1117,9 @@ async def test_flow_repair_escape_hatch(
 @mock.patch("ai4gd_momconnect_haystack.api.all_onboarding_questions")
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
-async def test_onboarding_skip_question(
+def test_onboarding_skip_question(
     mock_get_history,
     mock_all_questions,
     mock_handle_user_message,
@@ -1189,28 +1168,27 @@ async def test_onboarding_skip_question(
     mock_get_next_q.assert_called_once()
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_assessment_question",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
     return_value={"contextualized_question": "This is Question 2"},
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.calculate_and_store_assessment_result",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch("ai4gd_momconnect_haystack.api.score_assessment_question", return_value=0)
 @mock.patch(
     "ai4gd_momconnect_haystack.api.save_assessment_question",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
 @mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_answer")
 @mock.patch(
     "ai4gd_momconnect_haystack.api.handle_user_message",
     return_value=("SKIP_QUESTION", ""),
 )
-async def test_assessment_skip_question(
+def test_assessment_skip_question(
     mock_handle_user_message,
     mock_validate_answer,
     mock_save_q,
@@ -1246,7 +1224,7 @@ async def test_assessment_skip_question(
     assert json_response["processed_answer"] == "Skip"
     mock_validate_answer.assert_not_called()
     mock_handle_user_message.assert_called_once()
-    assert mock_save_q.await_count == 2
+    assert mock_save_q.call_count == 2
     call_to_save_answer = mock.call(
         user_id="TestUser",
         assessment_type=AssessmentType.dma_pre_assessment,
@@ -1255,14 +1233,13 @@ async def test_assessment_skip_question(
         user_response="Skip",
         score=0,
     )
-    mock_save_q.assert_has_awaits([call_to_save_answer], any_order=True)
-    mock_get_q.assert_awaited_once()
+    mock_save_q.assert_has_calls([call_to_save_answer], any_order=True)
+    mock_get_q.assert_called_once()
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch("ai4gd_momconnect_haystack.api.handle_summary_confirmation_step")
-async def test_onboarding_api_summary_state_handles_update(mock_summary_handler):
+def test_onboarding_api_summary_state_handles_update(mock_summary_handler):
     """
     Tests that the API correctly calls the summary handler task when in the
     'confirming_summary' state and returns its result.
@@ -1295,15 +1272,14 @@ async def test_onboarding_api_summary_state_handles_update(mock_summary_handler)
     assert response_data["intent"] == "ONBOARDING_UPDATE_COMPLETE"
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch("ai4gd_momconnect_haystack.api.process_onboarding_step")
 @mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
-async def test_onboarding_api_flow_transitions_to_summary(
+def test_onboarding_api_flow_transitions_to_summary(
     mock_get_history, mock_handle_message, mock_process_step
 ):
     """
@@ -1340,16 +1316,15 @@ async def test_onboarding_api_flow_transitions_to_summary(
     assert response_data["user_context"]["flow_state"] == "confirming_summary"
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch("ai4gd_momconnect_haystack.api.get_next_onboarding_question")
 @mock.patch("ai4gd_momconnect_haystack.api.process_onboarding_step")
 @mock.patch("ai4gd_momconnect_haystack.api.handle_intro_response")
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
-async def test_onboarding_consent_proceeds_directly_to_first_question(
+def test_onboarding_consent_proceeds_directly_to_first_question(
     mock_get_history, mock_handle_intro, mock_process_step, mock_get_next_q
 ):
     """
@@ -1399,10 +1374,9 @@ async def test_onboarding_consent_proceeds_directly_to_first_question(
     mock_get_next_q.assert_called_once()
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch("ai4gd_momconnect_haystack.api.handle_summary_confirmation_step")
-async def test_onboarding_summary_confirmation_signals_start_dma(mock_summary_handler):
+def test_onboarding_summary_confirmation_signals_start_dma(mock_summary_handler):
     """
     BUG FIX VERIFICATION:
     Tests that after the user confirms their data on the summary screen, the API
@@ -1438,9 +1412,8 @@ async def test_onboarding_summary_confirmation_signals_start_dma(mock_summary_ha
     assert json_response["question"] == "Perfect, thank you! Now for the next section."
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
-async def test_resume_endpoint_user_not_found(client: TestClient):
+def test_resume_endpoint_user_not_found(client: TestClient):
     """
     Tests that the /v1/resume endpoint returns a 404 if no journey state is found.
     """
@@ -1452,15 +1425,14 @@ async def test_resume_endpoint_user_not_found(client: TestClient):
     assert response.status_code == 404
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
-async def test_resume_endpoint_success(client: TestClient):
+def test_resume_endpoint_success(client: TestClient):
     """
     Tests that the /v1/resume endpoint successfully returns the flow_id for a user with a saved state.
     """
     # Arrange: Manually save a state for a user directly to the test DB
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
+    with SessionLocal() as session:
+        with session.begin():
             session.add(
                 UserJourneyState(
                     user_id="resumable-user",
@@ -1470,7 +1442,7 @@ async def test_resume_endpoint_success(client: TestClient):
                     user_context={"province": "Gauteng"},
                 )
             )
-            await session.commit()
+            session.commit()
 
     # Act
     response = client.post(
@@ -1484,7 +1456,6 @@ async def test_resume_endpoint_success(client: TestClient):
     assert response.json() == {"resume_flow_id": "onboarding"}
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_next_onboarding_question",
@@ -1493,14 +1464,14 @@ async def test_resume_endpoint_success(client: TestClient):
         "question_number": 2,
     },
 )
-async def test_onboarding_full_resumption_flow(mock_get_next_q, client: TestClient):
+def test_onboarding_full_resumption_flow(mock_get_next_q, client: TestClient):
     """
     Tests the full resumption flow: API receives resume flag, fetches saved context,
     and returns the correct resume message prompt.
     """
     # Arrange: Save a state for a user who has answered the first question
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
+    with SessionLocal() as session:
+        with session.begin():
             session.add(
                 UserJourneyState(
                     user_id="onboarding-resume-user",
@@ -1510,7 +1481,7 @@ async def test_onboarding_full_resumption_flow(mock_get_next_q, client: TestClie
                     user_context={"province": "Gauteng", "reminder_count": 0},
                 )
             )
-            await session.commit()
+            session.commit()
 
     # Act
     response = client.post(
@@ -1537,7 +1508,6 @@ async def test_onboarding_full_resumption_flow(mock_get_next_q, client: TestClie
     mock_get_next_q.assert_not_called()
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch(
     "ai4gd_momconnect_haystack.api.handle_user_message",
@@ -1545,10 +1515,10 @@ async def test_onboarding_full_resumption_flow(mock_get_next_q, client: TestClie
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.get_or_create_chat_history",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
     return_value=[ChatMessage.from_assistant("Some question")],
 )
-async def test_reminder_request_returns_reengagement_info(
+def test_reminder_request_returns_reengagement_info(
     mock_get_history, mock_handle_message, client: TestClient
 ):
     """
@@ -1575,9 +1545,8 @@ async def test_reminder_request_returns_reengagement_info(
     assert "trigger_at_utc" in json_response["reengagement_info"]
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
-async def test_resumption_from_awaiting_reminder_state_is_safe(client: TestClient):
+def test_resumption_from_awaiting_reminder_state_is_safe(client: TestClient):
     """
     BUG FIX VERIFICATION:
     Tests that if a user drops out *after* receiving a resume prompt,
@@ -1589,8 +1558,8 @@ async def test_resumption_from_awaiting_reminder_state_is_safe(client: TestClien
     # Arrange: Manually create the problematic state in the database.
     # The user was on step 5 of an assessment, got re-engaged once, and we are
     # now about to re-engage them a second time.
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
+    with SessionLocal() as session:
+        with session.begin():
             session.add(
                 UserJourneyState(
                     user_id=user_id,
@@ -1601,7 +1570,7 @@ async def test_resumption_from_awaiting_reminder_state_is_safe(client: TestClien
                     user_context={"reminder_count": 1},
                 )
             )
-            await session.commit()
+            session.commit()
 
     # Act: The platform re-engages the user a second time.
     response = client.post(
@@ -1630,13 +1599,12 @@ async def test_resumption_from_awaiting_reminder_state_is_safe(client: TestClien
     assert json_response["next_question"] is None
 
 
-@pytest.mark.asyncio
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
 @mock.patch(
     "ai4gd_momconnect_haystack.api.survey_orchestrator.process_survey_turn",
-    new_callable=mock.AsyncMock,
+    new_callable=mock.Mock,
 )
-async def test_survey_endpoint_passes_through_to_orchestrator(
+def test_survey_endpoint_passes_through_to_orchestrator(
     mock_process_turn, client: TestClient
 ):
     """
@@ -1677,7 +1645,7 @@ async def test_survey_endpoint_passes_through_to_orchestrator(
     assert response.json() == mock_orchestrator_response.model_dump()
 
     # 2. Verify that the orchestrator was called exactly once with the correct request object
-    mock_process_turn.assert_awaited_once()
+    mock_process_turn.assert_called_once()
     call_args = mock_process_turn.call_args.args
     assert len(call_args) == 1
     assert isinstance(call_args[0], OrchestratorSurveyRequest)

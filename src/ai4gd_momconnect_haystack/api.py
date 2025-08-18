@@ -47,9 +47,11 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     CatchAllResponse,
     OnboardingRequest,
     OnboardingResponse,
+    OrchestratorSurveyRequest,
     ResumeRequest,
     ResumeResponse,
-    OrchestratorSurveyRequest,
+)
+from ai4gd_momconnect_haystack.pydantic_models import (
     LegacySurveyResponse as SurveyResponse,  # Use LegacySurveyResponse for the API contract
 )
 from ai4gd_momconnect_haystack.tasks import (
@@ -74,8 +76,8 @@ from ai4gd_momconnect_haystack.utilities import (
     load_json_and_validate,
     prepend_valid_responses_with_alphabetical_index,
 )
-from . import survey_orchestrator
 
+from . import survey_orchestrator
 from .enums import HistoryType
 
 load_dotenv()
@@ -106,7 +108,7 @@ def setup_sentry():
 setup_sentry()
 
 
-async def _handle_consent_result(
+def _handle_consent_result(
     result: dict,
     response_model: Type[OnboardingResponse | AssessmentResponse | SurveyResponse],
     base_response_args: dict,
@@ -186,12 +188,12 @@ def verify_token(authorization: Annotated[str, Header()]):
 
 
 @app.post("/v1/onboarding")
-async def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
+def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
     logger.info("Processing onboarding request for user: %s", request.user_id)
     # --- RESUMPTION LOGIC ---
     if request.user_context and request.user_context.get("resume") is True:
         logger.info(f"Resume flag detected for user {request.user_id}.")
-        return await handle_journey_resumption_prompt(
+        return handle_journey_resumption_prompt(
             user_id=request.user_id, flow_id="onboarding"
         )
     # --- END OF RESUMPTION LOGIC ---
@@ -200,7 +202,7 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     user_input = request.user_input
     flow_id = "onboarding"
     user_context = request.user_context.copy()
-    chat_history = await get_or_create_chat_history(
+    chat_history = get_or_create_chat_history(
         user_id=user_id, history_type=HistoryType.onboarding
     )
 
@@ -226,16 +228,16 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
     if not user_input:
         logger.info("No user input provided, checking for intro message.")
         if flow_id and flow_id in FLOWS_WITH_INTRO:
-            await delete_chat_history_for_user(request.user_id, HistoryType.onboarding)
+            delete_chat_history_for_user(request.user_id, HistoryType.onboarding)
             chat_history = [ChatMessage.from_system(text=SERVICE_PERSONA_TEXT)]
             intro_message = INTRO_MESSAGES["free_text_intro"]
             chat_history.append(ChatMessage.from_assistant(text=intro_message))
-            await save_chat_history(
+            save_chat_history(
                 user_id=user_id,
                 messages=chat_history,
                 history_type=HistoryType.onboarding,
             )
-            await delete_user_journey_state(user_id)
+            delete_user_journey_state(user_id)
             return OnboardingResponse(
                 question=intro_message,
                 user_context=request.user_context,
@@ -246,10 +248,10 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
             )
 
     # Check if the user's last state was awaiting a response to a reminder
-    state = await get_user_journey_state(user_id)
+    state = get_user_journey_state(user_id)
     if state and state.current_step_identifier == "awaiting_reminder_response":
         logger.info("User is responding to a reminder prompt.")
-        return await handle_reminder_response(user_id, user_input, state)
+        return handle_reminder_response(user_id, user_input, state)
 
     # This block handles the user's response to the intro message
     last_assistant_msg = next(
@@ -270,7 +272,7 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         if result.get("action") == "PAUSE_AND_REMIND":
             logger.info("User requested to be reminded later.")
             last_question = last_assistant_msg.text if last_assistant_msg else ""
-            return await handle_intro_reminder(
+            return handle_intro_reminder(
                 user_id=user_id,
                 flow_id=flow_id,
                 user_context=user_context,
@@ -278,7 +280,7 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
                 result=result,
             )
 
-        response = await _handle_consent_result(
+        response = _handle_consent_result(
             result=result,
             response_model=OnboardingResponse,
             base_response_args={
@@ -300,10 +302,10 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
             question_text = first_question_data.get("contextualized_question", "")
             chat_history.append(ChatMessage.from_assistant(text=question_text))
 
-        await save_chat_history(
+        save_chat_history(
             user_id=user_id, messages=chat_history, history_type=HistoryType.onboarding
         )
-        await save_user_journey_state(
+        save_user_journey_state(
             user_id=request.user_id,
             flow_id=flow_id,
             step_identifier="",
@@ -439,13 +441,13 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
         else:
             failure_count = 0
     elif intent == "REQUEST_TO_BE_REMINDED":
-        state = await get_user_journey_state(request.user_id)
+        state = get_user_journey_state(request.user_id)
         current_reminder_count = state.reminder_count if state else 0
         new_reminder_count = current_reminder_count + 1
         reminder_type = 2 if new_reminder_count >= 2 else 1
         user_context["reminder_count"] = new_reminder_count
 
-        message, reengagement_info = await handle_reminder_request(
+        message, reengagement_info = handle_reminder_request(
             user_id=request.user_id,
             flow_id=flow_id,
             step_identifier=str(current_question_number),
@@ -512,14 +514,14 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
 
     if question_text:
         chat_history.append(ChatMessage.from_assistant(text=question_text))
-    await save_chat_history(
+    save_chat_history(
         user_id=request.user_id,
         messages=chat_history,
         history_type=HistoryType.onboarding,
     )
 
     # Save the current state of the user's journey
-    await save_user_journey_state(
+    save_user_journey_state(
         user_id=request.user_id,
         flow_id=flow_id,
         step_identifier=step_identifier,
@@ -538,12 +540,12 @@ async def onboarding(request: OnboardingRequest, token: str = Depends(verify_tok
 
 
 @app.post("/v1/assessment")
-async def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
+def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
     logger.info("Processing assessment request for user: %s", request.user_id)
     # --- RESUMPTION LOGIC ---
     if request.user_context and request.user_context.get("resume") is True:
         logger.info(f"Resume flag detected for user {request.user_id}.")
-        return await handle_journey_resumption_prompt(
+        return handle_journey_resumption_prompt(
             user_id=request.user_id, flow_id=request.flow_id.value
         )
     # --- END OF RESUMPTION LOGIC ---
@@ -551,7 +553,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
     # --- 1. HANDLE START OF A NEW ASSESSMENT ---
     if not request.user_input:
         logger.info("No user input provided, checking for intro message.")
-        await delete_assessment_history_for_user(request.user_id, request.flow_id)
+        delete_assessment_history_for_user(request.user_id, request.flow_id)
 
         # Now, check if this specific flow needs an intro message.
         logger.info(f"Intro present: {request.flow_id.value in FLOWS_WITH_INTRO}")
@@ -561,7 +563,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
                 if "behaviour" in request.flow_id.value
                 else INTRO_MESSAGES["multiple_choice_intro"]
             )
-            await delete_user_journey_state(request.user_id)
+            delete_user_journey_state(request.user_id)
             return AssessmentResponse(
                 question=intro_message,
                 next_question=0,
@@ -572,12 +574,10 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
             )
 
     # Check if the user's last state was awaiting a response to a reminder
-    state = await get_user_journey_state(request.user_id)
+    state = get_user_journey_state(request.user_id)
     if state and state.current_step_identifier == "awaiting_reminder_response":
         logger.info("User is responding to a reminder prompt.")
-        return await handle_reminder_response(
-            request.user_id, request.user_input, state
-        )
+        return handle_reminder_response(request.user_id, request.user_input, state)
 
     # --- 2. HANDLE THE USER'S RESPONSE TO THE INTRO ---
     if request.question_number == 0:
@@ -593,7 +593,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
                 if "behaviour" in request.flow_id.value
                 else INTRO_MESSAGES["multiple_choice_intro"]
             )
-            return await handle_intro_reminder(
+            return handle_intro_reminder(
                 user_id=request.user_id,
                 flow_id=request.flow_id.value,
                 user_context=request.user_context,
@@ -601,7 +601,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
                 result=result,
             )
 
-        await save_user_journey_state(
+        save_user_journey_state(
             user_id=request.user_id,
             flow_id=request.flow_id.value,
             step_identifier="",
@@ -609,7 +609,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
             user_context=request.user_context,
         )
 
-        response = await _handle_consent_result(
+        response = _handle_consent_result(
             result=result,
             response_model=AssessmentResponse,
             base_response_args={"processed_answer": None},
@@ -686,13 +686,13 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
                 )
                 failure_count = 0
         elif intent == "REQUEST_TO_BE_REMINDED":
-            state = await get_user_journey_state(request.user_id)
+            state = get_user_journey_state(request.user_id)
             current_reminder_count = state.reminder_count if state else 0
             new_reminder_count = current_reminder_count + 1
             reminder_type = 2 if new_reminder_count >= 2 else 1
             request.user_context["reminder_count"] = new_reminder_count
 
-            message, reengagement_info = await handle_reminder_request(
+            message, reengagement_info = handle_reminder_request(
                 user_id=request.user_id,
                 flow_id=request.flow_id.value,
                 step_identifier=str(current_question_number),
@@ -740,7 +740,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
             current_question_number,
             request.flow_id,
         )
-        await save_assessment_question(
+        save_assessment_question(
             user_id=request.user_id,
             assessment_type=request.flow_id,
             question_number=current_question_number,
@@ -748,10 +748,10 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
             user_response=processed_answer,
             score=score,
         )
-        await calculate_and_store_assessment_result(request.user_id, request.flow_id)
+        calculate_and_store_assessment_result(request.user_id, request.flow_id)
 
     # --- FETCH AND RETURN NEXT QUESTION ---
-    question = await get_assessment_question(
+    question = get_assessment_question(
         user_id=request.user_id,
         flow_id=request.flow_id,
         question_number=next_question_number,
@@ -763,7 +763,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
         if contextualized_question:
             user_context = request.user_context.copy()
             user_context["next_question_number"] = str(next_question_number)
-            await save_user_journey_state(
+            save_user_journey_state(
                 user_id=request.user_id,
                 flow_id=request.flow_id.value,
                 step_identifier=str(next_question_number),
@@ -771,7 +771,7 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
                 user_context=user_context,
             )
 
-            await save_assessment_question(
+            save_assessment_question(
                 user_id=request.user_id,
                 assessment_type=request.flow_id,
                 question_number=next_question_number,
@@ -791,11 +791,9 @@ async def assessment(request: AssessmentRequest, token: str = Depends(verify_tok
 
 
 @app.post("/v1/assessment-end")
-async def assessment_end(
-    request: AssessmentEndRequest, token: str = Depends(verify_token)
-):
+def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_token)):
     # Initial Setup and Data Fetching
-    assessment_result = await get_assessment_result(
+    assessment_result = get_assessment_result(
         user_id=request.user_id,
         assessment_type=request.flow_id,
     )
@@ -809,7 +807,7 @@ async def assessment_end(
     )
     flow_content_list = assessment_end_flow_map[request.flow_id.value]
     flow_content_map = {item.message_nr: item for item in flow_content_list}
-    messaging_history = await get_assessment_end_messaging_history(
+    messaging_history = get_assessment_end_messaging_history(
         user_id=request.user_id, assessment_type=request.flow_id
     )
 
@@ -887,7 +885,7 @@ async def assessment_end(
             else:
                 # Validation succeeded
                 processed_response = validation_result["processed_user_response"]
-                await save_assessment_end_message(
+                save_assessment_end_message(
                     request.user_id,
                     request.flow_id,
                     previous_message_nr,
@@ -915,7 +913,7 @@ async def assessment_end(
         if next_message and (
             not previous_message_nr or next_message_nr > previous_message_nr
         ):
-            await save_assessment_end_message(
+            save_assessment_end_message(
                 request.user_id, request.flow_id, next_message_nr, ""
             )
     elif intent != "JOURNEY_RESPONSE":
@@ -934,7 +932,7 @@ async def assessment_end(
     response_message = next_message
 
     if task == "REMIND_ME_LATER":
-        state = await get_user_journey_state(request.user_id)
+        state = get_user_journey_state(request.user_id)
         current_reminder_count = state.reminder_count if state else 0
         new_reminder_count = current_reminder_count + 1
         reminder_type = 2 if new_reminder_count >= 2 else 1
@@ -942,7 +940,7 @@ async def assessment_end(
         # For assessment-end, context is simple
         user_context = {"reminder_count": new_reminder_count}
 
-        response_message, reengagement_info = await handle_reminder_request(
+        response_message, reengagement_info = handle_reminder_request(
             user_id=request.user_id,
             flow_id=request.flow_id.value,
             step_identifier=str(previous_message_nr),
@@ -952,7 +950,7 @@ async def assessment_end(
         )
     elif next_message:
         # If the journey is continuing, save the state for the *next* question
-        await save_user_journey_state(
+        save_user_journey_state(
             user_id=request.user_id,
             flow_id=request.flow_id.value,
             step_identifier=str(next_message_nr),
@@ -970,9 +968,7 @@ async def assessment_end(
 
 
 @app.post("/v1/survey", response_model=SurveyResponse)
-async def survey(
-    request: OrchestratorSurveyRequest, token: str = Depends(verify_token)
-):
+def survey(request: OrchestratorSurveyRequest, token: str = Depends(verify_token)):
     """
     Handles all survey interactions by calling the main orchestrator.
 
@@ -988,15 +984,15 @@ async def survey(
         request.survey_id = "anc-survey"
 
     if request.user_context and request.user_context.get("resume") is True:
-        return await handle_journey_resumption_prompt(
+        return handle_journey_resumption_prompt(
             user_id=request.user_id, flow_id=request.survey_id
         )
 
-    return await survey_orchestrator.process_survey_turn(request)
+    return survey_orchestrator.process_survey_turn(request)
 
 
 @app.post("/v1/catchall", response_model=CatchAllResponse)
-async def catchall(request: CatchAllRequest, token: str = Depends(verify_token)):
+def catchall(request: CatchAllRequest, token: str = Depends(verify_token)):
     intent, intent_related_response = handle_user_message("", request.user_input)
 
     return CatchAllResponse(
@@ -1006,11 +1002,11 @@ async def catchall(request: CatchAllRequest, token: str = Depends(verify_token))
 
 
 @app.post("/v1/resume", response_model=ResumeResponse)
-async def resume(request: ResumeRequest, token: str = Depends(verify_token)):
+def resume(request: ResumeRequest, token: str = Depends(verify_token)):
     """
     Looks up the user's last known flow to enable resumption.
     """
-    state = await get_user_journey_state(request.user_id)
+    state = get_user_journey_state(request.user_id)
 
     if not state:
         raise HTTPException(
