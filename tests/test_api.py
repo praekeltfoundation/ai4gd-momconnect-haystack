@@ -5,8 +5,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 from haystack.dataclasses import ChatMessage
+from sentry_sdk import get_client as get_sentry_client
 
-from ai4gd_momconnect_haystack.api import app, survey
+from ai4gd_momconnect_haystack.api import app, setup_sentry, survey
 from ai4gd_momconnect_haystack.database import AsyncSessionLocal
 from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType
 from ai4gd_momconnect_haystack.pydantic_models import (
@@ -1048,18 +1049,18 @@ def test_survey_invalid_survey_id():
     }
 
 
-# @mock.patch.dict(
-#     os.environ,
-#     {"SENTRY_DSN": "https://testdsn@testdsn.example.org/12345"},
-#     clear=True,
-# )
-# def test_sentry_setup():
-#     """
-#     Sentry is setup with the correct DSN found in the env var
-#     """
-#     setup_sentry()
-#     assert get_sentry_client().is_active()
-#     assert get_sentry_client().dsn == "https://testdsn@testdsn.example.org/12345"
+@mock.patch.dict(
+    os.environ,
+    {"SENTRY_DSN": "https://testdsn@testdsn.example.org/12345"},
+    clear=True,
+)
+def test_sentry_setup():
+    """
+    Sentry is setup with the correct DSN found in the env var
+    """
+    setup_sentry()
+    assert get_sentry_client().is_active()
+    assert get_sentry_client().dsn == "https://testdsn@testdsn.example.org/12345"
 
 
 def test_prometheus_metrics():
