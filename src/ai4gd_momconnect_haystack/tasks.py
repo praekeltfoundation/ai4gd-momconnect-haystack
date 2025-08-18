@@ -1315,7 +1315,7 @@ def handle_reminder_response(
                 if next_q_result:
                     question_to_send = next_q_result.get("contextualized_question", "")
 
-        await delete_user_journey_state(user_id)
+        delete_user_journey_state(user_id)
 
         if "onboarding" in state.current_flow_id:
             return OnboardingResponse(

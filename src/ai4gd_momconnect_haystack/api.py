@@ -979,7 +979,7 @@ def survey(request: OrchestratorSurveyRequest, token: str = Depends(verify_token
         request.survey_id = "anc-survey"
 
     if request.user_context and request.user_context.get("resume") is True:
-        return await handle_journey_resumption_prompt(
+        return handle_journey_resumption_prompt(
             user_id=request.user_id, flow_id=request.survey_id
         )
 
