@@ -305,7 +305,9 @@ async def test_end_of_survey_is_handled(
 
     # ✅ FIX: Use side_effect to correctly mimic the real function's behavior.
     # This small function now modifies the user_context it receives, just like the real code.
-    def mock_extraction(user_response, user_context, step_title, contextualized_question):
+    def mock_extraction(
+        user_response, user_context, step_title, contextualized_question
+    ):
         user_context["end_if_feedback"] = "some feedback"
         return user_context, None
 
