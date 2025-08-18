@@ -407,6 +407,7 @@ def save_user_journey_state(
     last_question: str,
     user_context: dict[str, Any],
     reminder_type: int | None = None,
+    next_question_number: int | None = None,
 ):
     """
     Creates or updates the user's last known state in the database.
@@ -433,6 +434,8 @@ def save_user_journey_state(
                 existing_state.last_question_sent = last_question
                 existing_state.user_context = user_context
                 existing_state.reminder_type = reminder_type
+                if next_question_number:
+                    existing_state.next_question_number = next_question_number
                 logger.info(f"Updated journey state for user {user_id}.")
             else:
                 # Create new record
@@ -444,6 +447,8 @@ def save_user_journey_state(
                     user_context=user_context,
                     reminder_type=reminder_type,
                 )
+                if next_question_number:
+                    new_state.next_question_number = next_question_number
                 session.add(new_state)
                 logger.info(f"Created new journey state for user {user_id}.")
             session.commit()

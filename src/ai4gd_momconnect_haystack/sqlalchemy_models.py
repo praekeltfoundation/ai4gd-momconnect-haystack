@@ -108,6 +108,7 @@ class UserJourneyState(Base):
     expected_step_id: Mapped[str] = mapped_column(String, nullable=True)
     last_question_sent: Mapped[str] = mapped_column(String, nullable=False)
     user_context: Mapped[dict] = mapped_column(JSON, nullable=True)
+    next_question_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     reminder_type: Mapped[int | None] = mapped_column(Integer, nullable=True)
     reminder_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     repair_strikes: Mapped[dict] = mapped_column(JSON, default={}, nullable=False)
