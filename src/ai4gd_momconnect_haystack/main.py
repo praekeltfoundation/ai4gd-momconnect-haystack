@@ -424,7 +424,9 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                             {
                                 "question_name": field_to_update,
                                 "llm_utterance": contextualized_question,
-                                "user_utterance": gt_turn.get("user_utterance") if gt_turn else final_user_response,
+                                "user_utterance": gt_turn.get("user_utterance")
+                                if gt_turn
+                                else final_user_response,
                                 "llm_extracted_user_response": "Skipped - System",
                             }
                         )
