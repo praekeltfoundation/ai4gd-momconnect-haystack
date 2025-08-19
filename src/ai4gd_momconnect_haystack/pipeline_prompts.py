@@ -80,6 +80,8 @@ Your task is to analyze the "User's latest message" below and extract the answer
 2.  Do not extract information that is already present in the "User Context".
 3.  If the user's message does not answer the question, return an empty JSON object: `{}`.
 4.  Map conversational language to the correct formal value. This includes common abbreviations (e.g., map "ec" or "KZN" to their full province name like "Eastern Cape" or "KwaZulu-Natal").
+5.  **For numerical questions (like hunger_days or num_children), if the user provides a number that is clearly illogical or impossible (e.g., 20 kids, 8 days in a 7-day week), DO NOT attempt to map it. Return an empty JSON object `{}` to signal a failure.**
+
 
 ---
 **User Context:**
