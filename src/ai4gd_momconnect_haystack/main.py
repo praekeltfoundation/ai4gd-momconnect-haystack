@@ -42,6 +42,7 @@ from ai4gd_momconnect_haystack.tasks import (
     handle_intro_response,
     handle_summary_confirmation_step,
     handle_user_message,
+    ExtractionStatus,
     update_context_from_onboarding_response,
 )
 from ai4gd_momconnect_haystack.utilities import (
@@ -329,74 +330,26 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 # print(f"Question: {contextualized_question}")
                 # Simulate User Response & Data Extraction
 
-                has_deflected = False
-                final_user_response = None
-                initial_predicted_intent = None
-                final_predicted_intent = None
-                current_prompt = contextualized_question
+                # ___ Refactor ____
+                # Get the user's response
+                final_user_response, gt_turn = _get_user_response(
+                    gt_lookup=gt_lookup_by_flow,
+                    flow_id=flow_id,
+                    contextualized_question=contextualized_question,
+                    turn_identifier_key="question_number",
+                    turn_identifier_value=question_number,
+                )
 
-                while True:
-                    user_response, gt_turn = _get_user_response(
-                        gt_lookup=gt_lookup_by_flow,
-                        flow_id=flow_id,
-                        contextualized_question=current_prompt,
-                        turn_identifier_key="question_number",
-                        turn_identifier_value=question_number,
-                        use_follow_up=has_deflected,
-                    )
+                if final_user_response is None:
+                    break
 
-                    if user_response is None:
-                        break
+                print(f"User_response: {final_user_response}")
+                # --- NEW SIMPLIFIED LOGIC ---
+                # This logic aligns the simulation directly with the API's behavior.
 
-                    print(f"User_response: {user_response}")
-                    chat_history.append(ChatMessage.from_user(text=user_response))
-
-                    # Classify user's intent and act accordingly
-                    intent, intent_related_response = handle_user_message(
-                        contextualized_question, user_response
-                    )
-                    print(f"Predicted Intent: {intent}")
-
-                    if not has_deflected:
-                        initial_predicted_intent = intent
-                    else:
-                        final_predicted_intent = intent
-
-                    if intent == "JOURNEY_RESPONSE":
-                        final_user_response = user_response
-                        if not has_deflected:
-                            final_predicted_intent = initial_predicted_intent
-                        break
-                    elif intent == "SKIP_QUESTION":
-                        final_user_response = user_response  # Keep original text e.g. "don't want to answer"
-                        final_predicted_intent = "SKIP_QUESTION"
-                        break
-                    else:
-                        if intent in ["HEALTH_QUESTION", "QUESTION_ABOUT_STUDY"]:
-                            print(f"Intent: {intent}")
-                            print(intent_related_response)
-                        elif intent in [
-                            "ASKING_TO_STOP_MESSAGES",
-                            "ASKING_TO_DELETE_DATA",
-                            "REPORTING_AIRTIME_NOT_RECEIVED",
-                        ]:
-                            print(f"Turn must be notified that user is {intent}")
-                        elif intent == "CHITCHAT":
-                            print(intent_related_response)
-                            print(
-                                (
-                                    f"User is chitchatting and needs to still respond to "
-                                    f"the previous question: {current_prompt}"
-                                )
-                            )
-
-                        # Set flag to fetch the follow_up_utterance on the next loop
-                        has_deflected = True
-                        if not gt_scenario:
-                            current_prompt = f"Thanks. To continue, please answer:\n> {contextualized_question}"
-
-                if final_predicted_intent == "SKIP_QUESTION":
-                    logger.info(f"User skipped question #{question_number}.")
+                # First, handle explicit "skip" commands.
+                if final_user_response.strip().lower() == "skip":
+                    logger.info(f"User explicitly skipped question #{question_number}.")
                     question_to_skip = next(
                         (
                             q
@@ -406,14 +359,28 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         None,
                     )
                     if question_to_skip and question_to_skip.collects:
-                        # Record the skip by updating the context
                         user_context[question_to_skip.collects] = "Skip"
-                elif final_user_response:
-                    user_context = update_context_from_onboarding_response(
+                else:
+                    # For ALL other inputs, go directly to our robust extraction function.
+                    (
+                        user_context,
+                        processed_input,
+                        extraction_status,
+                    ) = update_context_from_onboarding_response(
                         user_input=final_user_response,
-                        current_context=user_context,
+                        current_context=previous_context,
                         current_question=contextualized_question,
                     )
+
+                    # CRITICAL FIX: Append the PROCESSED input to the chat history.
+                    chat_history.append(ChatMessage.from_user(text=processed_input))
+
+                    # If extraction fails (junk, chit-chat, etc.), revert the context
+                    # to ensure the failure logic below is triggered.
+                    if extraction_status != ExtractionStatus.SUCCESS:
+                        user_context = previous_context
+
+                # ___ End ___
 
                 if user_context == previous_context:
                     consecutive_failures += 1
@@ -457,11 +424,10 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                             {
                                 "question_name": field_to_update,
                                 "llm_utterance": contextualized_question,
-                                "user_utterance": user_response,
-                                "follow_up_utterance": final_user_response,
+                                "user_utterance": gt_turn.get("user_utterance")
+                                if gt_turn
+                                else final_user_response,
                                 "llm_extracted_user_response": "Skipped - System",
-                                "llm_initial_predicted_intent": initial_predicted_intent,
-                                "llm_final_predicted_intent": final_predicted_intent,
                             }
                         )
 
@@ -496,16 +462,6 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                                 {
                                     "question_name": key,
                                     "llm_utterance": contextualized_question,
-                                    "user_utterance": gt_turn.get("user_utterance")
-                                    if gt_turn
-                                    else final_user_response,
-                                    "follow_up_utterance": gt_turn.get(
-                                        "follow_up_utterance"
-                                    )
-                                    if gt_turn
-                                    else None,
-                                    "llm_initial_predicted_intent": initial_predicted_intent,
-                                    "llm_final_predicted_intent": final_predicted_intent,
                                     "llm_extracted_user_response": value,
                                 }
                             )
@@ -520,13 +476,6 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                                 "user_utterance": gt_turn.get("user_utterance")
                                 if gt_turn
                                 else final_user_response,
-                                "follow_up_utterance": gt_turn.get(
-                                    "follow_up_utterance"
-                                )
-                                if gt_turn
-                                else None,
-                                "llm_initial_predicted_intent": initial_predicted_intent,
-                                "llm_final_predicted_intent": final_predicted_intent,
                                 "llm_extracted_user_response": user_context[
                                     updated_field
                                 ],
@@ -572,12 +521,9 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         "question_name": "summary_confirmation",
                         "llm_utterance": summary_message,
                         "user_utterance": summary_response,
-                        "follow_up_utterance": summary_result["question"],
                         "llm_extracted_user_response": summary_result[
                             "results_to_save"
                         ],
-                        "llm_initial_predicted_intent": summary_result["intent"],
-                        "llm_final_predicted_intent": summary_result["intent"],
                     }
                 )
 
@@ -674,7 +620,6 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 final_user_response = None
                 initial_predicted_intent = None
                 final_predicted_intent = None
-                current_prompt = contextualized_question
 
                 while True:
                     user_response, gt_turn = _get_user_response(
@@ -732,8 +677,6 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
 
                         # Set flag to fetch the follow_up_utterance on the next loop
                         has_deflected = True
-                        if not gt_scenario:
-                            current_prompt = f"Thanks. To continue, please answer:\n> {contextualized_question}"
 
                 if final_user_response is None:
                     continue
@@ -1181,7 +1124,6 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     final_user_response = None
                     initial_predicted_intent = None
                     final_predicted_intent = None
-                    current_prompt = contextualized_question
 
                     while True:
                         user_response, gt_turn = _get_user_response(
@@ -1234,8 +1176,6 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                                 )
 
                             has_deflected = True
-                            if not gt_scenario:
-                                current_prompt = f"Thanks. To continue, please answer:\n> {contextualized_question}"
 
                     if final_user_response is None:
                         continue

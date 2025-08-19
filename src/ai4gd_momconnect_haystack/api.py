@@ -54,6 +54,7 @@ from ai4gd_momconnect_haystack.pydantic_models import (
 from ai4gd_momconnect_haystack.pydantic_models import (
     LegacySurveyResponse as SurveyResponse,  # Use LegacySurveyResponse for the API contract
 )
+from ai4gd_momconnect_haystack.enums import ExtractionStatus
 from ai4gd_momconnect_haystack.tasks import (
     extract_assessment_data_from_response,
     format_user_data_summary_for_whatsapp,
@@ -98,6 +99,8 @@ SERVICE_PERSONA_TEXT = ""
 if SERVICE_PERSONA:
     if "persona" in SERVICE_PERSONA.keys():
         SERVICE_PERSONA_TEXT = SERVICE_PERSONA["persona"]
+
+MAX_REPAIR_ATTEMPTS = 2
 
 
 def setup_sentry():
@@ -201,6 +204,7 @@ def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
     user_id = request.user_id
     user_input = request.user_input
     flow_id = "onboarding"
+    processed_input = user_input
     user_context = request.user_context.copy()
     chat_history = get_or_create_chat_history(
         user_id=user_id, history_type=HistoryType.onboarding
@@ -383,21 +387,22 @@ def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
 
     elif intent == "JOURNEY_RESPONSE":
         previous_context = request.user_context.copy()
-        user_context, question = process_onboarding_step(
-            user_input=user_input,
-            current_context=previous_context,
-            current_question=last_question,
+        user_context, question, processed_input, extraction_status = (
+            process_onboarding_step(
+                user_input=user_input,
+                current_context=previous_context,
+                current_question=last_question,
+            )
         )
         if question:
             question_text = question.get("contextualized_question", "")
 
-        diff_keys = [
+        results_to_save = [
             k for k in user_context if user_context.get(k) != previous_context.get(k)
         ]
-        results_to_save.extend(diff_keys)
 
-        if not diff_keys:  # Validation or extraction failed
-            if request.failure_count >= 1:
+        if extraction_status == ExtractionStatus.NO_MATCH:
+            if request.failure_count + 1 >= MAX_REPAIR_ATTEMPTS:
                 logger.warning(
                     f"Onboarding failed for question '{last_question}' twice. Skipping."
                 )
@@ -490,7 +495,7 @@ def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
         )
 
     if not is_intro_response:
-        chat_history.append(ChatMessage.from_user(text=user_input))
+        chat_history.append(ChatMessage.from_user(text=processed_input or user_input))
 
     # After processing the last answer, question_text will be empty.
     step_identifier = ""

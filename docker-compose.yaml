@@ -30,7 +30,7 @@ services:
     environment:
       WEAVIATE_URL: http://weaviate:8080
       # OPENAI_API_KEY: 'your_openai_api_key_if_needed_by_haystack' # Add other necessary ENV VARS
-      DATABASE_URL: "sqlite+aiosqlite:////database/chat.db"
+      DATABASE_URL: "sqlite:////database/chat.db"
     env_file:
       - .env
     networks:

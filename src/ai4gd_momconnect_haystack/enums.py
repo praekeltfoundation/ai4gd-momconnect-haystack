@@ -37,3 +37,8 @@ class Intent(str, Enum):
     SYSTEM_ERROR = "SYSTEM_ERROR"
     CHITCHAT = "CHITCHAT"
     JOURNEY_RESUMED = "JOURNEY_RESUMED"
+
+
+class ExtractionStatus(Enum):
+    SUCCESS = "SUCCESS"
+    NO_MATCH = "NO_MATCH"
