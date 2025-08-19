@@ -211,7 +211,6 @@ def test_onboarding(
     mock_process_step.return_value = (
         {"area_type": "City"},
         {"contextualized_question": "Next Q"},
-        "processed input",
     )
 
     client = TestClient(app)
@@ -222,7 +221,7 @@ def test_onboarding(
     )
     saved_messages = save_chat_history.call_args.kwargs["messages"]
     assert len(saved_messages) == 6
-    assert saved_messages[4].text == "processed input"
+    assert saved_messages[4].text == "city"
     mock_process_step.assert_called_once_with(
         user_input="city", current_context={}, current_question="Welcome!"
     )
@@ -963,8 +962,7 @@ def test_repair_on_intro_consent(mock_handle_intro, mock_get_q):
     return_value="This is the rephrased question.",
 )
 @mock.patch(
-    "ai4gd_momconnect_haystack.api.process_onboarding_step",
-    return_value=({}, None, "processed input"),
+    "ai4gd_momconnect_haystack.api.process_onboarding_step", return_value=({}, None)
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.validate_assessment_answer",
@@ -1042,8 +1040,7 @@ def test_flow_repair_on_invalid_answer(
 )
 @mock.patch("ai4gd_momconnect_haystack.api.handle_conversational_repair")
 @mock.patch(
-    "ai4gd_momconnect_haystack.api.process_onboarding_step",
-    return_value=({}, None, "processed input"),
+    "ai4gd_momconnect_haystack.api.process_onboarding_step", return_value=({}, None)
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.validate_assessment_answer",
@@ -1295,7 +1292,6 @@ def test_onboarding_api_flow_transitions_to_summary(
     mock_process_step.return_value = (
         {"province": "Gauteng", "area_type": "City"},
         None,  # NO more questions
-        "processed input",
     )
 
     client = TestClient(app)
