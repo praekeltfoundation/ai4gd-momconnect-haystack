@@ -29,6 +29,7 @@ from .pipeline_prompts import (
     REPHRASE_QUESTION_PROMPT,
     SURVEY_DATA_EXTRACTION_PROMPT,
     DATA_UPDATE_PROMPT,
+    SUMMARY_CONFIRMATION_INTENT_PROMPT,
 )
 
 # --- Configuration ---
@@ -725,7 +726,7 @@ def create_rephrase_question_pipeline() -> Pipeline | None:
     """
     Creates a pipeline to rephrase a question when a user's response is unclear.
     """
-    llm_generator = get_llm_generator()  # Assumes get_llm_generator() exists
+    llm_generator = get_llm_generator()
     if not llm_generator:
         logger.error(
             "LLM Generator not available. Cannot create Rephrase Question Pipeline."
@@ -734,14 +735,9 @@ def create_rephrase_question_pipeline() -> Pipeline | None:
 
     pipeline = Pipeline()
 
-    json_validator = JsonSchemaValidator(json_schema=REPHRASED_QUESTION_SCHEMA)
-
     pipeline.add_component("prompt_builder", ChatPromptBuilder())
     pipeline.add_component("llm", llm_generator)
-    pipeline.add_component("json_validator", json_validator)
-
     pipeline.connect("prompt_builder.prompt", "llm.messages")
-    pipeline.connect("llm.replies", "json_validator.messages")
 
     logger.info("Created Rephrase Question Pipeline.")
     return pipeline
@@ -1601,9 +1597,8 @@ def run_rephrase_question_pipeline(
             }
         )
 
-        validated_message = result["json_validator"]["validated"][0]
-        question_data = json.loads(validated_message.text)
-        rephrased_question = question_data.get("rephrased_question")
+        rephrased_question = result["llm"]["replies"][0].text
+        rephrased_question = rephrased_question.strip() if rephrased_question else None
 
         if rephrased_question:
             return rephrased_question
@@ -1693,3 +1688,56 @@ def run_data_update_pipeline(user_input: str, user_context: dict) -> dict:
             result,
         )
     return {}
+
+
+# Add these functions anywhere in the file
+
+@cache
+def create_summary_intent_pipeline() -> Pipeline | None:
+    """
+    Creates a pipeline to classify the user's intent at the summary confirmation step.
+    """
+    llm_generator = get_llm_generator()
+    if not llm_generator:
+        return None
+
+    pipeline = Pipeline()
+    json_schema = {
+        "type": "object",
+        "properties": {
+            "intent": {"type": "string", "enum": ["CONFIRM", "UPDATE", "AMBIGUOUS"]},
+        },
+        "required": ["intent"],
+    }
+    json_validator = JsonSchemaValidator(json_schema=json_schema)
+
+    pipeline.add_component("prompt_builder", ChatPromptBuilder())
+    pipeline.add_component("llm", llm_generator)
+    pipeline.add_component("json_validator", json_validator)
+
+    pipeline.connect("prompt_builder.prompt", "llm.messages")
+    pipeline.connect("llm.replies", "json_validator.messages")
+    return pipeline
+
+
+def run_summary_intent_pipeline(user_input: str) -> str | None:
+    """
+    Runs the summary confirmation intent classification pipeline.
+    """
+    pipeline = create_summary_intent_pipeline()
+    if not pipeline:
+        return "AMBIGUOUS"
+
+    try:
+        result = pipeline.run(
+            {
+                "prompt_builder": {
+                    "template": [ChatMessage.from_system(SUMMARY_CONFIRMATION_INTENT_PROMPT)],
+                    "template_variables": {"user_input": user_input},
+                }
+            }
+        )
+        validated_message = result["json_validator"]["validated"][0]
+        return json.loads(validated_message.text).get("intent")
+    except Exception:
+        return "AMBIGUOUS"

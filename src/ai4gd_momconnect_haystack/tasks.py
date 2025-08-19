@@ -24,6 +24,7 @@ from ai4gd_momconnect_haystack.pipelines import (
     get_next_anc_survey_step,
     run_anc_survey_contextualization_pipeline,
     run_rephrase_question_pipeline,
+    run_summary_intent_pipeline,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import (
     AssessmentHistory,
@@ -954,7 +955,8 @@ def handle_conversational_repair(
 
         if not rephrased_question:
             logger.warning("LLM rephrasing failed. Using simple fallback.")
-            return f"Sorry, I didn't understand. Please try answering again:\n\n{previous_question}"
+            formatted_options = "\n".join(formatted_responses)
+            return f"Sorry, I didn't understand. Please try answering again:\n\n{previous_question}\n{formatted_options}".strip()
 
         return rephrased_question
 
@@ -1001,10 +1003,11 @@ def handle_summary_confirmation_step(user_input: str, user_context: dict) -> dic
             "results_to_save": list(updates.keys()),
         }
 
-    consent_intent = classify_yes_no_response(user_input)
+    # If no specific update is found, classify the general intent.
+    summary_intent = run_summary_intent_pipeline(user_input)
 
     # If the user's input is clearly affirmative, complete onboarding and signal to start DMA.
-    if consent_intent == "AFFIRMATIVE":
+    if summary_intent == "CONFIRM":
         user_context.pop("flow_state", None)
         return {
             "question": "Perfect, thank you! Now for the next section.",
@@ -1012,14 +1015,13 @@ def handle_summary_confirmation_step(user_input: str, user_context: dict) -> dic
             "intent": "ONBOARDING_COMPLETE_START_DMA",  # Signal to start DMA
             "results_to_save": [],
         }
-
-    # If the user's input is negative or ambiguous, ask for clarification.
-    return {
-        "question": "No problem. Please tell me what you would like to change. For example, 'My province is Western Cape'.",
-        "user_context": user_context,
-        "intent": "REPAIR",
-        "results_to_save": [],
-    }
+    else:
+        return {
+            "question": "No problem. Please tell me what you would like to change. For example, 'My province is Western Cape'.",
+            "user_context": user_context,
+            "intent": "REPAIR",
+            "results_to_save": [],
+        }
 
 
 def classify_yes_no_response(user_input: str) -> str:
