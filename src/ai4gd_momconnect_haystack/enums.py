@@ -42,3 +42,10 @@ class Intent(str, Enum):
 class ExtractionStatus(Enum):
     SUCCESS = "SUCCESS"
     NO_MATCH = "NO_MATCH"
+
+
+class DeflectionAction(str, Enum):
+    CONTINUE_JOURNEY = "CONTINUE_JOURNEY"
+    STOP_JOURNEY = "STOP_JOURNEY"
+    REPROMPT_WITH_ANSWER = "REPROMPT_WITH_ANSWER"
+    TRIGGER_REPAIR = "TRIGGER_REPAIR"

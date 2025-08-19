@@ -19,6 +19,7 @@ from ai4gd_momconnect_haystack.enums import (
     HistoryType,
     ReminderType,
     ExtractionStatus,
+    DeflectionAction,
 )
 from ai4gd_momconnect_haystack.pipelines import (
     get_next_anc_survey_step,
@@ -1550,3 +1551,48 @@ def classify_anc_start_response(user_input: str) -> str | None:
         return "SOON"
 
     return None  # Return None if the response is ambiguous
+
+
+def handle_onboarding_deflection(
+    intent: str,
+    intent_related_response: str | None,
+    user_context: dict,
+    question_number: int,
+    contextualized_question: str,
+) -> tuple[DeflectionAction, dict, str | None]:
+    """
+    Contains the shared logic for handling all non-journey-response intents
+    during an onboarding turn.
+    """
+    # Group 1: Acknowledge and Stop
+    if intent in ["ASKING_TO_STOP_MESSAGES", "ASKING_TO_DELETE_DATA"]:
+        message = "Acknowledged. Your request will be processed. The conversation will now end."
+        return (DeflectionAction.STOP_JOURNEY, user_context, message)
+
+    # Group 2: Answer and Continue (Deflection)
+    elif intent in [
+        "QUESTION_ABOUT_STUDY",
+        "HEALTH_QUESTION",
+        "REPORTING_AIRTIME_NOT_RECEIVED",
+    ]:
+        message = (
+            f"{intent_related_response}\n\n"
+            f"Now, where were we? Ah yes:\n{contextualized_question}"
+        )
+        return (DeflectionAction.REPROMPT_WITH_ANSWER, user_context, message)
+
+    # Special Case: Conversational Skip
+    elif intent == "SKIP_QUESTION":
+        logger.info(f"User wants to skip question #{question_number} via intent.")
+        question_to_skip = next(
+            (q for q in all_onboarding_questions if q.question_number == question_number),
+            None,
+        )
+        if question_to_skip and question_to_skip.collects:
+            user_context[question_to_skip.collects] = "Skip"
+        # Signal to the caller to proceed to the *next* question.
+        return (DeflectionAction.CONTINUE_JOURNEY, user_context, None)
+
+    # Group 3: Standard Failure (Repair)
+    else:  # This covers CHITCHAT, REQUEST_TO_BE_REMINDED, etc.
+        return (DeflectionAction.TRIGGER_REPAIR, user_context, None)

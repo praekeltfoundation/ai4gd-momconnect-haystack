@@ -45,6 +45,7 @@ from ai4gd_momconnect_haystack.tasks import (
     ExtractionStatus,
     update_context_from_onboarding_response,
     FIELD_TO_QUESTION_MAP,
+    handle_onboarding_deflection,
 )
 from ai4gd_momconnect_haystack.utilities import (
     ANC_SURVEY_MAP,
@@ -60,7 +61,7 @@ from ai4gd_momconnect_haystack.utilities import (
 
 from .database import SessionLocal, run_migrations
 from .doc_store import INTRO_MESSAGES  # setup_document_store
-from .enums import AssessmentType, HistoryType
+from .enums import AssessmentType, HistoryType, DeflectionAction
 from .pydantic_models import (
     AssessmentEndScoreBasedMessage,
     AssessmentEndSimpleMessage,
@@ -385,15 +386,40 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     logger.warning(
                         f"Turn failed to update context. Consecutive failures: {consecutive_failures}"
                     )
-                    if consecutive_failures == 1:
-                        print("--- TRIGGERING CONVERSATIONAL REPAIR ---")
-                        # Store the rephrased question for the next loop iteration.
-                        rephrased_question = handle_conversational_repair(
-                            flow_id=flow_id,
-                            question_identifier=question_number,
-                            previous_question=contextualized_question,
-                            invalid_input=final_user_response or "",
-                        )
+
+                    # Since extraction failed, call the shared helper to handle the deflection.
+                    action, user_context, message = handle_onboarding_deflection(
+                        *handle_user_message(contextualized_question, final_user_response),
+                        user_context=user_context,
+                        question_number=question_number,
+                        contextualized_question=contextualized_question,
+                    )
+
+                    if action == DeflectionAction.STOP_JOURNEY:
+                        print(f"System Response: {message}")
+                        break
+                    elif action == DeflectionAction.REPROMPT_WITH_ANSWER:
+                        # The 'message' contains the full answer + re-prompt.
+                        # Store it so it becomes the prompt for the next turn.
+                        # This is a deflection, not a failure. Reset counter
+                        # and re-ask.
+                        consecutive_failures = 0
+                        rephrased_question = message
+                        continue
+                    elif action == DeflectionAction.CONTINUE_JOURNEY:
+                        consecutive_failures = 0
+                        rephrased_question = None  # Move to next question
+                        continue
+                    elif action == DeflectionAction.TRIGGER_REPAIR:
+                        if consecutive_failures == 1:
+                            print("--- TRIGGERING CONVERSATIONAL REPAIR ---")
+                            rephrased_question = handle_conversational_repair(
+                                flow_id=flow_id,
+                                question_identifier=question_number,
+                                previous_question=contextualized_question,
+                                invalid_input=final_user_response or "",
+                            )
+                            print(f"rephrased Q: {rephrased_question}")
                 else:
                     consecutive_failures = 0
                     rephrased_question = None  # Reset on a successful turn
@@ -430,60 +456,61 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 print(json.dumps(collected_data, indent=2))
                 print("=" * 57 + "\n")
                 # --- END DEBUG ---
-            # --- Summary and confirmation step now loops for updates ---
-            in_summary_flow = True
-            summary_message = format_user_data_summary_for_whatsapp(user_context)
+            else:
+                # --- Summary and confirmation step now loops for updates ---
+                in_summary_flow = True
+                summary_message = format_user_data_summary_for_whatsapp(user_context)
 
-            while in_summary_flow:
-                print("-" * 20)
-                print("Onboarding Summary Screen:")
+                while in_summary_flow:
+                    print("-" * 20)
+                    print("Onboarding Summary Screen:")
 
-                # Get the user's confirmation or update request
-                summary_response, _ = _get_user_response(
-                    gt_lookup=gt_lookup_by_flow,
-                    flow_id=flow_id,
-                    contextualized_question=summary_message,
-                    turn_identifier_key="question_name",
-                    turn_identifier_value="summary_confirmation",
-                )
+                    # Get the user's confirmation or update request
+                    summary_response, _ = _get_user_response(
+                        gt_lookup=gt_lookup_by_flow,
+                        flow_id=flow_id,
+                        contextualized_question=summary_message,
+                        turn_identifier_key="question_name",
+                        turn_identifier_value="summary_confirmation",
+                    )
 
-                if not summary_response:
-                    break
+                    if not summary_response:
+                        break
 
-                print(f"User Response to Summary: {summary_response}")
+                    print(f"User Response to Summary: {summary_response}")
 
-                # Process the response using the reusable task
-                summary_result = handle_summary_confirmation_step(
-                    summary_response, user_context
-                )
+                    # Process the response using the reusable task
+                    summary_result = handle_summary_confirmation_step(
+                        summary_response, user_context
+                    )
 
-                # Print the final system acknowledgement or the next prompt
-                summary_message = summary_result["question"]
-                print(f"System Response: {summary_message}")
+                    # Print the final system acknowledgement or the next prompt
+                    summary_message = summary_result["question"]
+                    print(f"System Response: {summary_message}")
 
-                user_context = summary_result["user_context"]
+                    user_context = summary_result["user_context"]
 
-                # Log this interaction as a turn
-                onboarding_turns.append(
-                    {
-                        "question_name": "summary_confirmation",
-                        "llm_utterance": summary_message,
-                        "user_utterance": summary_response,
-                        "llm_extracted_user_response": summary_result[
-                            "results_to_save"
-                        ],
-                    }
-                )
+                    # Log this interaction as a turn
+                    onboarding_turns.append(
+                        {
+                            "question_name": "summary_confirmation",
+                            "llm_utterance": summary_message,
+                            "user_utterance": summary_response,
+                            "llm_extracted_user_response": summary_result[
+                                "results_to_save"
+                            ],
+                        }
+                    )
 
-                # If the intent is not REPAIR, the flow is over.
-                if summary_result["intent"] != "REPAIR":
-                    in_summary_flow = False
+                    # If the intent is not REPAIR, the flow is over.
+                    if summary_result["intent"] != "REPAIR":
+                        in_summary_flow = False
 
-            # debug print of the updated summary if changes were made
-            if summary_result.get("results_to_save"):
-                print("\n--- [DEBUG] Updated Summary ---")
-                print(format_user_data_summary_for_whatsapp(user_context))
-                print("-----------------------------\n")
+                # debug print of the updated summary if changes were made
+                if summary_result.get("results_to_save"):
+                    print("\n--- [DEBUG] Updated Summary ---")
+                    print(format_user_data_summary_for_whatsapp(user_context))
+                    print("-----------------------------\n")
             run_results["turns"] = onboarding_turns
             simulation_results.append(run_results)
 
