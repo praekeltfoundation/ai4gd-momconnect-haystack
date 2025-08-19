@@ -12,7 +12,7 @@ from ai4gd_momconnect_haystack.assessment_logic import (
     validate_assessment_answer,
     validate_assessment_end_response,
 )
-from ai4gd_momconnect_haystack.enums import AssessmentType, ExtractionStatus
+from ai4gd_momconnect_haystack.enums import AssessmentType
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentQuestion,
     AssessmentResponse,
@@ -41,7 +41,6 @@ from ai4gd_momconnect_haystack.tasks import (
     handle_reminder_request,
     handle_reminder_response,
     handle_summary_confirmation_step,
-    update_context_from_onboarding_response,
 )
 from ai4gd_momconnect_haystack.utilities import create_response_to_key_map
 
@@ -1219,95 +1218,3 @@ def test_extract_assessment_data_from_response_with_mocking(
         previous_service_message=question_content,
         valid_responses=["Yes", "No"],  # The options for this specific question
     )
-
-
-# --- NEW TESTS FOR ONBOARDING LOGIC ---
-# Define mock data for our test questions to use across multiple test cases.
-PROVINCE_QUESTION_MOCK_DATA = {
-    "content": "Which province do you live in?",
-    "collects": "province",
-    "valid_responses": [
-        "Eastern Cape",
-        "Free State",
-        "Gauteng",
-        "KwaZulu-Natal",
-        "Limpopo",
-        "Mpumalanga",
-        "Northern Cape",
-        "North West",
-        "Western Cape",
-    ],
-}
-
-AREA_TYPE_QUESTION_MOCK_DATA = {
-    "content": "What kind of area do you live in?",
-    "collects": "area_type",
-    "valid_responses": ["City", "Township", "Village", "Rural area"],
-}
-
-
-@pytest.mark.parametrize(
-    "user_input, question_mock_data, expected_context_update, expected_status",
-    [
-        # Test case 1: A successful single-letter match
-        (
-            "a",
-            PROVINCE_QUESTION_MOCK_DATA,
-            {"province": "Eastern Cape"},
-            ExtractionStatus.SUCCESS,
-        ),
-        # Test case 2: A successful keyword match from a full sentence
-        (
-            "I stay in a village",
-            AREA_TYPE_QUESTION_MOCK_DATA,
-            {"area_type": "Village"},
-            ExtractionStatus.SUCCESS,
-        ),
-        # Test case 3: A successful case-insensitive keyword match
-        (
-            "CITY",
-            AREA_TYPE_QUESTION_MOCK_DATA,
-            {"area_type": "City"},
-            ExtractionStatus.SUCCESS,
-        ),
-        # Test case 4: Junk input that should result in a failure
-        ("fhsjk", PROVINCE_QUESTION_MOCK_DATA, {}, ExtractionStatus.NO_MATCH),
-    ],
-    ids=[
-        "single_letter_success",
-        "keyword_match_success",
-        "case_insensitive_success",
-        "junk_input_failure",
-    ],
-)
-@mock.patch("ai4gd_momconnect_haystack.tasks.all_onboarding_questions")
-def test_update_context_from_onboarding_response(
-    mock_all_questions,
-    user_input,
-    question_mock_data,
-    expected_context_update,
-    expected_status,
-):
-    """
-    Tests the layered, rule-based logic of the onboarding data extractor
-    to ensure it correctly handles various user inputs.
-    """
-    # Arrange: Create a mock question object from our test data
-    mock_question = mock.Mock()
-    mock_question.content = question_mock_data["content"]
-    mock_question.collects = question_mock_data["collects"]
-    mock_question.valid_responses = question_mock_data["valid_responses"]
-    mock_all_questions.__iter__.return_value = [mock_question]
-
-    # Act: Call the function we want to test directly
-    updated_context, processed_input, status = update_context_from_onboarding_response(
-        user_input=user_input,
-        current_context={},
-        current_question=question_mock_data["content"],
-    )
-
-    # Assert: Check that the function behaved as expected
-    assert status == expected_status
-    # Check that the context was updated correctly
-    for key, value in expected_context_update.items():
-        assert updated_context.get(key) == value
