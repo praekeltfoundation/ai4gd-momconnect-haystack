@@ -8,11 +8,7 @@ from sentry_sdk import get_client as get_sentry_client
 
 from ai4gd_momconnect_haystack.api import app, setup_sentry
 from ai4gd_momconnect_haystack.database import SessionLocal
-from ai4gd_momconnect_haystack.enums import (
-    AssessmentType,
-    HistoryType,
-    ExtractionStatus,
-)
+from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentEndScoreBasedMessage,
     AssessmentResult,
@@ -215,8 +211,6 @@ def test_onboarding(
     mock_process_step.return_value = (
         {"area_type": "City"},
         {"contextualized_question": "Next Q"},
-        "city",
-        ExtractionStatus.SUCCESS,
     )
 
     client = TestClient(app)
@@ -968,8 +962,7 @@ def test_repair_on_intro_consent(mock_handle_intro, mock_get_q):
     return_value="This is the rephrased question.",
 )
 @mock.patch(
-    "ai4gd_momconnect_haystack.api.process_onboarding_step",
-    return_value=({}, None, "invalid answer", ExtractionStatus.NO_MATCH),
+    "ai4gd_momconnect_haystack.api.process_onboarding_step", return_value=({}, None)
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.validate_assessment_answer",
@@ -1047,8 +1040,7 @@ def test_flow_repair_on_invalid_answer(
 )
 @mock.patch("ai4gd_momconnect_haystack.api.handle_conversational_repair")
 @mock.patch(
-    "ai4gd_momconnect_haystack.api.process_onboarding_step",
-    return_value=({}, None, "another invalid", ExtractionStatus.NO_MATCH),
+    "ai4gd_momconnect_haystack.api.process_onboarding_step", return_value=({}, None)
 )
 @mock.patch(
     "ai4gd_momconnect_haystack.api.validate_assessment_answer",
@@ -1299,9 +1291,7 @@ def test_onboarding_api_flow_transitions_to_summary(
     mock_handle_message.return_value = ("JOURNEY_RESPONSE", "")
     mock_process_step.return_value = (
         {"province": "Gauteng", "area_type": "City"},
-        None,
-        "City",
-        ExtractionStatus.SUCCESS,
+        None,  # NO more questions
     )
 
     client = TestClient(app)

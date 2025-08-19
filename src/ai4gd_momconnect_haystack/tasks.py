@@ -14,12 +14,7 @@ from ai4gd_momconnect_haystack.crud import (
     get_user_journey_state,
     save_user_journey_state,
 )
-from ai4gd_momconnect_haystack.enums import (
-    AssessmentType,
-    HistoryType,
-    ReminderType,
-    ExtractionStatus,
-)
+from ai4gd_momconnect_haystack.enums import AssessmentType, HistoryType, ReminderType
 from ai4gd_momconnect_haystack.pipelines import (
     get_next_anc_survey_step,
     run_anc_survey_contextualization_pipeline,
@@ -159,16 +154,13 @@ def extract_onboarding_data_from_response(
 
 def update_context_from_onboarding_response(
     user_input: str, current_context: dict, current_question: str
-) -> tuple[dict, str, ExtractionStatus]:
+) -> dict:
     """
-    Takes user input, extracts data using a layered approach, and returns the
-    updated context, a processed version of the input for logging, and a
-    status.
+    Takes user input, extracts data, and returns the fully updated context.
+    This is the core business logic for an onboarding turn.
     """
     updated_context = current_context.copy()
     updates = {}
-    processed_input = user_input
-    status = ExtractionStatus.NO_MATCH
 
     current_question_obj = next(
         (
@@ -179,85 +171,57 @@ def update_context_from_onboarding_response(
         None,
     )
 
-    # Start of the new layered extraction logic.
-    if current_question_obj:
-        # Layer 1: Simple Yes/No questions
-        if current_question_obj.valid_responses == ["Yes", "No", "Skip"]:
-            intent = classify_yes_no_response(user_input)
-            if intent == "AFFIRMATIVE":
-                updates = {current_question_obj.collects: "Yes"}
-            elif intent == "NEGATIVE":
-                updates = {current_question_obj.collects: "No"}
+    # Check if this is a simple Yes/No question
+    if current_question_obj and current_question_obj.valid_responses == [
+        "Yes",
+        "No",
+        "Skip",
+    ]:
+        # Use the new reusable helper function
+        intent = classify_yes_no_response(user_input)
+        if intent == "AFFIRMATIVE":
+            updates = {current_question_obj.collects: "Yes"}
+        elif intent == "NEGATIVE":
+            updates = {current_question_obj.collects: "No"}
+        # If ambiguous, 'updates' remains empty, and we fall through to the LLM
 
-        # Layer 2: Rule-based matching for other Multiple Choice Questions
-        elif current_question_obj.valid_responses:
-            user_input_lower = user_input.strip().lower()
-
-            # Layer 2a: Single-letter (USSD-style) match
-            if len(user_input_lower) == 1 and user_input_lower in ascii_lowercase:
-                try:
-                    response_index = ascii_lowercase.index(user_input_lower)
-                    if response_index < len(current_question_obj.valid_responses):
-                        selected_response = current_question_obj.valid_responses[
-                            response_index
-                        ]
-                        updates = {current_question_obj.collects: selected_response}
-                        processed_input = selected_response
-                except (ValueError, IndexError):
-                    pass  # Fails silently and moves to the next layer
-
-            # Layer 2b: Keyword / Full-word match
-            if not updates:
-                for valid_response in current_question_obj.valid_responses:
-                    if valid_response.lower() in user_input_lower:
-                        updates = {current_question_obj.collects: valid_response}
-                        processed_input = valid_response
-                        break
-
-    # Layer 3: LLM Fallback (only if no rule-based matches were found)
+    # If it's not a simple Yes/No question, or the answer was ambiguous,
+    # fall back to the powerful LLM pipeline.
     if not updates:
-        logger.info("No rule-based match found. Falling back to LLM extractor.")
         updates = extract_onboarding_data_from_response(
             user_response=user_input,
             user_context=current_context,
             current_question=current_question,
         )
 
-    # Check the outcome of the extraction and set the final status.
     if updates:
         onboarding_data_to_collect = [
             q.collects for q in all_onboarding_questions if q.collects
         ]
-        valid_update_found = False
         for key, value in updates.items():
             if key in onboarding_data_to_collect:
                 updated_context[key] = value
-                valid_update_found = True
             else:
                 updated_context.setdefault("other", {})[key] = value
-        if valid_update_found:
-            status = ExtractionStatus.SUCCESS
 
-    return updated_context, processed_input, status
+    return updated_context
 
 
 def process_onboarding_step(
     user_input: str, current_context: dict, current_question: str
-) -> tuple[dict, dict | None, str, ExtractionStatus]:
+) -> tuple[dict, dict | None]:
     """
     Processes a single step of the onboarding flow for the API.
     """
-    updated_context, processed_input, extraction_status = (
-        update_context_from_onboarding_response(
-            user_input,
-            current_context,
-            current_question,
-        )
+    updated_context = update_context_from_onboarding_response(
+        user_input,
+        current_context,
+        current_question,
     )
 
     next_question = get_next_onboarding_question(user_context=updated_context)
 
-    return updated_context, next_question, processed_input, extraction_status
+    return updated_context, next_question
 
 
 def get_assessment_question(
