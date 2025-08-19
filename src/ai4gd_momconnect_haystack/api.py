@@ -201,7 +201,6 @@ def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
     user_id = request.user_id
     user_input = request.user_input
     flow_id = "onboarding"
-    processed_input = None
     user_context = request.user_context.copy()
     chat_history = get_or_create_chat_history(
         user_id=user_id, history_type=HistoryType.onboarding
@@ -384,7 +383,7 @@ def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
 
     elif intent == "JOURNEY_RESPONSE":
         previous_context = request.user_context.copy()
-        user_context, question, processed_input = process_onboarding_step(
+        user_context, question = process_onboarding_step(
             user_input=user_input,
             current_context=previous_context,
             current_question=last_question,
@@ -491,7 +490,7 @@ def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
         )
 
     if not is_intro_response:
-        chat_history.append(ChatMessage.from_user(text=processed_input))
+        chat_history.append(ChatMessage.from_user(text=user_input))
 
     # After processing the last answer, question_text will be empty.
     step_identifier = ""
