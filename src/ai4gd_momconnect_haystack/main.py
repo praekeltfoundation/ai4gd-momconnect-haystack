@@ -409,10 +409,12 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         # Record the skip by updating the context
                         user_context[question_to_skip.collects] = "Skip"
                 elif final_user_response:
-                    user_context = update_context_from_onboarding_response(
-                        user_input=final_user_response,
-                        current_context=user_context,
-                        current_question=contextualized_question,
+                    user_context, processed_input = (
+                        update_context_from_onboarding_response(
+                            user_input=final_user_response,
+                            current_context=user_context,
+                            current_question=contextualized_question,
+                        )
                     )
 
                 if user_context == previous_context:
