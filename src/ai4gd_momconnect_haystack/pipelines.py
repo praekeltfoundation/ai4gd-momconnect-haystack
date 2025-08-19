@@ -1692,6 +1692,7 @@ def run_data_update_pipeline(user_input: str, user_context: dict) -> dict:
 
 # Add these functions anywhere in the file
 
+
 @cache
 def create_summary_intent_pipeline() -> Pipeline | None:
     """
@@ -1732,7 +1733,9 @@ def run_summary_intent_pipeline(user_input: str) -> str | None:
         result = pipeline.run(
             {
                 "prompt_builder": {
-                    "template": [ChatMessage.from_system(SUMMARY_CONFIRMATION_INTENT_PROMPT)],
+                    "template": [
+                        ChatMessage.from_system(SUMMARY_CONFIRMATION_INTENT_PROMPT)
+                    ],
                     "template_variables": {"user_input": user_input},
                 }
             }

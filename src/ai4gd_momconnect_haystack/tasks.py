@@ -1585,7 +1585,11 @@ def handle_onboarding_deflection(
     elif intent == "SKIP_QUESTION":
         logger.info(f"User wants to skip question #{question_number} via intent.")
         question_to_skip = next(
-            (q for q in all_onboarding_questions if q.question_number == question_number),
+            (
+                q
+                for q in all_onboarding_questions
+                if q.question_number == question_number
+            ),
             None,
         )
         if question_to_skip and question_to_skip.collects:

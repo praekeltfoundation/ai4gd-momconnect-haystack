@@ -259,7 +259,7 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
     # --- NEW: Add retry logic variables ---
     MAX_CONSECUTIVE_FAILURES = 2
     consecutive_failures = 0
-    rephrased_question = None 
+    rephrased_question = None
     # --- End of new variables ---
 
     sim_onboarding = "onboarding" in gt_lookup_by_flow
@@ -350,9 +350,7 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 # Handle explicit "skip" commands first.
                 if final_user_response.strip().lower() == "skip":
                     logger.info(f"User explicitly skipped question #{question_number}.")
-                    chat_history.append(
-                        ChatMessage.from_user(text=final_user_response)
-                    )
+                    chat_history.append(ChatMessage.from_user(text=final_user_response))
                     question_to_skip = next(
                         (
                             q
@@ -388,8 +386,12 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     )
 
                     # Since extraction failed, call the shared helper to handle the deflection.
+                    intent, intent_related_response = handle_user_message(
+                        contextualized_question, final_user_response
+                    )
                     action, user_context, message = handle_onboarding_deflection(
-                        *handle_user_message(contextualized_question, final_user_response),
+                        intent=intent or "",
+                        intent_related_response=intent_related_response,
                         user_context=user_context,
                         question_number=question_number,
                         contextualized_question=contextualized_question,
@@ -452,7 +454,7 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     for key, value in user_context.items()
                     if key in FIELD_TO_QUESTION_MAP and value is not None
                 }
-                print(f"\n** Onboarding Data Collected **")
+                print("\n** Onboarding Data Collected **")
                 print(json.dumps(collected_data, indent=2))
                 print("=" * 57 + "\n")
                 # --- END DEBUG ---
