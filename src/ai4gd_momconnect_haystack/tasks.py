@@ -195,9 +195,7 @@ def update_context_from_onboarding_response(
                             response_index
                         ]
                         updates = {current_question_obj.collects: selected_response}
-                        processed_input = (
-                            selected_response  # Use full value for history
-                        )
+                        processed_input = selected_response
                         logger.info(
                             f"Mapped single-letter '{user_input}' to '{selected_response}'"
                         )
