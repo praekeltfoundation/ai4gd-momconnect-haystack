@@ -397,6 +397,26 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 else:
                     consecutive_failures = 0
                     rephrased_question = None  # Reset on a successful turn
+
+                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                    logger.error(
+                        f"Max consecutive failures reached. Force-skipping question #{question_number}."
+                    )
+                    question_to_skip = next(
+                        (
+                            q
+                            for q in all_onboarding_questions
+                            if q.question_number == question_number
+                        ),
+                        None,
+                    )
+                    if question_to_skip and question_to_skip.collects:
+                        field_to_update = question_to_skip.collects
+                        user_context[field_to_update] = "Skipped - System"
+
+                    # Reset state to proceed to the next question
+                    consecutive_failures = 0
+                    rephrased_question = None
                     continue
 
                 # --- DEBUG: Print state at the end of the turn ---
@@ -459,6 +479,11 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                 if summary_result["intent"] != "REPAIR":
                     in_summary_flow = False
 
+            # debug print of the updated summary if changes were made
+            if summary_result.get("results_to_save"):
+                print("\n--- [DEBUG] Updated Summary ---")
+                print(format_user_data_summary_for_whatsapp(user_context))
+                print("-----------------------------\n")
             run_results["turns"] = onboarding_turns
             simulation_results.append(run_results)
 

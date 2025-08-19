@@ -79,7 +79,7 @@ Your task is to analyze the "User's latest message" below and extract the answer
 1.  Focus ONLY on extracting the answer to the "current_question".
 2.  Do not extract information that is already present in the "User Context".
 3.  If the user's message does not answer the question, return an empty JSON object: `{}`.
-4.  Map conversational language (e.g., "KZN", "I'm on my own", "nah") to the correct formal value.
+4.  Map conversational language to the correct formal value. This includes common abbreviations (e.g., map "ec" or "KZN" to their full province name like "Eastern Cape" or "KwaZulu-Natal").
 
 ---
 **User Context:**

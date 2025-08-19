@@ -861,6 +861,25 @@ def handle_conversational_repair(
         "feedback_if_first_survey",
     ]
 
+    # Handle fo illogical numerical input before generic repair
+    if flow_id == "onboarding":
+        # Try to extract just the digits from the user's invalid input
+        cleaned_input = re.sub(r"\D", "", invalid_input)
+        if cleaned_input.isdigit():
+            number = int(cleaned_input)
+            # For the 'num_children' question (ID 6)
+            if question_identifier == 6 and number > 20:
+                return (
+                    "That seems like a high number of children. Could you please "
+                    "double-check the number you entered?"
+                )
+            # For the 'hunger_days' question (ID 5)
+            if question_identifier == 5 and number > 7:
+                return (
+                    "Just to confirm, you mentioned a number higher than 7, but there are "
+                    "only 7 days in a week. Could you please tell me the number of days "
+                    "in the last week?"
+                )
     is_ussd_style_question = is_dma or is_kab_mcq or is_anc_mcq
 
     # 2. Handle the two different repair paths
@@ -1015,9 +1034,16 @@ def handle_summary_confirmation_step(user_input: str, user_context: dict) -> dic
             "intent": "ONBOARDING_COMPLETE_START_DMA",  # Signal to start DMA
             "results_to_save": [],
         }
-    else:
+    elif summary_intent == "UPDATE":
         return {
             "question": "No problem. Please tell me what you would like to change. For example, 'My province is Western Cape'.",
+            "user_context": user_context,
+            "intent": "REPAIR",
+            "results_to_save": [],
+        }
+    else:
+        return {
+            "question": "Sorry, I didn't quite understand. Is the information correct?\n\na. Yes\nb. No",
             "user_context": user_context,
             "intent": "REPAIR",
             "results_to_save": [],
