@@ -12,7 +12,11 @@ from ai4gd_momconnect_haystack.assessment_logic import (
     validate_assessment_answer,
     validate_assessment_end_response,
 )
-from ai4gd_momconnect_haystack.enums import AssessmentType, ExtractionStatus
+from ai4gd_momconnect_haystack.enums import (
+    AssessmentType,
+    DeflectionAction,
+    ExtractionStatus,
+)
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentQuestion,
     AssessmentResponse,
@@ -38,6 +42,7 @@ from ai4gd_momconnect_haystack.tasks import (
     get_next_onboarding_question,
     handle_conversational_repair,
     handle_intro_response,
+    handle_onboarding_deflection,
     handle_reminder_request,
     handle_reminder_response,
     handle_summary_confirmation_step,
@@ -566,14 +571,23 @@ def test_handle_summary_confirmation_step_with_update(
 
 
 @mock.patch("ai4gd_momconnect_haystack.tasks.pipelines.run_data_update_pipeline")
+@mock.patch("ai4gd_momconnect_haystack.tasks.pipelines.create_summary_intent_pipeline")
 def test_handle_summary_confirmation_step_with_confirmation(
-    mock_run_pipeline, sample_user_context
+    mock_create_pipeline, mock_run_pipeline, sample_user_context
 ):
     """
     Tests the summary handler when the user confirms their data (no updates extracted).
     """
     # Mock the pipeline to return no updates
     mock_run_pipeline.return_value = {}
+    # Mock the pipeline run to return correct intent
+    mock_pipeline = mock.Mock()
+    mock_validated_message = mock.Mock()
+    mock_validated_message.text = '{"intent": "CONFIRM"}'
+    mock_pipeline.run.return_value = {
+        "json_validator": {"validated": [mock_validated_message]}
+    }
+    mock_create_pipeline.return_value = mock_pipeline
 
     user_input = "yes, that is correct"
     context_copy = sample_user_context.copy()
@@ -586,8 +600,9 @@ def test_handle_summary_confirmation_step_with_confirmation(
 
 
 @mock.patch("ai4gd_momconnect_haystack.tasks.pipelines.run_data_update_pipeline")
+@mock.patch("ai4gd_momconnect_haystack.tasks.pipelines.create_summary_intent_pipeline")
 def test_handle_summary_confirmation_step_with_denial(
-    mock_run_pipeline, sample_user_context
+    mock_create_pipeline, mock_run_pipeline, sample_user_context
 ):
     """
     Tests the summary handler when the user denies the summary and must be
@@ -595,6 +610,14 @@ def test_handle_summary_confirmation_step_with_denial(
     """
     # Mock the pipeline to return no updates, simulating a simple "no"
     mock_run_pipeline.return_value = {}
+    # Mock the pipeline run to return correct intent
+    mock_pipeline = mock.Mock()
+    mock_validated_message = mock.Mock()
+    mock_validated_message.text = '{"intent": "UPDATE"}'
+    mock_pipeline.run.return_value = {
+        "json_validator": {"validated": [mock_validated_message]}
+    }
+    mock_create_pipeline.return_value = mock_pipeline
 
     user_input = "no that is wrong"
     # The context must still have the flow_state for this test
@@ -1311,3 +1334,101 @@ def test_update_context_from_onboarding_response(
     # Check that the context was updated correctly
     for key, value in expected_context_update.items():
         assert updated_context.get(key) == value
+
+
+@pytest.mark.parametrize("intent", ["ASKING_TO_STOP_MESSAGES", "ASKING_TO_DELETE_DATA"])
+def test_handle_onboarding_deflection_stop_group(intent):
+    action, ctx, msg = handle_onboarding_deflection(
+        intent=intent,
+        intent_related_response=None,
+        user_context={},
+        question_number=1,
+        contextualized_question="Dummy Q",
+    )
+    assert action == DeflectionAction.STOP_JOURNEY
+    assert (
+        msg
+        == "Acknowledged. Your request will be processed. The conversation will now end."
+    )
+
+
+@pytest.mark.parametrize(
+    "intent,response",
+    [
+        ("QUESTION_ABOUT_STUDY", "Study details here"),
+        ("HEALTH_QUESTION", "Health advice here"),
+        ("REPORTING_AIRTIME_NOT_RECEIVED", "Airtime note"),
+        ("HEALTH_QUESTION", None),  # edge case
+    ],
+)
+def test_handle_onboarding_deflection_answer_and_continue(intent, response):
+    action, ctx, msg = handle_onboarding_deflection(
+        intent=intent,
+        intent_related_response=response,
+        user_context={},
+        question_number=2,
+        contextualized_question="Next Question?",
+    )
+    assert action == DeflectionAction.REPROMPT_WITH_ANSWER
+    assert "Next Question?" in msg
+
+
+@pytest.mark.parametrize(
+    "all_questions,question_number,expected_key",
+    [
+        # matching collects
+        ([{"question_number": 1, "collects": "age"}], 1, "age"),
+        # matching no collects
+        ([{"question_number": 2, "collects": None}], 2, None),
+        # no match
+        ([{"question_number": 3, "collects": "gender"}], 5, None),
+    ],
+)
+def test_handle_onboarding_deflection_skip(
+    monkeypatch, all_questions, question_number, expected_key
+):
+    monkeypatch.setattr(
+        "ai4gd_momconnect_haystack.tasks.all_onboarding_questions",
+        [type("Q", (), q) for q in all_questions],  # lightweight objects
+    )
+
+    user_context = {}
+    action, ctx, msg = handle_onboarding_deflection(
+        intent="SKIP_QUESTION",
+        intent_related_response=None,
+        user_context=user_context,
+        question_number=question_number,
+        contextualized_question="irrelevant",
+    )
+
+    assert action == DeflectionAction.CONTINUE_JOURNEY
+    assert msg is None
+    if expected_key:
+        assert ctx[expected_key] == "Skip"
+    else:
+        assert ctx == {}
+
+
+def test_handle_onboarding_deflection_request_reminder():
+    action, ctx, msg = handle_onboarding_deflection(
+        intent="REQUEST_TO_BE_REMINDED",
+        intent_related_response=None,
+        user_context={},
+        question_number=99,
+        contextualized_question="anything",
+    )
+    assert action == DeflectionAction.REQUEST_REMINDER
+    assert msg is None
+
+
+@pytest.mark.parametrize("intent", ["CHITCHAT", "UNRECOGNIZED_INTENT", "FOO_BAR"])
+def test_handle_onboarding_deflection_default_repair(intent):
+    action, ctx, msg = handle_onboarding_deflection(
+        intent=intent,
+        intent_related_response=None,
+        user_context={},
+        question_number=42,
+        contextualized_question="anything",
+    )
+    assert action == DeflectionAction.TRIGGER_REPAIR
+    assert msg is None

@@ -79,7 +79,9 @@ Your task is to analyze the "User's latest message" below and extract the answer
 1.  Focus ONLY on extracting the answer to the "current_question".
 2.  Do not extract information that is already present in the "User Context".
 3.  If the user's message does not answer the question, return an empty JSON object: `{}`.
-4.  Map conversational language (e.g., "KZN", "I'm on my own", "nah") to the correct formal value.
+4.  Map conversational language to the correct formal value. This includes common abbreviations (e.g., map "ec" or "KZN" to their full province name like "Eastern Cape" or "KwaZulu-Natal").
+5.  **For numerical questions (like hunger_days or num_children), if the user provides a number that is clearly illogical or impossible (e.g., 20 kids, 8 days in a 7-day week), DO NOT attempt to map it. Return an empty JSON object `{}` to signal a failure.**
+
 
 ---
 **User Context:**
@@ -607,25 +609,12 @@ Here is the context:
 - The user's confusing reply was: "{{ invalid_input }}"
 - The only valid answers we can accept are: {{ valid_responses }}
 
-**Instructions:**
-1.  Start with a short, kind message acknowledging you didn't understand. Examples: "Sorry, I didn't quite get that. Let me ask in a different way:", "My apologies, I'm not sure I understood. Let's try again:", "No problem. To be sure I understand, please can you tell me:"
-2.  Rephrase the core question to be as simple as possible. Remove any complex words or phrasing.
+Instructions:
+1.  Start with a short, kind message acknowledging you didn't understand. Examples: "Sorry, I didn't quite get that. Let me ask in a different way:", "My apologies, I'm not sure I understood. Let's try again:"
+2.  Rephrase the core question to be as simple as possible.
 3.  Clearly list the valid options for the user to choose from.
-4.  Your entire response should be a single, natural-sounding message to the user.
-
-You MUST respond with a valid JSON object containing exactly one key: "rephrased_question".
-
-Example:
-- previous_question: "On a scale of 1 to 5, how much do you agree or disagree with this statement: *I feel like I can make decisions about my health.*"
-- invalid_input: "i think so"
-- valid_responses: ["Strongly disagree", "Disagree", "I’m not sure", "Agree", "Strongly agree"]
-
-JSON Response:
-{
-    "rephrased_question": "Sorry, I didn't quite understand. Please can you tell me how much you agree with this statement: *I feel like I can make decisions about my health.*\\n\\nYou can reply with:\\na. Strongly disagree\\nb. Disagree\\nc. I’m not sure\\nd. Agree\\ne. Strongly agree"
-}
+4.  Your entire response should be a single, natural-sounding message to the user. Do not add any other text.
 """
-
 
 DATA_UPDATE_PROMPT = """
 You are an AI assistant helping a user update their profile information for a maternal health service.
@@ -701,6 +690,25 @@ You MUST respond with a valid JSON object with exactly these three keys:
 - Previous Question: "{{ previous_service_message }}"
 - Response to Key Mapping: {{ response_key_map }}
 - User's Response: "{{ user_response }}"
+
+JSON Response:
+"""
+
+
+SUMMARY_CONFIRMATION_INTENT_PROMPT = """
+You are an expert at classifying a user's intent during a profile summary confirmation.
+The user was just shown a summary of their data and asked "Is this all correct?".
+
+Analyze the user's response to determine if they are confirming the data is correct, if they want to update it, or if their response is ambiguous.
+
+- **CONFIRM**: The user agrees the data is correct. Examples: "yes", "that's right", "perfect", "no its fine".
+- **UPDATE**: The user wants to change something. Examples: "no", "my province is wrong", "change area to city".
+- **AMBIGUOUS**: The user's intent is unclear. Examples: "what do you mean?", "ok", "thanks".
+
+You MUST respond with a valid JSON object with a single key, "intent", and one of the three values.
+
+User's response:
+"{{ user_input }}"
 
 JSON Response:
 """

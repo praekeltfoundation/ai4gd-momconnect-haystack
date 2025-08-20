@@ -19,11 +19,13 @@ from ai4gd_momconnect_haystack.enums import (
     HistoryType,
     ReminderType,
     ExtractionStatus,
+    DeflectionAction,
 )
 from ai4gd_momconnect_haystack.pipelines import (
     get_next_anc_survey_step,
     run_anc_survey_contextualization_pipeline,
     run_rephrase_question_pipeline,
+    run_summary_intent_pipeline,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import (
     AssessmentHistory,
@@ -860,6 +862,25 @@ def handle_conversational_repair(
         "feedback_if_first_survey",
     ]
 
+    # Handle fo illogical numerical input before generic repair
+    if flow_id == "onboarding":
+        # Try to extract just the digits from the user's invalid input
+        cleaned_input = re.sub(r"\D", "", invalid_input)
+        if cleaned_input.isdigit():
+            number = int(cleaned_input)
+            # For the 'num_children' question (ID 6)
+            if question_identifier == 6 and number > 20:
+                return (
+                    "That seems like a high number of children. Could you please "
+                    "double-check the number you entered?"
+                )
+            # For the 'hunger_days' question (ID 5)
+            if question_identifier == 5 and number > 7:
+                return (
+                    "Just to confirm, you mentioned a number higher than 7, but there are "
+                    "only 7 days in a week. Could you please tell me the number of days "
+                    "in the last week?"
+                )
     is_ussd_style_question = is_dma or is_kab_mcq or is_anc_mcq
 
     # 2. Handle the two different repair paths
@@ -954,7 +975,8 @@ def handle_conversational_repair(
 
         if not rephrased_question:
             logger.warning("LLM rephrasing failed. Using simple fallback.")
-            return f"Sorry, I didn't understand. Please try answering again:\n\n{previous_question}"
+            formatted_options = "\n".join(formatted_responses)
+            return f"Sorry, I didn't understand. Please try answering again:\n\n{previous_question}\n{formatted_options}".strip()
 
         return rephrased_question
 
@@ -1001,10 +1023,11 @@ def handle_summary_confirmation_step(user_input: str, user_context: dict) -> dic
             "results_to_save": list(updates.keys()),
         }
 
-    consent_intent = classify_yes_no_response(user_input)
+    # If no specific update is found, classify the general intent.
+    summary_intent = run_summary_intent_pipeline(user_input)
 
     # If the user's input is clearly affirmative, complete onboarding and signal to start DMA.
-    if consent_intent == "AFFIRMATIVE":
+    if summary_intent == "CONFIRM":
         user_context.pop("flow_state", None)
         return {
             "question": "Perfect, thank you! Now for the next section.",
@@ -1012,14 +1035,20 @@ def handle_summary_confirmation_step(user_input: str, user_context: dict) -> dic
             "intent": "ONBOARDING_COMPLETE_START_DMA",  # Signal to start DMA
             "results_to_save": [],
         }
-
-    # If the user's input is negative or ambiguous, ask for clarification.
-    return {
-        "question": "No problem. Please tell me what you would like to change. For example, 'My province is Western Cape'.",
-        "user_context": user_context,
-        "intent": "REPAIR",
-        "results_to_save": [],
-    }
+    elif summary_intent == "UPDATE":
+        return {
+            "question": "No problem. Please tell me what you would like to change. For example, 'My province is Western Cape'.",
+            "user_context": user_context,
+            "intent": "REPAIR",
+            "results_to_save": [],
+        }
+    else:
+        return {
+            "question": "Sorry, I didn't quite understand. Is the information correct?\n\na. Yes\nb. No",
+            "user_context": user_context,
+            "intent": "REPAIR",
+            "results_to_save": [],
+        }
 
 
 def classify_yes_no_response(user_input: str) -> str:
@@ -1522,3 +1551,56 @@ def classify_anc_start_response(user_input: str) -> str | None:
         return "SOON"
 
     return None  # Return None if the response is ambiguous
+
+
+def handle_onboarding_deflection(
+    intent: str,
+    intent_related_response: str | None,
+    user_context: dict,
+    question_number: int,
+    contextualized_question: str,
+) -> tuple[DeflectionAction, dict, str | None]:
+    """
+    Contains the shared logic for handling all non-journey-response intents
+    during an onboarding turn.
+    """
+    # Group 1: Acknowledge and Stop
+    if intent in ["ASKING_TO_STOP_MESSAGES", "ASKING_TO_DELETE_DATA"]:
+        message = "Acknowledged. Your request will be processed. The conversation will now end."
+        return (DeflectionAction.STOP_JOURNEY, user_context, message)
+
+    # Group 2: Answer and Continue (Deflection)
+    elif intent in [
+        "QUESTION_ABOUT_STUDY",
+        "HEALTH_QUESTION",
+        "REPORTING_AIRTIME_NOT_RECEIVED",
+    ]:
+        message = (
+            f"{intent_related_response}\n\n"
+            f"Now, where were we? Ah yes:\n{contextualized_question}"
+        )
+        return (DeflectionAction.REPROMPT_WITH_ANSWER, user_context, message)
+
+    # Special Case: Conversational Skip
+    elif intent == "SKIP_QUESTION":
+        logger.info(f"User wants to skip question #{question_number} via intent.")
+        question_to_skip = next(
+            (
+                q
+                for q in all_onboarding_questions
+                if q.question_number == question_number
+            ),
+            None,
+        )
+        if question_to_skip and question_to_skip.collects:
+            user_context[question_to_skip.collects] = "Skip"
+        # Signal to the caller to proceed to the *next* question.
+        return (DeflectionAction.CONTINUE_JOURNEY, user_context, None)
+
+    # Special Case: User asks for a reminder
+    elif intent == "REQUEST_TO_BE_REMINDED":
+        return (DeflectionAction.REQUEST_REMINDER, user_context, None)
+
+    # Group 3: Standard Failure (Repair)
+    else:  # This covers CHITCHAT, REQUEST_TO_BE_REMINDED, etc.
+        return (DeflectionAction.TRIGGER_REPAIR, user_context, None)

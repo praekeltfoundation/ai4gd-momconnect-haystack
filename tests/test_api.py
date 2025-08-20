@@ -1118,7 +1118,6 @@ def test_flow_repair_escape_hatch(
     "ai4gd_momconnect_haystack.api.get_next_onboarding_question",
     return_value={"contextualized_question": "What is your area type?"},
 )
-@mock.patch("ai4gd_momconnect_haystack.api.process_onboarding_step")
 @mock.patch(
     "ai4gd_momconnect_haystack.api.handle_user_message",
     return_value=("SKIP_QUESTION", ""),
@@ -1132,7 +1131,6 @@ def test_onboarding_skip_question(
     mock_get_history,
     mock_all_questions,
     mock_handle_user_message,
-    mock_process_step,
     mock_get_next_q,
     mock_save_history,
 ):
@@ -1172,9 +1170,10 @@ def test_onboarding_skip_question(
     assert json_response["question"] == "What is your area type?"
     assert json_response["user_context"] == {"province": "Skip"}
     assert json_response["results_to_save"] == ["province"]
-    mock_process_step.assert_not_called()
+
     mock_handle_user_message.assert_called_once()
     mock_get_next_q.assert_called_once()
+    mock_save_history.assert_called_once()
 
 
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)

@@ -44,6 +44,8 @@ from ai4gd_momconnect_haystack.tasks import (
     handle_user_message,
     ExtractionStatus,
     update_context_from_onboarding_response,
+    FIELD_TO_QUESTION_MAP,
+    handle_onboarding_deflection,
 )
 from ai4gd_momconnect_haystack.utilities import (
     ANC_SURVEY_MAP,
@@ -59,7 +61,7 @@ from ai4gd_momconnect_haystack.utilities import (
 
 from .database import SessionLocal, run_migrations
 from .doc_store import INTRO_MESSAGES  # setup_document_store
-from .enums import AssessmentType, HistoryType
+from .enums import AssessmentType, HistoryType, DeflectionAction
 from .pydantic_models import (
     AssessmentEndScoreBasedMessage,
     AssessmentEndSimpleMessage,
@@ -257,6 +259,7 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
     # --- NEW: Add retry logic variables ---
     MAX_CONSECUTIVE_FAILURES = 2
     consecutive_failures = 0
+    rephrased_question = None
     # --- End of new variables ---
 
     sim_onboarding = "onboarding" in gt_lookup_by_flow
@@ -310,27 +313,26 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
         if should_proceed:
             for attempt in range(max_onboarding_steps):
                 print("-" * 20)
-                logger.info(f"Onboarding Question Attempt: {attempt + 1}")
+                logger.info(f"Onboarding Turn Attempt: {attempt + 1}")
 
-                result = get_next_onboarding_question(user_context)
+                # If a repair was triggered on the last turn, use the rephrased question.
+                # Otherwise, get the next question from the sequence.
+                if not rephrased_question:
+                    result = get_next_onboarding_question(user_context)
+                    if not result:
+                        logger.info("Onboarding flow complete.")
+                        break
+                    contextualized_question = result["contextualized_question"]
+                    question_number = result["question_number"]
+                else:
+                    contextualized_question = rephrased_question
 
-                if not result:
-                    logger.info("Onboarding flow complete.")
-                    break
-
-                contextualized_question = result["contextualized_question"]
-                question_number = result["question_number"]
                 previous_context = user_context.copy()
                 chat_history.append(
                     ChatMessage.from_assistant(text=contextualized_question)
                 )
 
-                print("-" * 20)
                 print(f"Question #: {question_number}")
-                # print(f"Question: {contextualized_question}")
-                # Simulate User Response & Data Extraction
-
-                # ___ Refactor ____
                 # Get the user's response
                 final_user_response, gt_turn = _get_user_response(
                     gt_lookup=gt_lookup_by_flow,
@@ -344,12 +346,11 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     break
 
                 print(f"User_response: {final_user_response}")
-                # --- NEW SIMPLIFIED LOGIC ---
-                # This logic aligns the simulation directly with the API's behavior.
 
-                # First, handle explicit "skip" commands.
+                # Handle explicit "skip" commands first.
                 if final_user_response.strip().lower() == "skip":
                     logger.info(f"User explicitly skipped question #{question_number}.")
+                    chat_history.append(ChatMessage.from_user(text=final_user_response))
                     question_to_skip = next(
                         (
                             q
@@ -361,7 +362,7 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     if question_to_skip and question_to_skip.collects:
                         user_context[question_to_skip.collects] = "Skip"
                 else:
-                    # For ALL other inputs, go directly to our robust extraction function.
+                    # For ALL other inputs, go to the robust extraction function.
                     (
                         user_context,
                         processed_input,
@@ -372,40 +373,63 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                         current_question=contextualized_question,
                     )
 
-                    # CRITICAL FIX: Append the PROCESSED input to the chat history.
-                    chat_history.append(ChatMessage.from_user(text=processed_input))
-
-                    # If extraction fails (junk, chit-chat, etc.), revert the context
-                    # to ensure the failure logic below is triggered.
+                    # If extraction fails, revert the context to trigger failure logic.
                     if extraction_status != ExtractionStatus.SUCCESS:
                         user_context = previous_context
 
-                # ___ End ___
-
+                # Append the final processed input to the chat history for consistent logging
+                chat_history.append(ChatMessage.from_user(text=processed_input))
                 if user_context == previous_context:
                     consecutive_failures += 1
                     logger.warning(
                         f"Turn failed to update context. Consecutive failures: {consecutive_failures}"
                     )
-                    # --- Conversational repair on first failure ---
-                    if consecutive_failures == 1:
-                        print("--- TRIGGERING CONVERSATIONAL REPAIR ---")
-                        rephrased_question = handle_conversational_repair(
-                            flow_id=flow_id,
-                            question_identifier=question_number,
-                            previous_question=contextualized_question,
-                            invalid_input=final_user_response or "",
-                        )
-                        if rephrased_question:
-                            contextualized_question = rephrased_question
+
+                    # Since extraction failed, call the shared helper to handle the deflection.
+                    intent, intent_related_response = handle_user_message(
+                        contextualized_question, final_user_response
+                    )
+                    action, user_context, message = handle_onboarding_deflection(
+                        intent=intent or "",
+                        intent_related_response=intent_related_response,
+                        user_context=user_context,
+                        question_number=question_number,
+                        contextualized_question=contextualized_question,
+                    )
+
+                    if action == DeflectionAction.STOP_JOURNEY:
+                        print(f"System Response: {message}")
+                        break
+                    elif action == DeflectionAction.REPROMPT_WITH_ANSWER:
+                        # The 'message' contains the full answer + re-prompt.
+                        # Store it so it becomes the prompt for the next turn.
+                        # This is a deflection, not a failure. Reset counter
+                        # and re-ask.
+                        consecutive_failures = 0
+                        rephrased_question = message
+                        continue
+                    elif action == DeflectionAction.CONTINUE_JOURNEY:
+                        consecutive_failures = 0
+                        rephrased_question = None  # Move to next question
+                        continue
+                    elif action == DeflectionAction.TRIGGER_REPAIR:
+                        if consecutive_failures == 1:
+                            print("--- TRIGGERING CONVERSATIONAL REPAIR ---")
+                            rephrased_question = handle_conversational_repair(
+                                flow_id=flow_id,
+                                question_identifier=question_number,
+                                previous_question=contextualized_question,
+                                invalid_input=final_user_response or "",
+                            )
+                            print(f"rephrased Q: {rephrased_question}")
                 else:
                     consecutive_failures = 0
+                    rephrased_question = None  # Reset on a successful turn
 
                 if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
                     logger.error(
                         f"Max consecutive failures reached. Force-skipping question #{question_number}."
                     )
-
                     question_to_skip = next(
                         (
                             q
@@ -416,121 +440,79 @@ def run_simulation(gt_scenarios: list[dict[str, Any]] | None = None):
                     )
                     if question_to_skip and question_to_skip.collects:
                         field_to_update = question_to_skip.collects
-
-                        logger.info(
-                            f"Creating turn for system-skipped field: {field_to_update}"
-                        )
-                        onboarding_turns.append(
-                            {
-                                "question_name": field_to_update,
-                                "llm_utterance": contextualized_question,
-                                "user_utterance": gt_turn.get("user_utterance")
-                                if gt_turn
-                                else final_user_response,
-                                "llm_extracted_user_response": "Skipped - System",
-                            }
-                        )
-
                         user_context[field_to_update] = "Skipped - System"
 
+                    # Reset state to proceed to the next question
                     consecutive_failures = 0
+                    rephrased_question = None
                     continue
 
-                # Identify what changed in user_context
-                diff_keys = [
-                    k
-                    for k in user_context
-                    if user_context[k] != previous_context.get(k)
-                ]
+                # --- DEBUG: Print state at the end of the turn ---
+                # Filter the user_context to only show collected data fields
+                collected_data = {
+                    key: value
+                    for key, value in user_context.items()
+                    if key in FIELD_TO_QUESTION_MAP and value is not None
+                }
+                print("\n** Onboarding Data Collected **")
+                print(json.dumps(collected_data, indent=2))
+                print("=" * 57 + "\n")
+                # --- END DEBUG ---
+            else:
+                # --- Summary and confirmation step now loops for updates ---
+                in_summary_flow = True
+                summary_message = format_user_data_summary_for_whatsapp(user_context)
 
-                for updated_field in diff_keys:
-                    # For each piece of extracted info, create a separate turn.
-                    if (
-                        updated_field == "other"
-                        and isinstance(user_context, dict)
-                        and isinstance(previous_context, dict)
-                    ):
-                        # Handle cases where multiple 'other' fields might change
-                        other_diff = {
-                            k: v
-                            for k, v in user_context["other"].items()
-                            if v != previous_context["other"].get(k)
+                while in_summary_flow:
+                    print("-" * 20)
+                    print("Onboarding Summary Screen:")
+
+                    # Get the user's confirmation or update request
+                    summary_response, _ = _get_user_response(
+                        gt_lookup=gt_lookup_by_flow,
+                        flow_id=flow_id,
+                        contextualized_question=summary_message,
+                        turn_identifier_key="question_name",
+                        turn_identifier_value="summary_confirmation",
+                    )
+
+                    if not summary_response:
+                        break
+
+                    print(f"User Response to Summary: {summary_response}")
+
+                    # Process the response using the reusable task
+                    summary_result = handle_summary_confirmation_step(
+                        summary_response, user_context
+                    )
+
+                    # Print the final system acknowledgement or the next prompt
+                    summary_message = summary_result["question"]
+                    print(f"System Response: {summary_message}")
+
+                    user_context = summary_result["user_context"]
+
+                    # Log this interaction as a turn
+                    onboarding_turns.append(
+                        {
+                            "question_name": "summary_confirmation",
+                            "llm_utterance": summary_message,
+                            "user_utterance": summary_response,
+                            "llm_extracted_user_response": summary_result[
+                                "results_to_save"
+                            ],
                         }
-                        for key, value in other_diff.items():
-                            logger.info(f"Creating turn for extracted field: {key}")
-                            onboarding_turns.append(
-                                {
-                                    "question_name": key,
-                                    "llm_utterance": contextualized_question,
-                                    "llm_extracted_user_response": value,
-                                }
-                            )
-                    else:
-                        logger.info(
-                            f"Creating turn for extracted field: {updated_field}"
-                        )
-                        onboarding_turns.append(
-                            {
-                                "question_name": updated_field,
-                                "llm_utterance": contextualized_question,
-                                "user_utterance": gt_turn.get("user_utterance")
-                                if gt_turn
-                                else final_user_response,
-                                "llm_extracted_user_response": user_context[
-                                    updated_field
-                                ],
-                            }
-                        )
+                    )
 
-            # --- Summary and confirmation step now loops for updates ---
-            in_summary_flow = True
-            summary_message = format_user_data_summary_for_whatsapp(user_context)
+                    # If the intent is not REPAIR, the flow is over.
+                    if summary_result["intent"] != "REPAIR":
+                        in_summary_flow = False
 
-            while in_summary_flow:
-                print("-" * 20)
-                print("Onboarding Summary Screen:")
-
-                # Get the user's confirmation or update request
-                summary_response, _ = _get_user_response(
-                    gt_lookup=gt_lookup_by_flow,
-                    flow_id=flow_id,
-                    contextualized_question=summary_message,
-                    turn_identifier_key="question_name",
-                    turn_identifier_value="summary_confirmation",
-                )
-
-                if not summary_response:
-                    break
-
-                print(f"User Response to Summary: {summary_response}")
-
-                # Process the response using the reusable task
-                summary_result = handle_summary_confirmation_step(
-                    summary_response, user_context
-                )
-
-                # Print the final system acknowledgement or the next prompt
-                summary_message = summary_result["question"]
-                print(f"System Response: {summary_message}")
-
-                user_context = summary_result["user_context"]
-
-                # Log this interaction as a turn
-                onboarding_turns.append(
-                    {
-                        "question_name": "summary_confirmation",
-                        "llm_utterance": summary_message,
-                        "user_utterance": summary_response,
-                        "llm_extracted_user_response": summary_result[
-                            "results_to_save"
-                        ],
-                    }
-                )
-
-                # If the intent is not REPAIR, the flow is over.
-                if summary_result["intent"] != "REPAIR":
-                    in_summary_flow = False
-
+                # debug print of the updated summary if changes were made
+                if summary_result.get("results_to_save"):
+                    print("\n--- [DEBUG] Updated Summary ---")
+                    print(format_user_data_summary_for_whatsapp(user_context))
+                    print("-----------------------------\n")
             run_results["turns"] = onboarding_turns
             simulation_results.append(run_results)
 
