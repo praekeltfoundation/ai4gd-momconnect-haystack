@@ -34,10 +34,12 @@ from ai4gd_momconnect_haystack.crud import (
     save_chat_history,
     save_user_journey_state,
 )
+from ai4gd_momconnect_haystack.database import run_migrations
 from ai4gd_momconnect_haystack.doc_store import (
     INTRO_MESSAGES,
     setup_document_store,
 )
+from ai4gd_momconnect_haystack.enums import DeflectionAction, ExtractionStatus
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentEndRequest,
     AssessmentEndResponse,
@@ -54,7 +56,6 @@ from ai4gd_momconnect_haystack.pydantic_models import (
 from ai4gd_momconnect_haystack.pydantic_models import (
     LegacySurveyResponse as SurveyResponse,  # Use LegacySurveyResponse for the API contract
 )
-from ai4gd_momconnect_haystack.enums import ExtractionStatus, DeflectionAction
 from ai4gd_momconnect_haystack.tasks import (
     extract_assessment_data_from_response,
     format_user_data_summary_for_whatsapp,
@@ -64,12 +65,12 @@ from ai4gd_momconnect_haystack.tasks import (
     handle_intro_reminder,
     handle_intro_response,
     handle_journey_resumption_prompt,
+    handle_onboarding_deflection,
     handle_reminder_request,
     handle_reminder_response,
     handle_summary_confirmation_step,
     handle_user_message,
     process_onboarding_step,
-    handle_onboarding_deflection,
 )
 from ai4gd_momconnect_haystack.utilities import (
     FLOWS_WITH_INTRO,
@@ -84,12 +85,7 @@ from .enums import HistoryType
 
 load_dotenv()
 
-log_level = environ.get("LOGLEVEL", "WARNING").upper()
-numeric_level = getattr(logging, log_level, logging.WARNING)
-
-logging.basicConfig(
-    level=numeric_level, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+# Logging config for the API is handled by uvicorn, setup in log_conf.yaml
 logger = logging.getLogger(__name__)
 
 DATA_PATH = Path("src/ai4gd_momconnect_haystack/")
@@ -149,14 +145,13 @@ async def lifespan(app: FastAPI):
     logger.info("Application startup...")
     setup_document_store(startup=True)
 
-    # Temporarily commented out migrations to make logging work.
-    # from ai4gd_momconnect_haystack.database import run_migrations
-    # if not is_running_in_pytest():
-    #     logger.info("Running database migrations...")
-    #     run_migrations()
-    # else:
-    #     logger.info("Skipping migrations: running in pytest environment.")
+    if not is_running_in_pytest():
+        logger.info("Running database migrations...")
+        run_migrations()
+    else:
+        logger.info("Skipping migrations: running in pytest environment.")
 
+    logger.info("Application setup complete")
     yield
     logger.info("Application shutdown...")
 
