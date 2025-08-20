@@ -600,8 +600,9 @@ def test_handle_summary_confirmation_step_with_confirmation(
 
 
 @mock.patch("ai4gd_momconnect_haystack.tasks.pipelines.run_data_update_pipeline")
+@mock.patch("ai4gd_momconnect_haystack.tasks.pipelines.create_summary_intent_pipeline")
 def test_handle_summary_confirmation_step_with_denial(
-    mock_run_pipeline, sample_user_context
+    mock_create_pipeline, mock_run_pipeline, sample_user_context
 ):
     """
     Tests the summary handler when the user denies the summary and must be
@@ -609,6 +610,14 @@ def test_handle_summary_confirmation_step_with_denial(
     """
     # Mock the pipeline to return no updates, simulating a simple "no"
     mock_run_pipeline.return_value = {}
+    # Mock the pipeline run to return correct intent
+    mock_pipeline = mock.Mock()
+    mock_validated_message = mock.Mock()
+    mock_validated_message.text = '{"intent": "UPDATE"}'
+    mock_pipeline.run.return_value = {
+        "json_validator": {"validated": [mock_validated_message]}
+    }
+    mock_create_pipeline.return_value = mock_pipeline
 
     user_input = "no that is wrong"
     # The context must still have the flow_state for this test
