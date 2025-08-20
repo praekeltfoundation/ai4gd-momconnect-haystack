@@ -54,7 +54,7 @@ from ai4gd_momconnect_haystack.pydantic_models import (
 from ai4gd_momconnect_haystack.pydantic_models import (
     LegacySurveyResponse as SurveyResponse,  # Use LegacySurveyResponse for the API contract
 )
-from ai4gd_momconnect_haystack.enums import ExtractionStatus
+from ai4gd_momconnect_haystack.enums import ExtractionStatus, DeflectionAction
 from ai4gd_momconnect_haystack.tasks import (
     extract_assessment_data_from_response,
     format_user_data_summary_for_whatsapp,
@@ -69,6 +69,7 @@ from ai4gd_momconnect_haystack.tasks import (
     handle_summary_confirmation_step,
     handle_user_message,
     process_onboarding_step,
+    handle_onboarding_deflection,
 )
 from ai4gd_momconnect_haystack.utilities import (
     FLOWS_WITH_INTRO,
@@ -344,76 +345,109 @@ def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
         last_question_obj.question_number if last_question_obj else 0
     )
 
-    logger.info(f"Current question number: {current_question_number}")
-
-    # For subsequent messages, detect intent
-    if not is_intro_response:
-        intent, intent_related_response = handle_user_message(last_question, user_input)
-        intent = intent or ""
-        intent_related_response = intent_related_response or ""
-
-    else:
-        intent, intent_related_response = "JOURNEY_RESPONSE", ""
-
-    logger.info(f"User intent: {intent}")
-    logger.info(f"User intent-related response: {intent_related_response}")
-
     user_context = request.user_context.copy()
     results_to_save = []
     question_text = ""
     failure_count = request.failure_count
 
-    logger.info(f"failure_count: {failure_count}")
+    intent = "JOURNEY_RESPONSE"
+    intent_related_response = ""
 
-    if intent == "SKIP_QUESTION":
+    # --- FINAL, ROBUST ONBOARDING LOGIC ---
+    previous_context = request.user_context.copy()
+
+    # STEP 1: Try to process the input as a direct answer.
+    user_context, question, processed_input, extraction_status = (
+        process_onboarding_step(
+            user_input=user_input,
+            current_context=previous_context,
+            current_question=last_question,
+        )
+    )
+
+    # STEP 2: Check the result of the extraction.
+    if extraction_status == ExtractionStatus.SUCCESS:
         failure_count = 0
-        question_to_skip = next(
-            (
-                q
-                for q in all_onboarding_questions
-                if q.question_number == current_question_number
-            ),
-            None,
-        )
-        if question_to_skip and question_to_skip.collects:
-            field_to_update = question_to_skip.collects
-            # This is where we record the skip in the user's context
-            user_context[field_to_update] = "Skip"
-            results_to_save.append(field_to_update)
-
-        next_question_data = get_next_onboarding_question(user_context=user_context)
-        if next_question_data:
-            question_text = next_question_data.get("contextualized_question", "")
-
-    elif intent == "JOURNEY_RESPONSE":
-        previous_context = request.user_context.copy()
-        user_context, question, processed_input, extraction_status = (
-            process_onboarding_step(
-                user_input=user_input,
-                current_context=previous_context,
-                current_question=last_question,
-            )
-        )
-        if question:
-            question_text = question.get("contextualized_question", "")
-
+        question_text = question.get("contextualized_question", "") if question else ""
         results_to_save = [
             k for k in user_context if user_context.get(k) != previous_context.get(k)
         ]
+    else:  # NO_MATCH: The input was not a valid answer.
+        # STEP 3: Call the shared helper to handle the deflection.
+        intent, intent_related_response = handle_user_message(last_question, user_input)
+        action, user_context, message = handle_onboarding_deflection(
+            intent=intent or "",
+            intent_related_response=intent_related_response or "",
+            user_context=user_context,
+            question_number=current_question_number,
+            contextualized_question=last_question,
+        )
 
-        if extraction_status == ExtractionStatus.NO_MATCH:
-            if request.failure_count + 1 >= MAX_REPAIR_ATTEMPTS:
+        # STEP 4: Process the action returned by the helper.
+        if action == DeflectionAction.STOP_JOURNEY:
+            return OnboardingResponse(
+                question=message or "",
+                user_context=user_context,
+                intent="USER_OPTOUT",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=0,
+            )
+
+        elif action == DeflectionAction.REPROMPT_WITH_ANSWER:
+            return OnboardingResponse(
+                question=message or last_question,
+                user_context=previous_context,
+                intent=intent,
+                intent_related_response=intent_related_response,
+                results_to_save=[],
+                failure_count=failure_count,
+            )
+
+        elif action == DeflectionAction.CONTINUE_JOURNEY:
+            results_to_save = [
+                k
+                for k in user_context
+                if user_context.get(k) != previous_context.get(k)
+            ]
+
+            next_question_data = get_next_onboarding_question(user_context=user_context)
+            question_text = (
+                next_question_data.get("contextualized_question", "")
+                if next_question_data
+                else ""
+            )
+
+        elif action == DeflectionAction.REQUEST_REMINDER:
+            state = get_user_journey_state(request.user_id)
+            current_reminder_count = state.reminder_count if state else 0
+            new_reminder_count = current_reminder_count + 1
+            reminder_type = 2 if new_reminder_count >= 2 else 1
+            user_context["reminder_count"] = new_reminder_count
+            message, reengagement_info = handle_reminder_request(
+                user_id=request.user_id,
+                flow_id=flow_id,
+                step_identifier=str(current_question_number),
+                last_question=last_question,
+                user_context=user_context,
+                reminder_type=reminder_type,
+            )
+            return OnboardingResponse(
+                question=message,
+                user_context=user_context,
+                intent="REQUEST_TO_BE_REMINDED",
+                intent_related_response=None,
+                results_to_save=[],
+                failure_count=0,
+                reengagement_info=reengagement_info,
+            )
+
+        elif action == DeflectionAction.TRIGGER_REPAIR:
+            if failure_count + 1 >= MAX_REPAIR_ATTEMPTS:
                 logger.warning(
                     f"Onboarding failed for question '{last_question}' twice. Skipping."
                 )
-                question_to_skip = next(
-                    (
-                        q
-                        for q in all_onboarding_questions
-                        if q.question_number == current_question_number
-                    ),
-                    None,
-                )
+                question_to_skip = last_question_obj
                 if question_to_skip and question_to_skip.collects:
                     field_to_update = question_to_skip.collects
                     # Record the system-initiated skip
@@ -443,56 +477,6 @@ def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
                     results_to_save=[],
                     failure_count=request.failure_count + 1,
                 )
-        else:
-            failure_count = 0
-    elif intent == "REQUEST_TO_BE_REMINDED":
-        state = get_user_journey_state(request.user_id)
-        current_reminder_count = state.reminder_count if state else 0
-        new_reminder_count = current_reminder_count + 1
-        reminder_type = 2 if new_reminder_count >= 2 else 1
-        user_context["reminder_count"] = new_reminder_count
-
-        message, reengagement_info = handle_reminder_request(
-            user_id=request.user_id,
-            flow_id=flow_id,
-            step_identifier=str(current_question_number),
-            last_question=last_question,
-            user_context=user_context,
-            reminder_type=reminder_type,
-        )
-        return OnboardingResponse(
-            question=message,
-            user_context=user_context,
-            intent=intent,
-            intent_related_response=None,
-            results_to_save=[],
-            failure_count=0,
-            reengagement_info=reengagement_info,
-        )
-    else:  # Handle other intents like CHITCHAT
-        if intent == "CHITCHAT":
-            rephrased_question = handle_conversational_repair(
-                flow_id=flow_id,
-                question_identifier=current_question_number,
-                previous_question=last_question,
-                invalid_input=user_input,
-            )
-            return OnboardingResponse(
-                question=rephrased_question or last_question,
-                user_context=request.user_context,
-                intent="REPAIR",
-                intent_related_response=None,
-                results_to_save=[],
-                failure_count=request.failure_count + 1,
-            )
-        return OnboardingResponse(
-            question=last_question,
-            user_context=request.user_context,
-            intent=intent,
-            intent_related_response=intent_related_response,
-            results_to_save=[],
-            failure_count=failure_count,
-        )
 
     if not is_intro_response:
         chat_history.append(ChatMessage.from_user(text=processed_input or user_input))

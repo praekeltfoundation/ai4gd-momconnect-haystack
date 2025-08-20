@@ -1597,6 +1597,10 @@ def handle_onboarding_deflection(
         # Signal to the caller to proceed to the *next* question.
         return (DeflectionAction.CONTINUE_JOURNEY, user_context, None)
 
+    # Special Case: User asks for a reminder
+    elif intent == "REQUEST_TO_BE_REMINDED":
+        return (DeflectionAction.REQUEST_REMINDER, user_context, None)
+
     # Group 3: Standard Failure (Repair)
     else:  # This covers CHITCHAT, REQUEST_TO_BE_REMINDED, etc.
         return (DeflectionAction.TRIGGER_REPAIR, user_context, None)
