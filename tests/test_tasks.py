@@ -12,7 +12,11 @@ from ai4gd_momconnect_haystack.assessment_logic import (
     validate_assessment_answer,
     validate_assessment_end_response,
 )
-from ai4gd_momconnect_haystack.enums import AssessmentType, ExtractionStatus
+from ai4gd_momconnect_haystack.enums import (
+    AssessmentType,
+    ExtractionStatus,
+    DeflectionAction,
+)
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentQuestion,
     AssessmentResponse,
@@ -42,6 +46,7 @@ from ai4gd_momconnect_haystack.tasks import (
     handle_reminder_response,
     handle_summary_confirmation_step,
     update_context_from_onboarding_response,
+    handle_onboarding_deflection,
 )
 from ai4gd_momconnect_haystack.utilities import create_response_to_key_map
 
@@ -1311,3 +1316,101 @@ def test_update_context_from_onboarding_response(
     # Check that the context was updated correctly
     for key, value in expected_context_update.items():
         assert updated_context.get(key) == value
+
+
+@pytest.mark.parametrize("intent", ["ASKING_TO_STOP_MESSAGES", "ASKING_TO_DELETE_DATA"])
+def test_handle_onboarding_deflection_stop_group(intent):
+    action, ctx, msg = handle_onboarding_deflection(
+        intent=intent,
+        intent_related_response=None,
+        user_context={},
+        question_number=1,
+        contextualized_question="Dummy Q",
+    )
+    assert action == DeflectionAction.STOP_JOURNEY
+    assert (
+        msg
+        == "Acknowledged. Your request will be processed. The conversation will now end."
+    )
+
+
+@pytest.mark.parametrize(
+    "intent,response",
+    [
+        ("QUESTION_ABOUT_STUDY", "Study details here"),
+        ("HEALTH_QUESTION", "Health advice here"),
+        ("REPORTING_AIRTIME_NOT_RECEIVED", "Airtime note"),
+        ("HEALTH_QUESTION", None),  # edge case
+    ],
+)
+def test_handle_onboarding_deflection_answer_and_continue(intent, response):
+    action, ctx, msg = handle_onboarding_deflection(
+        intent=intent,
+        intent_related_response=response,
+        user_context={},
+        question_number=2,
+        contextualized_question="Next Question?",
+    )
+    assert action == DeflectionAction.REPROMPT_WITH_ANSWER
+    assert "Next Question?" in msg
+
+
+@pytest.mark.parametrize(
+    "all_questions,question_number,expected_key",
+    [
+        # matching collects
+        ([{"question_number": 1, "collects": "age"}], 1, "age"),
+        # matching no collects
+        ([{"question_number": 2, "collects": None}], 2, None),
+        # no match
+        ([{"question_number": 3, "collects": "gender"}], 5, None),
+    ],
+)
+def test_handle_onboarding_deflection_skip(
+    monkeypatch, all_questions, question_number, expected_key
+):
+    monkeypatch.setattr(
+        "ai4gd_momconnect_haystack.tasks.all_onboarding_questions",
+        [type("Q", (), q) for q in all_questions],  # lightweight objects
+    )
+
+    user_context = {}
+    action, ctx, msg = handle_onboarding_deflection(
+        intent="SKIP_QUESTION",
+        intent_related_response=None,
+        user_context=user_context,
+        question_number=question_number,
+        contextualized_question="irrelevant",
+    )
+
+    assert action == DeflectionAction.CONTINUE_JOURNEY
+    assert msg is None
+    if expected_key:
+        assert ctx[expected_key] == "Skip"
+    else:
+        assert ctx == {}
+
+
+def test_handle_onboarding_deflection_request_reminder():
+    action, ctx, msg = handle_onboarding_deflection(
+        intent="REQUEST_TO_BE_REMINDED",
+        intent_related_response=None,
+        user_context={},
+        question_number=99,
+        contextualized_question="anything",
+    )
+    assert action == DeflectionAction.REQUEST_REMINDER
+    assert msg is None
+
+
+@pytest.mark.parametrize("intent", ["CHITCHAT", "UNRECOGNIZED_INTENT", "FOO_BAR"])
+def test_handle_onboarding_deflection_default_repair(intent):
+    action, ctx, msg = handle_onboarding_deflection(
+        intent=intent,
+        intent_related_response=None,
+        user_context={},
+        question_number=42,
+        contextualized_question="anything",
+    )
+    assert action == DeflectionAction.TRIGGER_REPAIR
+    assert msg is None
