@@ -14,8 +14,8 @@ from ai4gd_momconnect_haystack.assessment_logic import (
 )
 from ai4gd_momconnect_haystack.enums import (
     AssessmentType,
-    ExtractionStatus,
     DeflectionAction,
+    ExtractionStatus,
 )
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentQuestion,
@@ -42,11 +42,11 @@ from ai4gd_momconnect_haystack.tasks import (
     get_next_onboarding_question,
     handle_conversational_repair,
     handle_intro_response,
+    handle_onboarding_deflection,
     handle_reminder_request,
     handle_reminder_response,
     handle_summary_confirmation_step,
     update_context_from_onboarding_response,
-    handle_onboarding_deflection,
 )
 from ai4gd_momconnect_haystack.utilities import create_response_to_key_map
 
@@ -571,14 +571,23 @@ def test_handle_summary_confirmation_step_with_update(
 
 
 @mock.patch("ai4gd_momconnect_haystack.tasks.pipelines.run_data_update_pipeline")
+@mock.patch("ai4gd_momconnect_haystack.tasks.pipelines.create_summary_intent_pipeline")
 def test_handle_summary_confirmation_step_with_confirmation(
-    mock_run_pipeline, sample_user_context
+    mock_create_pipeline, mock_run_pipeline, sample_user_context
 ):
     """
     Tests the summary handler when the user confirms their data (no updates extracted).
     """
     # Mock the pipeline to return no updates
     mock_run_pipeline.return_value = {}
+    # Mock the pipeline run to return correct intent
+    mock_pipeline = mock.Mock()
+    mock_validated_message = mock.Mock()
+    mock_validated_message.text = '{"intent": "CONFIRM"}'
+    mock_pipeline.run.return_value = {
+        "json_validator": {"validated": [mock_validated_message]}
+    }
+    mock_create_pipeline.return_value = mock_pipeline
 
     user_input = "yes, that is correct"
     context_copy = sample_user_context.copy()
