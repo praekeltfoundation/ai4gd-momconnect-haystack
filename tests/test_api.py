@@ -10,8 +10,8 @@ from ai4gd_momconnect_haystack.api import app, setup_sentry
 from ai4gd_momconnect_haystack.database import SessionLocal
 from ai4gd_momconnect_haystack.enums import (
     AssessmentType,
-    HistoryType,
     ExtractionStatus,
+    HistoryType,
 )
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentEndScoreBasedMessage,
@@ -742,6 +742,7 @@ def test_sentry_setup():
     setup_sentry()
     assert get_sentry_client().is_active()
     assert get_sentry_client().dsn == "https://testdsn@testdsn.example.org/12345"
+    get_sentry_client().close()
 
 
 def test_prometheus_metrics():
