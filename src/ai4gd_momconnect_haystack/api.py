@@ -353,7 +353,6 @@ def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
     intent = "JOURNEY_RESPONSE"
     intent_related_response = ""
 
-    # --- FINAL, ROBUST ONBOARDING LOGIC ---
     previous_context = request.user_context.copy()
 
     # STEP 1: Try to process the input as a direct answer.
@@ -372,9 +371,15 @@ def onboarding(request: OnboardingRequest, token: str = Depends(verify_token)):
         results_to_save = [
             k for k in user_context if user_context.get(k) != previous_context.get(k)
         ]
-    else:  # NO_MATCH: The input was not a valid answer.
+    else:
         # STEP 3: Call the shared helper to handle the deflection.
-        intent, intent_related_response = handle_user_message(last_question, user_input)
+        intent_result, intent_response_result = handle_user_message(
+            last_question, user_input
+        )
+        intent, intent_related_response = (
+            intent_result or "",
+            intent_response_result or "",
+        )
         action, user_context, message = handle_onboarding_deflection(
             intent=intent or "",
             intent_related_response=intent_related_response or "",
