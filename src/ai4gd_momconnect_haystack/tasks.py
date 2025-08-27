@@ -16,10 +16,10 @@ from ai4gd_momconnect_haystack.crud import (
 )
 from ai4gd_momconnect_haystack.enums import (
     AssessmentType,
+    DeflectionAction,
+    ExtractionStatus,
     HistoryType,
     ReminderType,
-    ExtractionStatus,
-    DeflectionAction,
 )
 from ai4gd_momconnect_haystack.pipelines import (
     get_next_anc_survey_step,
@@ -761,7 +761,7 @@ def handle_user_message(
     ]:
         pass
     else:
-        logger.error(f"Intent detected: {intent}. No specific action defined.")
+        logger.warning(f"Intent detected: {intent}. No specific action defined.")
 
     return intent, response
 
