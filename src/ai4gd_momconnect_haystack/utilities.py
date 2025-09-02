@@ -1,10 +1,10 @@
-from datetime import datetime, timedelta
-import re
 import json
 import logging
+import re
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
 from string import ascii_lowercase
+from typing import Any
 
 from haystack.dataclasses import ChatMessage
 from pydantic import BaseModel, ValidationError
@@ -12,7 +12,6 @@ from pydantic import BaseModel, ValidationError
 from ai4gd_momconnect_haystack import doc_store
 from ai4gd_momconnect_haystack.enums import AssessmentType
 from ai4gd_momconnect_haystack.pydantic_models import AssessmentQuestion
-
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +66,10 @@ assessment_end_flow_map = {
     kab_k_pre_flow_id: kab_k_end_messaging_pre,
     kab_a_pre_flow_id: kab_a_end_messaging_pre,
     kab_b_pre_flow_id: kab_b_end_messaging_pre,
+    # PRE and POST end assessments are the same
+    kab_k_post_flow_id: kab_k_end_messaging_pre,
+    kab_a_post_flow_id: kab_a_end_messaging_pre,
+    kab_b_post_flow_id: kab_b_end_messaging_pre,
 }
 
 assessment_map_to_their_pre = {
