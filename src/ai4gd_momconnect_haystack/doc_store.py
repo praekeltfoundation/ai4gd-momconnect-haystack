@@ -22,8 +22,8 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     ANCSurveyQuestion,
     AssessmentEndItem,
     AssessmentQuestion,
-    OnboardingQuestion,
     IntroductionMessage,
+    OnboardingQuestion,
 )
 
 # --- Configurations ---
@@ -110,11 +110,20 @@ kab_b_pre_flow = load_content_json_and_validate(
 assert kab_b_pre_flow is not None, "Failed to load the KAB Behaviour (pre) flow."
 KAB_B_PRE_FLOW: list[AssessmentQuestion] = kab_b_pre_flow
 
+# Merge KAB Behaviour pre and post flows, with post overriding pre by question_number
+all_b_kab_questions = {q.question_number: q for q in KAB_B_PRE_FLOW}
+
 kab_b_post_flow = load_content_json_and_validate(
     data_dir / "kab.json", AssessmentQuestion, "behaviour-post-assessment"
 )
-assert kab_b_post_flow is not None, "Failed to load the KAB Behaviour (post) flow."
-KAB_B_POST_FLOW: list[AssessmentQuestion] = kab_b_post_flow
+
+if kab_b_post_flow:
+    for q in kab_b_post_flow:
+        all_b_kab_questions[q.question_number] = q
+
+KAB_B_POST_FLOW: list[AssessmentQuestion] = [
+    all_b_kab_questions[q_num] for q_num in sorted(all_b_kab_questions)
+]
 
 # Assessment End Messaging Data
 dma_assessment_end_flow: list[AssessmentEndItem] | None = (
