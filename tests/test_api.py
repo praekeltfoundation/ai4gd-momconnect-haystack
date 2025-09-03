@@ -544,6 +544,132 @@ def test_assessment_end_initial_message(
     new_callable=mock.Mock,
 )
 @mock.patch("ai4gd_momconnect_haystack.api.get_content_from_message_data")
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.assessment_end_flow_map",
+    {
+        "knowledge-pre-assessment": [
+            AssessmentEndScoreBasedMessage.model_validate(
+                {
+                    "message_nr": 1,
+                    "high-score-content": {"content": "KAB High score content"},
+                    "medium-score-content": {"content": "KAB Medium score content"},
+                    "low-score-content": {"content": "KAB Low score content"},
+                    "skipped-many-content": {"content": "KAB Skipped many content"},
+                }
+            )
+        ]
+    },
+)
+def test_assessment_end_initial_message_kab_pre(
+    mock_get_content,
+    mock_save_message,
+    mock_get_history,
+    mock_get_result,
+):
+    """
+    Tests the initial call to the endpoint with no user_input for a KAB pre assessment.
+    It should return the first message of the assessment-end flow.
+    """
+    # --- Mock Setup ---
+    mock_get_result.return_value = AssessmentResult(
+        score=100.0, category="high", crossed_skip_threshold=False
+    )
+    mock_get_history.return_value = []
+    mock_get_content.return_value = ("KAB High score content", None)
+
+    # --- API Call ---
+    client = TestClient(app)
+    response = client.post(
+        "/v1/assessment-end",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "TestUser",
+            "user_input": "",
+            "flow_id": "knowledge-pre-assessment",
+        },
+    )
+
+    # --- Assertions ---
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "KAB High score content",
+        "task": "",
+        "intent": "JOURNEY_RESPONSE",
+        "intent_related_response": "",
+        "reengagement_info": None,
+    }
+
+    mock_get_result.assert_called_once()
+    mock_get_history.assert_called_once()
+    mock_save_message.assert_called_once_with(
+        "TestUser", "knowledge-pre-assessment", 1, ""
+    )
+
+
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_assessment_result", new_callable=mock.Mock
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_assessment_end_messaging_history",
+    new_callable=mock.Mock,
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.save_assessment_end_message",
+    new_callable=mock.Mock,
+)
+@mock.patch("ai4gd_momconnect_haystack.api.get_content_from_message_data")
+def test_assessment_end_initial_message_kab_post(
+    mock_get_content,
+    mock_save_message,
+    mock_get_history,
+    mock_get_result,
+):
+    """
+    Tests the initial call to the endpoint with no user_input for a KAB post assessment.
+    It should return the first message of the assessment-end flow.
+    """
+    mock_get_result.return_value = AssessmentResult(
+        score=100.0, category="high", crossed_skip_threshold=False
+    )
+    mock_get_history.return_value = []
+    mock_get_content.return_value = ("KAB High score content", None)
+
+    client = TestClient(app)
+    response = client.post(
+        "/v1/assessment-end",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "TestUser",
+            "user_input": "",
+            "flow_id": "knowledge-post-assessment",
+        },
+    )
+
+    # Desired behavior once implemented
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "KAB High score content",
+        "task": "",
+        "intent": "JOURNEY_RESPONSE",
+        "intent_related_response": "",
+        "reengagement_info": None,
+    }
+
+
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_assessment_result", new_callable=mock.Mock
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_assessment_end_messaging_history",
+    new_callable=mock.Mock,
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.save_assessment_end_message",
+    new_callable=mock.Mock,
+)
+@mock.patch("ai4gd_momconnect_haystack.api.get_content_from_message_data")
 @mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
 @mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_end_response")
 @mock.patch("ai4gd_momconnect_haystack.api.determine_task")
