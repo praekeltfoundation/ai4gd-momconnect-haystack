@@ -1244,6 +1244,56 @@ def test_extract_assessment_data_from_response_with_mocking(
     )
 
 
+@mock.patch(
+    "ai4gd_momconnect_haystack.tasks.pipelines.run_behaviour_data_extraction_pipeline"
+)
+def test_extract_assessment_data_from_response_post_kab(mock_run_pipeline):
+    """
+    Tests the extract_assessment_data_from_response function for the 'behaviour-post-assessment' flow,
+    specifically for the first question regarding clinic visits during pregnancy.
+
+    This test:
+    - Mocks the AI pipeline to return a fixed response.
+    - Sets up the expected question content and valid responses.
+    - Asserts that the function returns the correct processed response and next question number.
+    - Verifies that the AI pipeline is called with the correct arguments.
+    """
+    # Arrange: Configure the mock to return the expected answer for this test run.
+    mock_run_pipeline.return_value = "test"
+
+    # The question data the function will look up
+    question_content = "Excellent 👍🏽\n\nIf you want to skip a question, just type and send `skip`.\n\n*So far in this pregnancy, how many times have you gone to the clinic for a pregnancy check-up?* 🫃🏽"
+
+    # Act: Call the function that we are testing
+    result = extract_assessment_data_from_response(
+        user_response="5",
+        flow_id="behaviour-post-assessment",
+        question_number=1,
+    )
+
+    # Assert
+    # 1. Check that the function returned the correct structure with the mocked data.
+    assert result["processed_user_response"] == "test"
+    assert result["next_question_number"] == 2
+
+    # 2. Verify that our function called the AI pipeline correctly.
+    mock_run_pipeline.assert_called_once_with(
+        user_response="5",
+        previous_service_message=question_content,
+        valid_responses=[
+            "0 - None",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "More than 7",
+        ],  # The options for this specific question
+    )
+
+
 # --- NEW TESTS FOR ONBOARDING LOGIC ---
 # Define mock data for our test questions to use across multiple test cases.
 PROVINCE_QUESTION_MOCK_DATA = {
