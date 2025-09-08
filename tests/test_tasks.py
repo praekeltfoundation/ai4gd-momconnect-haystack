@@ -48,7 +48,10 @@ from ai4gd_momconnect_haystack.tasks import (
     handle_summary_confirmation_step,
     update_context_from_onboarding_response,
 )
-from ai4gd_momconnect_haystack.utilities import create_response_to_key_map
+from ai4gd_momconnect_haystack.utilities import (
+    REMINDER_CONFIG,
+    create_response_to_key_map,
+)
 
 # --- Test Data Fixtures ---
 
@@ -811,6 +814,70 @@ def test_handle_reminder_request_dynamic_schedule(
     # The expected time is now completely predictable and will not have race conditions.
     expected_trigger_time = fake_now + timedelta(hours=expected_delay_hours)
     assert reengagement_info.trigger_at_utc == expected_trigger_time
+
+
+@pytest.mark.parametrize(
+    "flow_id, reminder_type, expected_ack",
+    [
+        ("knowledge-pre-assessment", 1, ""),
+        ("knowledge-post-assessment", 1, ""),
+        ("attitude-pre-assessment", 1, ""),
+        ("attitude-post-assessment", 1, ""),
+        (
+            "knowledge-pre-assessment",
+            2,
+            REMINDER_CONFIG["kab"]["FOLLOW_UP"]["acknowledgement_message"],
+        ),
+        (
+            "knowledge-post-assessment",
+            2,
+            REMINDER_CONFIG["kab"]["FOLLOW_UP"]["acknowledgement_message"],
+        ),
+        (
+            "attitude-pre-assessment",
+            2,
+            REMINDER_CONFIG["kab"]["FOLLOW_UP"]["acknowledgement_message"],
+        ),
+        (
+            "attitude-post-assessment",
+            2,
+            REMINDER_CONFIG["kab"]["FOLLOW_UP"]["acknowledgement_message"],
+        ),
+    ],
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.tasks.save_user_journey_state",
+    new_callable=mock.Mock,
+)
+@mock.patch("ai4gd_momconnect_haystack.tasks.datetime")
+def test_handle_reminder_request_kab_acknowledgements(
+    mock_datetime, mock_save_state, flow_id, reminder_type, expected_ack
+):
+    """
+    Validates that KAB (knowledge/attitude) flows pick the correct
+    acknowledgement message and trigger time from REMINDER_CONFIG for DEFAULT and
+    FOLLOW_UP.
+    """
+    fake_now = datetime(2025, 8, 5, 12, 0, 0, tzinfo=timezone.utc)
+    mock_datetime.now.return_value = fake_now
+
+    message, reengagement_info = handle_reminder_request(
+        user_id="test-user",
+        flow_id=flow_id,
+        step_identifier="intro",
+        last_question="Some question",
+        user_context={},
+        reminder_type=reminder_type,
+    )
+
+    # Assert acknowledgement message
+    assert message == expected_ack
+
+    # Assert the scheduled trigger time matches the expected hardcoded delay
+    # KAB DEFAULT: 1 hour, FOLLOW_UP: 23 hours
+    expected_delay = timedelta(hours=1) if reminder_type == 1 else timedelta(hours=23)
+    expected_trigger = fake_now + expected_delay
+    assert reengagement_info.trigger_at_utc == expected_trigger
 
 
 @pytest.mark.parametrize(
