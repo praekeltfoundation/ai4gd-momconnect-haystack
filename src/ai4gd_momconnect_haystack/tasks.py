@@ -1095,7 +1095,8 @@ def handle_reminder_request(
     schedule_key = "default"
     if "onboarding" in flow_id:
         schedule_key = "onboarding"
-    elif "behaviour" in flow_id:
+    # Treat KAB flows (behaviour, knowledge, attitude) the same
+    elif any(k in flow_id for k in ("behaviour", "knowledge", "attitude")):
         schedule_key = "kab"
     elif "survey" in flow_id:
         schedule_key = "survey"
