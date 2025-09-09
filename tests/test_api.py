@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 import pytest
@@ -1660,25 +1661,40 @@ def test_reminder_request_returns_reengagement_info(
     """
     Tests that when a user asks for a reminder, the API response includes the reengagement_info object.
     """
-    response = client.post(
-        "/v1/assessment",
-        headers={"Authorization": "Token testtoken"},
-        json={
-            "user_id": "reminder-user",
-            "user_input": "remind me tomorrow",
-            "user_context": {},
-            "flow_id": "dma-pre-assessment",
-            "question_number": 1,
-            "previous_question": "Some question",
-            "failure_count": 0,
-        },
-    )
+    # Freeze 'now' used by the reminder logic to make the expected trigger time deterministic
+    fixed_now = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    expected_trigger = fixed_now + timedelta(hours=23)
+
+    # Patch the datetime used inside the tasks module so handle_reminder_request
+    # computes trigger_at_utc from our fixed time.
+    with mock.patch("ai4gd_momconnect_haystack.tasks.datetime") as mock_dt:
+        mock_dt.now.return_value = fixed_now
+
+        response = client.post(
+            "/v1/assessment",
+            headers={"Authorization": "Token testtoken"},
+            json={
+                "user_id": "reminder-user",
+                "user_input": "remind me tomorrow",
+                "user_context": {},
+                "flow_id": "dma-pre-assessment",
+                "question_number": 1,
+                "previous_question": "Some question",
+                "failure_count": 0,
+            },
+        )
 
     assert response.status_code == 200
     json_response = response.json()
     assert "reengagement_info" in json_response
-    assert json_response["reengagement_info"]["type"] == "USER_REQUESTED"
-    assert "trigger_at_utc" in json_response["reengagement_info"]
+    reeng = json_response["reengagement_info"]
+    assert reeng["type"] == "USER_REQUESTED"
+    # The assessment endpoint uses reminder_type=2 for user requested reminders
+    assert reeng["flow_id"] == "dma-pre-assessment"
+    assert reeng["reminder_type"] == 2
+    # trigger_at_utc is serialized as an ISO string; parse and compare to expected
+    parsed = datetime.fromisoformat(reeng["trigger_at_utc"])
+    assert parsed == expected_trigger
 
 
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
