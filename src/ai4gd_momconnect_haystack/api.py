@@ -675,11 +675,8 @@ def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
                 )
                 failure_count = 0
         elif intent == "REQUEST_TO_BE_REMINDED":
-            state = get_user_journey_state(request.user_id)
-            current_reminder_count = state.reminder_count if state else 0
-            new_reminder_count = current_reminder_count + 1
-            reminder_type = 2 if new_reminder_count >= 2 else 1
-            request.user_context["reminder_count"] = new_reminder_count
+            # For user requested reminders the type is always 2 for next day
+            reminder_type = 2
 
             message, reengagement_info = handle_reminder_request(
                 user_id=request.user_id,
