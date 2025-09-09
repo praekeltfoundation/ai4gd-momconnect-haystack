@@ -852,7 +852,7 @@ def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_to
     next_message = ""
     if intent == "REQUEST_TO_BE_REMINDED":
         reminder_type = 2
-        message, reengagement_info = handle_reminder_request(
+        message, reengage_info = handle_reminder_request(
             user_id=request.user_id,
             flow_id=request.flow_id.value,
             step_identifier=str(previous_message_nr),
@@ -866,7 +866,7 @@ def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_to
             task="",
             intent=intent,
             intent_related_response=intent_related_response,
-            reengagement_info=reengagement_info,
+            reengagement_info=reengage_info,
         )
     elif intent == "JOURNEY_RESPONSE":
         # Check if the user was responding to a question that requires validation
