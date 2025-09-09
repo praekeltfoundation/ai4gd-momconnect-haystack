@@ -1290,7 +1290,8 @@ def handle_intro_reminder(
     state = get_user_journey_state(user_id)
     current_reminder_count = state.reminder_count if state else 0
     new_reminder_count = current_reminder_count + 1
-    reminder_type = ReminderType.USER_REQUESTED
+    # For user requested reminders the type is always 2 for next day
+    reminder_type = 2
     user_context["reminder_count"] = new_reminder_count
 
     message, reengagement_info = handle_reminder_request(
