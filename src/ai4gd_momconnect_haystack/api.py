@@ -777,11 +777,13 @@ def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
 
 @app.post("/v1/assessment-end")
 def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_token)):
+    logger.info(f"Processing assessment-end: {request.user_id} {request.flow_id}")
     # Initial Setup and Data Fetching
     assessment_result = get_assessment_result(
         user_id=request.user_id,
         assessment_type=request.flow_id,
     )
+    logger.info(f"Assessment result: {assessment_result}")
     if not assessment_result:
         return create_assessment_end_error_response("Assessment results not available.")
 
@@ -804,6 +806,8 @@ def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_to
 
     intent: str | None = None
     intent_related_response: str | None = None
+
+    logger.info(f"user input: {request.user_input}")
 
     if not request.user_input:
         # This is the start of the assessment-end flow
@@ -840,6 +844,9 @@ def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_to
             previous_message_with_options, request.user_input
         )
         next_message_nr = previous_message_nr + 1
+
+    logger.info(f"Determined intent: {intent}")
+    logger.info(f"Determined intent-related response: {intent_related_response}")
 
     # Process Intent and Determine Next Step
     next_message = ""
@@ -886,6 +893,8 @@ def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_to
             # User responded, but it was to a final message that doesn't need validation. End of flow.
             next_message = ""
 
+    logger.info(f"task: {task}")
+
     # If we fall through to here OR it's the first message, we need to find the next message to send.
     if not next_message and next_message_nr in flow_content_map:
         next_message_data = flow_content_map[next_message_nr]
@@ -915,6 +924,8 @@ def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_to
 
     reengagement_info = None
     response_message = next_message
+
+    logger.info(f"Response message: {response_message}")
 
     if task == "REMIND_ME_LATER":
         state = get_user_journey_state(request.user_id)
