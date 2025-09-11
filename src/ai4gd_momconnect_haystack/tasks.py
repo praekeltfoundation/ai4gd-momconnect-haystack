@@ -1161,7 +1161,7 @@ def handle_journey_resumption_prompt(
     user_id: str,
     flow_id: str,
     assessment_end: bool = False,
-) -> OnboardingResponse | AssessmentResponse | SurveyResponse:
+) -> OnboardingResponse | AssessmentResponse | SurveyResponse | AssessmentEndResponse:
     """
     Handles the logic for a `resume: true` request.
 
@@ -1351,7 +1351,7 @@ def handle_reminder_response(
     user_input: str,
     state: UserJourneyState,  # The user's saved state
     assessment_end: bool = False,
-) -> SurveyResponse | OnboardingResponse | AssessmentResponse:
+) -> SurveyResponse | OnboardingResponse | AssessmentEndResponse | AssessmentResponse:
     """
     Processes a user's response to a "Ready to continue?" reminder prompt.
 
