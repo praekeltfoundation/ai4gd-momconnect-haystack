@@ -777,7 +777,14 @@ def assessment(request: AssessmentRequest, token: str = Depends(verify_token)):
 
 @app.post("/v1/assessment-end")
 def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_token)):
-    logger.info(f"Processing assessment-end: {request.user_id} {request.flow_id}")
+    logger.info(
+        f"Processing assessment-end: {request.user_id} {request.flow_id}"
+    )  # --- RESUMPTION LOGIC ---
+    if request.user_context and request.user_context.get("resume") is True:
+        logger.info(f"Resume flag detected for user {request.user_id}.")
+        return handle_journey_resumption_prompt(
+            user_id=request.user_id, flow_id=request.flow_id.value, assessment_end=True
+        )
     # Initial Setup and Data Fetching
     assessment_result = get_assessment_result(
         user_id=request.user_id,
@@ -814,6 +821,11 @@ def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_to
         intent, intent_related_response = "JOURNEY_RESPONSE", ""
         next_message_nr = 1
     else:
+        state = get_user_journey_state(request.user_id)
+        if state and state.current_step_identifier == "awaiting_reminder_response":
+            logger.info("User is responding to a reminder prompt.")
+            return handle_reminder_response(request.user_id, request.user_input, state)
+
         # User has responded, process their input
         if not previous_message_nr or previous_message_nr not in flow_content_map:
             return create_assessment_end_error_response(

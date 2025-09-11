@@ -1,7 +1,9 @@
 # models.py
 
+import uuid
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, TypeVar, TypedDict
+from typing import Any, TypedDict, TypeVar
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -9,9 +11,6 @@ from .enums import (
     AssessmentType,
     HistoryType,
 )
-
-import uuid
-from dataclasses import dataclass, field
 
 # A generic model type
 T = TypeVar("T", bound=BaseModel)
@@ -185,6 +184,7 @@ class AssessmentEndRequest(BaseModel):
     user_id: str
     user_input: str
     flow_id: AssessmentType
+    user_context: dict[str, Any] = Field(default_factory=dict)
 
 
 class AssessmentEndResponse(BaseModel):
