@@ -927,6 +927,197 @@ def test_assessment_end_remind_me_later_triggers_reminder(
     mock_handle_reminder.assert_called_once()
 
 
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+def test_assessment_end_resume_flag():
+    """
+    Tests that when the request contains a resume flag, the assessment-end
+    endpoint uses the saved `UserJourneyState` to build the resume response.
+    This inserts a real `UserJourneyState` into the test DB instead of mocking
+    the resumption handler.
+    """
+    # Arrange: persist a state for this user in the test DB
+    with SessionLocal() as session:
+        with session.begin():
+            session.add(
+                UserJourneyState(
+                    user_id="resume-user",
+                    current_flow_id="dma-pre-assessment",
+                    current_step_identifier="1",
+                    last_question_sent="Previous question?",
+                    user_context={"reminder_count": 0},
+                )
+            )
+            session.commit()
+
+    client = TestClient(app)
+    response = client.post(
+        "/v1/assessment-end",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "resume-user",
+            "user_input": "",
+            "flow_id": "dma-pre-assessment",
+            "user_context": {"resume": True},
+        },
+    )
+
+    assert response.status_code == 200
+    json_resp = response.json()
+    # We should receive the resume meta-prompt message
+    assert isinstance(json_resp, dict)
+    assert "message" in json_resp or "question" in json_resp
+    # The resume message should include an invitation to continue
+    msg_text = json_resp.get("message") or json_resp.get("question")
+    assert (
+        "Ready to pick up" in msg_text
+        or "Ready to pick up where you left off" in msg_text
+    )
+
+
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_assessment_result", new_callable=mock.Mock
+)
+def test_assessment_end_response_to_awaiting_reminder(mock_get_result):
+    """
+    Tests that when the user's saved state indicates they are awaiting a reminder
+    response, the assessment-end endpoint calls `handle_reminder_response` and
+    returns its result.
+    """
+
+    # Arrange: persist a state record indicating the user is awaiting a reminder response
+    with SessionLocal() as session:
+        with session.begin():
+            session.add(
+                UserJourneyState(
+                    user_id="reminder-user",
+                    current_flow_id="dma-pre-assessment",
+                    current_step_identifier="awaiting_reminder_response",
+                    last_question_sent="Please reply",
+                    user_context={"reminder_count": 1},
+                )
+            )
+            session.commit()
+
+    mock_get_result.return_value = AssessmentResult(
+        score=50.0, category="medium", crossed_skip_threshold=False
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/v1/assessment-end",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "reminder-user",
+            "user_input": "Yes",
+            "flow_id": "dma-pre-assessment",
+        },
+    )
+
+    assert response.status_code == 200
+    json_resp = response.json()
+    # For an assessment flow we expect the journey to be resumed
+    assert json_resp["intent"] == "JOURNEY_RESUMED"
+    # The original last question should be re-sent
+    assert json_resp["question"] == "Please reply"
+
+
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_assessment_result", new_callable=mock.Mock
+)
+def test_assessment_end_response_to_awaiting_reminder_request_reminder(mock_get_result):
+    """
+    Tests that when the user's saved state indicates they are awaiting a reminder
+    response, the assessment-end endpoint calls `handle_reminder_response` and
+    returns its result. If they request a reminder again, the correct intent is returned.
+    """
+
+    # Arrange: persist a state record indicating the user is awaiting a reminder response
+    with SessionLocal() as session:
+        with session.begin():
+            session.add(
+                UserJourneyState(
+                    user_id="reminder-user",
+                    current_flow_id="dma-pre-assessment",
+                    current_step_identifier="awaiting_reminder_response",
+                    last_question_sent="Please reply",
+                    user_context={"reminder_count": 1},
+                )
+            )
+            session.commit()
+
+    mock_get_result.return_value = AssessmentResult(
+        score=50.0, category="medium", crossed_skip_threshold=False
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/v1/assessment-end",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "reminder-user",
+            "user_input": "Remind me",
+            "flow_id": "dma-pre-assessment",
+        },
+    )
+
+    assert response.status_code == 200
+    json_resp = response.json()
+    # For an assessment flow we expect the journey to be resumed
+    assert json_resp["intent"] == "REQUEST_TO_BE_REMINDED"
+    # The original last question should be re-sent
+    assert "Great! We’ll remind you tomorrow" in json_resp["question"]
+
+
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch(
+    "ai4gd_momconnect_haystack.api.get_assessment_result", new_callable=mock.Mock
+)
+def test_assessment_end_response_to_awaiting_reminder_ambiguous(mock_get_result):
+    """
+    Tests that when the user's saved state indicates they are awaiting a reminder
+    response, the assessment-end endpoint calls `handle_reminder_response` and
+    returns its result. If they send something random respond accordingly
+    """
+
+    # Arrange: persist a state record indicating the user is awaiting a reminder response
+    with SessionLocal() as session:
+        with session.begin():
+            session.add(
+                UserJourneyState(
+                    user_id="ambiguous-user",
+                    current_flow_id="dma-pre-assessment",
+                    current_step_identifier="awaiting_reminder_response",
+                    last_question_sent="Please reply",
+                    user_context={"reminder_count": 1},
+                )
+            )
+            session.commit()
+
+    mock_get_result.return_value = AssessmentResult(
+        score=50.0, category="medium", crossed_skip_threshold=False
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/v1/assessment-end",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "ambiguous-user",
+            "user_input": "What is this",
+            "flow_id": "dma-pre-assessment",
+        },
+    )
+
+    assert response.status_code == 200
+    json_resp = response.json()
+    # For an assessment flow we expect the journey to be resumed
+    assert json_resp["intent"] == "REPAIR"
+    # The original last question should be re-sent
+    assert "Hi! Ready to pick up where you left off?" in json_resp["question"]
+
+
 @mock.patch.dict(
     os.environ,
     {"SENTRY_DSN": "https://testdsn@testdsn.example.org/12345"},

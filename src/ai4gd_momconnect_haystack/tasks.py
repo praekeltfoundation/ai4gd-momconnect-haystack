@@ -34,6 +34,7 @@ from ai4gd_momconnect_haystack.sqlalchemy_models import (
 
 from . import doc_store, pipelines
 from .pydantic_models import (
+    AssessmentEndResponse,
     AssessmentQuestion,
     AssessmentResponse,
     OnboardingResponse,
@@ -1159,6 +1160,7 @@ def classify_ussd_intro_response(user_input: str) -> str:
 def handle_journey_resumption_prompt(
     user_id: str,
     flow_id: str,
+    assessment_end: bool = False,
 ) -> OnboardingResponse | AssessmentResponse | SurveyResponse:
     """
     Handles the logic for a `resume: true` request.
@@ -1174,7 +1176,7 @@ def handle_journey_resumption_prompt(
     schedule_key = "default"
     if "onboarding" in flow_id:
         schedule_key = "onboarding"
-    elif "behaviour" in flow_id:
+    elif any(k in flow_id for k in ("behaviour", "knowledge", "attitude")):
         schedule_key = "kab"
     elif "survey" in flow_id:
         schedule_key = "survey"
@@ -1261,6 +1263,13 @@ def handle_journey_resumption_prompt(
                 results_to_save=[],
                 failure_count=0,
             )
+        elif assessment_end:
+            return AssessmentEndResponse(
+                message=resume_message,
+                task="",
+                intent="SYSTEM_REMINDER_PROMPT",
+                intent_related_response=None,
+            )
         else:  # Default to AssessmentResponse for KAB flows
             # Check if the step identifier is a digit before converting to int.
             # If not (e.g., it's 'awaiting_reminder_response'), we can't determine a
@@ -1341,6 +1350,7 @@ def handle_reminder_response(
     user_id: str,
     user_input: str,
     state: UserJourneyState,  # The user's saved state
+    assessment_end: bool = False,
 ) -> SurveyResponse | OnboardingResponse | AssessmentResponse:
     """
     Processes a user's response to a "Ready to continue?" reminder prompt.
@@ -1417,6 +1427,14 @@ def handle_reminder_response(
                 results_to_save=[],
                 failure_count=0,
             )
+        elif assessment_end:
+            delete_user_journey_state(user_id)
+            return AssessmentEndResponse(
+                message=question_to_send,
+                task="",
+                intent="JOURNEY_RESUMED",
+                intent_related_response=None,
+            )
         else:
             # next_q_num = (
             #     (int(state.current_step_identifier) + 1)
@@ -1466,6 +1484,14 @@ def handle_reminder_response(
                 failure_count=0,
                 reengagement_info=reengagement_info,
             )
+        elif assessment_end:
+            return AssessmentEndResponse(
+                message=message,
+                task="",
+                intent="REQUEST_TO_BE_REMINDED",
+                intent_related_response=None,
+                reengagement_info=reengagement_info,
+            )
         else:  # Assessments
             return AssessmentResponse(
                 question=message,
@@ -1484,7 +1510,9 @@ def handle_reminder_response(
             schedule_key = "survey"
         elif "onboarding" in state.current_flow_id:
             schedule_key = "onboarding"
-        elif "behaviour" in state.current_flow_id:
+        elif any(
+            k in state.current_flow_id for k in ("behaviour", "knowledge", "attitude")
+        ):
             schedule_key = "kab"
 
         schedule = REMINDER_CONFIG.get(schedule_key, REMINDER_CONFIG["default"])
@@ -1511,6 +1539,13 @@ def handle_reminder_response(
                 intent_related_response=None,
                 results_to_save=[],
                 failure_count=0,
+            )
+        elif assessment_end:
+            return AssessmentEndResponse(
+                message=rephrased_question,
+                task="",
+                intent="REPAIR",
+                intent_related_response=None,
             )
         else:  # Assessments
             return AssessmentResponse(
