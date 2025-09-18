@@ -824,7 +824,9 @@ def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_to
         state = get_user_journey_state(request.user_id)
         if state and state.current_step_identifier == "awaiting_reminder_response":
             logger.info("User is responding to a reminder prompt.")
-            return handle_reminder_response(request.user_id, request.user_input, state)
+            return handle_reminder_response(
+                request.user_id, request.user_input, state, True
+            )
 
         # User has responded, process their input
         if not previous_message_nr or previous_message_nr not in flow_content_map:
