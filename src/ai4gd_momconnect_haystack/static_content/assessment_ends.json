@@ -17,6 +17,10 @@
             "skipped-many-content": {
                 "content": "You skipped more than half the questions, so we can't tell how you feel about healthcare 😞\n\nIt would be great if you could answer them when you feel ready.\n\nCan we remind you tomorrow?",
                 "valid_responses": ["Yes","No"]
+            },
+            "response_required": {
+                "default": false,
+                "skipped-many": true
             }
         },
         {
@@ -53,6 +57,10 @@
             "skipped-many-content": {
                 "content": "We noticed you skipped some of the questions in this section. We can remind you about them tomorrow.\n\nThere are 8 more new questions to do in this health check. Do you want to do them now and finish it?\n\nReply with 'Yes' or 'Remind me tomorrow'",
                 "valid_responses": ["Yes","Remind me tomorrow"]
+            },
+            "response_required": {
+                "default": false,
+                "skipped-many": true
             }
         }
     ],
@@ -74,6 +82,10 @@
             "skipped-many-content": {
                 "content": "We noticed you skipped some of the questions in this section. We can remind you about them tomorrow.\n\nThere are 3 new questions to do in this health check. Do you want to do them now and finish it?\n\nReply with 'Yes' or 'Remind me tomorrow'",
                 "valid_responses": ["Yes","Remind me tomorrow"]
+            },
+            "response_required": {
+                "default": false,
+                "skipped-many": true
             }
         }
     ],
@@ -113,6 +125,10 @@
             "skipped-many-content": {
                 "content": "We noticed you skipped some of your questions.\n\nCan we remind you to answer them again tomorrow? Reply with 'Yes' or 'No'.",
                 "valid_responses": ["Yes","No"]
+            },
+            "response_required": {
+                "default": false,
+                "skipped-many": true
             }
         },
         {
