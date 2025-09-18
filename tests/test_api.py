@@ -1019,7 +1019,7 @@ def test_assessment_end_response_to_awaiting_reminder(mock_get_result):
     # For an assessment flow we expect the journey to be resumed
     assert json_resp["intent"] == "JOURNEY_RESUMED"
     # The original last question should be re-sent
-    assert json_resp["question"] == "Please reply"
+    assert json_resp["message"] == "Please reply"
 
 
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
@@ -1067,7 +1067,7 @@ def test_assessment_end_response_to_awaiting_reminder_request_reminder(mock_get_
     # For an assessment flow we expect the journey to be resumed
     assert json_resp["intent"] == "REQUEST_TO_BE_REMINDED"
     # The original last question should be re-sent
-    assert "Great! We’ll remind you tomorrow" in json_resp["question"]
+    assert "Great! We’ll remind you tomorrow" in json_resp["message"]
 
 
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
@@ -1115,7 +1115,7 @@ def test_assessment_end_response_to_awaiting_reminder_ambiguous(mock_get_result)
     # For an assessment flow we expect the journey to be resumed
     assert json_resp["intent"] == "REPAIR"
     # The original last question should be re-sent
-    assert "Hi! Ready to pick up where you left off?" in json_resp["question"]
+    assert "Hi! Ready to pick up where you left off?" in json_resp["message"]
 
 
 @mock.patch.dict(
