@@ -19,6 +19,7 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentResult,
     LegacySurveyResponse,
     OrchestratorSurveyRequest,
+    ReengagementInfo,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import (
     AssessmentEndMessagingHistory,
@@ -2064,3 +2065,92 @@ def test_survey_endpoint_passes_through_to_orchestrator(
     assert isinstance(call_args[0], OrchestratorSurveyRequest)
     assert call_args[0].user_id == "test-orchestrator-user"
     assert call_args[0].user_input == "Yes, I did"
+
+
+@pytest.mark.parametrize(
+    "flow_id, user_input, processed_response, should_remind",
+    [
+        # Case 1: Knowledge assessment, user wants a reminder
+        ("knowledge-pre-assessment", "Remind me tomorrow", "Remind me tomorrow", True),
+        # Case 2: Behaviour assessment, user wants to proceed
+        ("behaviour-pre-assessment", "Yes, let's go", "Yes", False),
+        # Case 3: DMA assessment, user wants a reminder
+        ("dma-pre-assessment", "Yes", "Yes", True),
+        # Case 4: Attitude assessment, user wants to proceed
+        ("attitude-pre-assessment", "No", "No", False),
+    ],
+)
+@mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
+@mock.patch("ai4gd_momconnect_haystack.api.response_is_required_for")
+@mock.patch("ai4gd_momconnect_haystack.api.handle_reminder_request")
+@mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_end_response")
+@mock.patch("ai4gd_momconnect_haystack.api.get_assessment_end_messaging_history")
+@mock.patch("ai4gd_momconnect_haystack.api.get_assessment_result")
+@mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
+def test_assessment_end_skipped_many_scenarios(
+    mock_handle_user_message,
+    mock_get_result,
+    mock_get_history,
+    mock_validate_response,
+    mock_handle_reminder,
+    mock_response_required,
+    client: TestClient,
+    flow_id,
+    user_input,
+    processed_response,
+    should_remind,
+):
+    """
+    Tests the two main outcomes for the 'skipped-many' scenario:
+    1. The user requests a reminder, which should restart the assessment.
+    2. The user proceeds, which should continue to message #2 of the end-flow.
+    """
+    # --- MOCK SETUP ---
+    mock_response_required.return_value = True
+    mock_handle_user_message.return_value = ("JOURNEY_RESPONSE", "")
+    mock_get_result.return_value = AssessmentResult(
+        score=0, category="low", crossed_skip_threshold=True
+    )
+    mock_get_history.return_value = [
+        AssessmentEndMessagingHistory(message_number=1, user_response="")
+    ]
+    mock_validate_response.return_value = {
+        "processed_user_response": processed_response,
+        "next_message_number": 2,
+    }
+
+    mock_handle_reminder.return_value = (
+        "Reminder set!",
+        ReengagementInfo(
+            type="USER_REQUESTED",
+            trigger_at_utc=datetime.now(timezone.utc),
+            flow_id=flow_id,
+            reminder_type=2,
+        ),
+    )
+
+    # --- API CALL ---
+    response = client.post(
+        "/v1/assessment-end",
+        headers={"Authorization": "Token testtoken"},
+        json={
+            "user_id": "test-skipped-many-user",
+            "user_input": user_input,
+            "flow_id": flow_id,
+        },
+    )
+
+    # --- ASSERTIONS ---
+    assert response.status_code == 200
+    json_response = response.json()
+
+    if should_remind:
+        mock_handle_reminder.assert_called_once()
+        call_args = mock_handle_reminder.call_args.kwargs
+        assert call_args["flow_id"] == flow_id
+        assert call_args["step_identifier"] == "1"
+        assert json_response["intent"] == "REQUEST_TO_BE_REMINDED"
+        assert json_response["reengagement_info"] is not None
+    else:
+        mock_handle_reminder.assert_not_called()
+        assert json_response["intent"] != "REQUEST_TO_BE_REMINDED"

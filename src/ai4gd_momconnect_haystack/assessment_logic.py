@@ -455,9 +455,9 @@ def create_assessment_end_error_response(reason: str) -> AssessmentEndResponse:
 
 def response_is_required_for(flow_id: str, message_nr: int) -> bool:
     required_map = {
-        "dma-pre-assessment": [2, 3],
-        "behaviour-pre-assessment": [2],
-        "knowledge-pre-assessment": [2],
-        "attitude-pre-assessment": [2],
+        "dma-pre-assessment": [1, 2, 3],
+        "behaviour-pre-assessment": [1, 2],
+        "knowledge-pre-assessment": [1, 2],
+        "attitude-pre-assessment": [1, 2],
     }
     return message_nr in required_map.get(flow_id, [])

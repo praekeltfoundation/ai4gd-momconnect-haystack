@@ -883,7 +883,8 @@ def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_to
             reengagement_info=reengage_info,
         )
     elif intent == "JOURNEY_RESPONSE":
-        # Check if the user was responding to a question that requires validation
+        # Check if the user was responding to a question that requires
+        # validation
         if request.user_input and response_is_required_for(
             request.flow_id.value, next_message_nr - 1
         ):
@@ -915,6 +916,39 @@ def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_to
                     previous_message_nr,
                     processed_response,
                 )
+
+                # This block only intercepts the specific "remind me" responses
+                # to ensure the assessment restarts from the beginning.
+                if previous_message_nr == 1 and score_category == "skipped-many":
+                    flow_id_str = request.flow_id.value
+                    response_lower = processed_response.lower()
+
+                    # Check for the responses that trigger a reminder
+                    # to RESTART the assessment.
+                    if (response_lower == "remind me tomorrow") or (
+                        ("dma" in flow_id_str or "attitude" in flow_id_str)
+                        and response_lower == "yes"
+                    ):
+                        logger.info(
+                            f"User chose to be reminded to restart {flow_id_str} later."
+                        )
+                        message, reengage_info = handle_reminder_request(
+                            user_id=request.user_id,
+                            flow_id=flow_id_str,
+                            # This ensures it restarts from the beginning
+                            step_identifier="1",
+                            last_question=previous_message_with_options,
+                            user_context=request.user_context,
+                            reminder_type=2,
+                        )
+                        return AssessmentEndResponse(
+                            message=message,
+                            task="",
+                            intent="REQUEST_TO_BE_REMINDED",
+                            intent_related_response=None,
+                            reengagement_info=reengage_info,
+                        )
+
                 task = determine_task(
                     request.flow_id.value,
                     previous_message_nr,
