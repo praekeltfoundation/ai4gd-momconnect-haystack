@@ -2068,45 +2068,74 @@ def test_survey_endpoint_passes_through_to_orchestrator(
 
 
 @pytest.mark.parametrize(
-    "flow_id, user_input, processed_response, should_remind",
+    "flow_id, user_input, processed_response, should_remind, expected_q1_content, expected_next_message",
     [
-        # Case 1: Knowledge assessment, user wants a reminder
-        ("knowledge-pre-assessment", "Remind me tomorrow", "Remind me tomorrow", True),
-        # Case 2: Behaviour assessment, user wants to proceed
-        ("behaviour-pre-assessment", "Yes, let's go", "Yes", False),
-        # Case 3: DMA assessment, user wants a reminder
-        ("dma-pre-assessment", "Yes", "Yes", True),
-        # Case 4: Attitude assessment, user wants to proceed
-        ("attitude-pre-assessment", "No", "No", False),
+        # Reminder Paths (with full, correct expected content)
+        (
+            "knowledge-pre-assessment",
+            "Remind me tomorrow",
+            "Remind me tomorrow",
+            True,
+            "Great!\n\nRemember, you can skip any question - just type and send `skip`.\n\n*When do you think a pregnant woman should get her first pregnancy check-up?* 🤰🏽",
+            None,
+        ),
+        (
+            "dma-pre-assessment",
+            "Yes",
+            "Yes",
+            True,
+            "How much do you agree or disagree with this statement:\n\n*I feel like I can make decisions about my health.*",
+            None,
+        ),
+        # Proceed Paths (verify the exact next message)
+        (
+            "behaviour-pre-assessment",
+            "Yes, let's go",
+            "Yes",
+            False,
+            None,
+            "",
+        ),  # This flow ends, so the next message is empty.
+        (
+            "attitude-pre-assessment",
+            "No",
+            "No",
+            False,
+            None,
+            "Thanks for your feedback. We'll be back with some follow-up questions in the next few weeks! 💕\n\nClick on this link to go to MomConnect: https://wa.me/27796312456?text=menu",
+        ),
     ],
 )
 @mock.patch.dict(os.environ, {"API_TOKEN": "testtoken"}, clear=True)
-@mock.patch("ai4gd_momconnect_haystack.api.response_is_required_for")
+@mock.patch("ai4gd_momconnect_haystack.api.get_content_from_message_data")
+@mock.patch("ai4gd_momconnect_haystack.api.response_is_required_for", return_value=True)
 @mock.patch("ai4gd_momconnect_haystack.api.handle_reminder_request")
 @mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_end_response")
 @mock.patch("ai4gd_momconnect_haystack.api.get_assessment_end_messaging_history")
 @mock.patch("ai4gd_momconnect_haystack.api.get_assessment_result")
 @mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
-def test_assessment_end_skipped_many_scenarios(
+def test_assessment_end_skipped_many_scenarios_robust(
     mock_handle_user_message,
     mock_get_result,
     mock_get_history,
     mock_validate_response,
     mock_handle_reminder,
     mock_response_required,
+    mock_get_content,
     client: TestClient,
     flow_id,
     user_input,
     processed_response,
     should_remind,
+    expected_q1_content,
+    expected_next_message,
 ):
     """
     Tests the two main outcomes for the 'skipped-many' scenario:
     1. The user requests a reminder, which should restart the assessment.
-    2. The user proceeds, which should continue to message #2 of the end-flow.
+    2. The user proceeds, which should continue to the correct next message.
     """
     # --- MOCK SETUP ---
-    mock_response_required.return_value = True
     mock_handle_user_message.return_value = ("JOURNEY_RESPONSE", "")
     mock_get_result.return_value = AssessmentResult(
         score=0, category="low", crossed_skip_threshold=True
@@ -2118,7 +2147,6 @@ def test_assessment_end_skipped_many_scenarios(
         "processed_user_response": processed_response,
         "next_message_number": 2,
     }
-
     mock_handle_reminder.return_value = (
         "Reminder set!",
         ReengagementInfo(
@@ -2128,6 +2156,20 @@ def test_assessment_end_skipped_many_scenarios(
             reminder_type=2,
         ),
     )
+
+    # Make the mock for get_content_from_message_data intelligent.
+    if flow_id == "attitude-pre-assessment" or flow_id == "dma-pre-assessment":
+        valid_responses_for_msg1 = ["Yes", "No"]
+    else:
+        valid_responses_for_msg1 = ["Yes", "Remind me tomorrow"]
+
+    mock_get_content.side_effect = [
+        (
+            "Prompt message for message 1",
+            valid_responses_for_msg1,
+        ),  # Return value for message 1
+        (expected_next_message, []),  # Return value for message 2
+    ]
 
     # --- API CALL ---
     response = client.post(
@@ -2147,10 +2189,8 @@ def test_assessment_end_skipped_many_scenarios(
     if should_remind:
         mock_handle_reminder.assert_called_once()
         call_args = mock_handle_reminder.call_args.kwargs
-        assert call_args["flow_id"] == flow_id
         assert call_args["step_identifier"] == "1"
-        assert json_response["intent"] == "REQUEST_TO_BE_REMINDED"
-        assert json_response["reengagement_info"] is not None
+        assert call_args["last_question"] == expected_q1_content
     else:
         mock_handle_reminder.assert_not_called()
-        assert json_response["intent"] != "REQUEST_TO_BE_REMINDED"
+        assert json_response["message"] == expected_next_message

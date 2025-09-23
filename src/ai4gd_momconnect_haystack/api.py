@@ -76,6 +76,7 @@ from ai4gd_momconnect_haystack.utilities import (
     FLOWS_WITH_INTRO,
     all_onboarding_questions,
     assessment_end_flow_map,
+    assessment_flow_map,
     load_json_and_validate,
     prepend_valid_responses_with_alphabetical_index,
 )
@@ -932,13 +933,34 @@ def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_to
                         logger.info(
                             f"User chose to be reminded to restart {flow_id_str} later."
                         )
+
+                        # 1. Fetch the raw content of question #1 for the assessment.
+                        question_list = assessment_flow_map.get(flow_id_str, [])
+                        first_question_data = next(
+                            (q for q in question_list if q.question_number == 1), None
+                        )
+                        question_1_raw_content = (
+                            (first_question_data.content or "")
+                            if first_question_data
+                            else ""
+                        )
+
+                        # 2. Prepare an updated context that includes the original prompt for logging.
+                        updated_context = request.user_context.copy()
+                        updated_context["skipped_many_prompt_sent"] = (
+                            previous_message_with_options
+                        )
+
+                        # 3. Call the reminder handler, passing the RAW text
+                        # of question #1 as the `last_question` to be saved
+                        # and re-sent upon resumption.
                         message, reengage_info = handle_reminder_request(
                             user_id=request.user_id,
                             flow_id=flow_id_str,
                             # This ensures it restarts from the beginning
                             step_identifier="1",
-                            last_question=previous_message_with_options,
-                            user_context=request.user_context,
+                            last_question=question_1_raw_content,
+                            user_context=updated_context,
                             reminder_type=2,
                         )
                         return AssessmentEndResponse(
