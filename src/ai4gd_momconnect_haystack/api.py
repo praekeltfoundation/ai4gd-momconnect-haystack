@@ -79,6 +79,7 @@ from ai4gd_momconnect_haystack.utilities import (
     assessment_flow_map,
     load_json_and_validate,
     prepend_valid_responses_with_alphabetical_index,
+    prepare_valid_responses_to_display_to_assessment_user,
 )
 
 from . import survey_orchestrator
@@ -920,49 +921,61 @@ def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_to
 
                 # This block only intercepts the specific "remind me" responses
                 # to ensure the assessment restarts from the beginning.
+
                 if previous_message_nr == 1 and score_category == "skipped-many":
                     flow_id_str = request.flow_id.value
                     response_lower = processed_response.lower()
 
                     # Check for the responses that trigger a reminder
                     # to RESTART the assessment.
-                    if (response_lower == "remind me tomorrow") or (
-                        ("dma" in flow_id_str or "attitude" in flow_id_str)
-                        and response_lower == "yes"
-                    ):
+
+                    is_dma_or_attitude_reminder = (
+                        "dma" in flow_id_str or "attitude" in flow_id_str
+                    ) and response_lower == "yes"
+                    is_ab_reminder = (
+                        "knowledge" in flow_id_str or "behaviour" in flow_id_str
+                    ) and "remind" in response_lower
+
+                    if is_dma_or_attitude_reminder or is_ab_reminder:
                         logger.info(
                             f"User chose to be reminded to restart {flow_id_str} later."
                         )
-
-                        # 1. Fetch the raw content of question #1 for the assessment.
+                        # 1. Fetch the data for question #1.
                         question_list = assessment_flow_map.get(flow_id_str, [])
                         first_question_data = next(
                             (q for q in question_list if q.question_number == 1), None
                         )
-                        question_1_raw_content = (
-                            (first_question_data.content or "")
-                            if first_question_data
-                            else ""
-                        )
 
-                        # 2. Prepare an updated context that includes the original prompt for logging.
+                        # 2. Conditionally format the question text to be saved in the state.
+                        question_to_save = ""
+                        if first_question_data:
+                            question_1_raw_content = first_question_data.content or ""
+                            if "behaviour" in flow_id_str:
+                                # For KAB-Behaviour, save only the raw content as it has no options.
+                                question_to_save = question_1_raw_content
+                            else:
+                                # For all other assessments, format the question with its options.
+                                question_to_save = prepare_valid_responses_to_display_to_assessment_user(
+                                    flow_id=flow_id_str,
+                                    question_number=1,
+                                    question=question_1_raw_content,
+                                    question_data=first_question_data,
+                                )
+
                         updated_context = request.user_context.copy()
                         updated_context["skipped_many_prompt_sent"] = (
                             previous_message_with_options
                         )
 
-                        # 3. Call the reminder handler, passing the RAW text
-                        # of question #1 as the `last_question` to be saved
-                        # and re-sent upon resumption.
                         message, reengage_info = handle_reminder_request(
                             user_id=request.user_id,
                             flow_id=flow_id_str,
-                            # This ensures it restarts from the beginning
                             step_identifier="1",
-                            last_question=question_1_raw_content,
+                            last_question=question_to_save,
                             user_context=updated_context,
                             reminder_type=2,
                         )
+                        score_category = "not-started"
                         return AssessmentEndResponse(
                             message=message,
                             task="",
