@@ -2076,7 +2076,7 @@ def test_survey_endpoint_passes_through_to_orchestrator(
             "Remind me tomorrow",
             "Remind me tomorrow",
             True,
-            "Great!\n\nRemember, you can skip any question - just type and send `skip`.\n\n*When do you think a pregnant woman should get her first pregnancy check-up?* 🤰🏽",
+            "Great!\n\nRemember, you can skip any question - just type and send `skip`.\n\n*When do you think a pregnant woman should get her first pregnancy check-up?* 🤰🏽\n\na. Before 14 weeks\nb. At about 16 weeks\nc. At about 20 weeks\nd. At about 24 weeks\ne. At birth\nf. I don't know",
             None,
         ),
         (
@@ -2084,7 +2084,7 @@ def test_survey_endpoint_passes_through_to_orchestrator(
             "Yes",
             "Yes",
             True,
-            "How much do you agree or disagree with this statement:\n\n*I feel like I can make decisions about my health.*",
+            "How much do you agree or disagree with this statement:\n\n*I feel like I can make decisions about my health.*\n\na. I strongly disagree 👎👎\nb. I disagree 👎\nc. I'm not sure\nd. I agree 👍\ne. I strongly agree 👍👍",
             None,
         ),
         # Proceed Paths (verify the exact next message)
