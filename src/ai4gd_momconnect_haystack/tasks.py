@@ -37,12 +37,9 @@ from .pydantic_models import (
     AssessmentEndResponse,
     AssessmentQuestion,
     AssessmentResponse,
-    OnboardingResponse,
-    ReengagementInfo,
 )
-from .pydantic_models import (
-    LegacySurveyResponse as SurveyResponse,
-)
+from .pydantic_models import LegacySurveyResponse as SurveyResponse
+from .pydantic_models import OnboardingResponse, ReengagementInfo
 from .utilities import (
     ANC_SURVEY_MAP,
     REMINDER_CONFIG,
@@ -1087,6 +1084,7 @@ def handle_reminder_request(
     last_question: str,
     user_context: dict,
     reminder_type: int,
+    next_question_number: int | None = None,
 ) -> tuple[str, ReengagementInfo]:
     """
     Central function to handle pausing a journey. It now uses a dynamic,
@@ -1131,6 +1129,7 @@ def handle_reminder_request(
         last_question=last_question,
         user_context=user_context,
         reminder_type=reminder_type,
+        next_question_number=next_question_number,
     )
 
     # 4. Return the specific acknowledgement message from the config
@@ -1640,4 +1639,5 @@ def handle_onboarding_deflection(
 
     # Group 3: Standard Failure (Repair)
     else:  # This covers CHITCHAT, REQUEST_TO_BE_REMINDED, etc.
+        return (DeflectionAction.TRIGGER_REPAIR, user_context, None)
         return (DeflectionAction.TRIGGER_REPAIR, user_context, None)
