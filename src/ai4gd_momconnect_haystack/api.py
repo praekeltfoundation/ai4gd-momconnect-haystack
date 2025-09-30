@@ -35,10 +35,7 @@ from ai4gd_momconnect_haystack.crud import (
     save_user_journey_state,
 )
 from ai4gd_momconnect_haystack.database import run_migrations
-from ai4gd_momconnect_haystack.doc_store import (
-    INTRO_MESSAGES,
-    setup_document_store,
-)
+from ai4gd_momconnect_haystack.doc_store import INTRO_MESSAGES, setup_document_store
 from ai4gd_momconnect_haystack.enums import DeflectionAction, ExtractionStatus
 from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentEndRequest,
@@ -47,14 +44,16 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentResponse,
     CatchAllRequest,
     CatchAllResponse,
+)
+from ai4gd_momconnect_haystack.pydantic_models import (
+    LegacySurveyResponse as SurveyResponse,
+)  # Use LegacySurveyResponse for the API contract
+from ai4gd_momconnect_haystack.pydantic_models import (
     OnboardingRequest,
     OnboardingResponse,
     OrchestratorSurveyRequest,
     ResumeRequest,
     ResumeResponse,
-)
-from ai4gd_momconnect_haystack.pydantic_models import (
-    LegacySurveyResponse as SurveyResponse,  # Use LegacySurveyResponse for the API contract
 )
 from ai4gd_momconnect_haystack.tasks import (
     extract_assessment_data_from_response,
@@ -78,8 +77,8 @@ from ai4gd_momconnect_haystack.utilities import (
     assessment_end_flow_map,
     assessment_flow_map,
     load_json_and_validate,
-    prepend_valid_responses_with_alphabetical_index,
     prepare_valid_responses_to_display_to_assessment_user,
+    prepend_valid_responses_with_alphabetical_index,
 )
 
 from . import survey_orchestrator
@@ -934,12 +933,16 @@ def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_to
                     ) and response_lower == "yes"
                     is_ab_reminder = (
                         "knowledge" in flow_id_str or "behaviour" in flow_id_str
-                    ) and "remind" in response_lower
+                    ) and response_lower == "remind_tomorrow"
 
                     if is_dma_or_attitude_reminder or is_ab_reminder:
                         logger.info(
                             f"User chose to be reminded to restart {flow_id_str} later."
                         )
+                        delete_assessment_history_for_user(
+                            request.user_id, request.flow_id
+                        )
+
                         # 1. Fetch the data for question #1.
                         question_list = assessment_flow_map.get(flow_id_str, [])
                         first_question_data = next(
@@ -974,8 +977,8 @@ def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_to
                             last_question=question_to_save,
                             user_context=updated_context,
                             reminder_type=2,
+                            next_question_number=1,
                         )
-                        score_category = "not-started"
                         return AssessmentEndResponse(
                             message=message,
                             task="",

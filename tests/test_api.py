@@ -2074,7 +2074,7 @@ def test_survey_endpoint_passes_through_to_orchestrator(
         (
             "knowledge-pre-assessment",
             "Remind me tomorrow",
-            "Remind me tomorrow",
+            "REMIND_TOMORROW",
             True,
             "Great!\n\nRemember, you can skip any question - just type and send `skip`.\n\n*When do you think a pregnant woman should get her first pregnancy check-up?* 🤰🏽\n\na. Before 14 weeks\nb. At about 16 weeks\nc. At about 20 weeks\nd. At about 24 weeks\ne. At birth\nf. I don't know",
             None,
@@ -2113,9 +2113,13 @@ def test_survey_endpoint_passes_through_to_orchestrator(
 @mock.patch("ai4gd_momconnect_haystack.api.validate_assessment_end_response")
 @mock.patch("ai4gd_momconnect_haystack.api.get_assessment_end_messaging_history")
 @mock.patch("ai4gd_momconnect_haystack.api.get_assessment_result")
+@mock.patch("ai4gd_momconnect_haystack.api.determine_task")
+@mock.patch("ai4gd_momconnect_haystack.api.delete_assessment_history_for_user")
 @mock.patch("ai4gd_momconnect_haystack.api.handle_user_message")
 def test_assessment_end_skipped_many_scenarios_robust(
     mock_handle_user_message,
+    mock_delete_history,
+    mock_determine_task,
     mock_get_result,
     mock_get_history,
     mock_validate_response,
@@ -2137,6 +2141,7 @@ def test_assessment_end_skipped_many_scenarios_robust(
     """
     # --- MOCK SETUP ---
     mock_handle_user_message.return_value = ("JOURNEY_RESPONSE", "")
+    mock_determine_task.return_value = ""
     mock_get_result.return_value = AssessmentResult(
         score=0, category="low", crossed_skip_threshold=True
     )
@@ -2187,10 +2192,12 @@ def test_assessment_end_skipped_many_scenarios_robust(
     json_response = response.json()
 
     if should_remind:
+        mock_delete_history.assert_called_once_with("test-skipped-many-user", flow_id)
         mock_handle_reminder.assert_called_once()
         call_args = mock_handle_reminder.call_args.kwargs
         assert call_args["step_identifier"] == "1"
         assert call_args["last_question"] == expected_q1_content
     else:
+        mock_delete_history.assert_not_called()
         mock_handle_reminder.assert_not_called()
         assert json_response["message"] == expected_next_message
