@@ -933,7 +933,7 @@ def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_to
                     ) and response_lower == "yes"
                     is_ab_reminder = (
                         "knowledge" in flow_id_str or "behaviour" in flow_id_str
-                    ) and response_lower == "remind_tomorrow"
+                    ) and "remind" in response_lower
 
                     if is_dma_or_attitude_reminder or is_ab_reminder:
                         logger.info(

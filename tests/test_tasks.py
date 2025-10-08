@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from string import ascii_lowercase
 from typing import Any
 from unittest import mock
 
@@ -21,13 +22,15 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     AssessmentQuestion,
     AssessmentResponse,
     AssessmentRun,
+)
+from ai4gd_momconnect_haystack.pydantic_models import (
+    LegacySurveyResponse as SurveyResponse,
+)
+from ai4gd_momconnect_haystack.pydantic_models import (
     OnboardingResponse,
     ReengagementInfo,
     ResponseScore,
     Turn,
-)
-from ai4gd_momconnect_haystack.pydantic_models import (
-    LegacySurveyResponse as SurveyResponse,
 )
 from ai4gd_momconnect_haystack.sqlalchemy_models import UserJourneyState
 from ai4gd_momconnect_haystack.tasks import (
@@ -1549,3 +1552,70 @@ def test_handle_onboarding_deflection_default_repair(intent):
     )
     assert action == DeflectionAction.TRIGGER_REPAIR
     assert msg is None
+
+
+@pytest.mark.parametrize(
+    "user_input, expected_processed_response",
+    [
+        ("ok", "OK"),
+        ("Ok", "OK"),
+        ("OK", "OK"),
+        ("c", "OK"),  # Assuming 'OK' is option 'c'
+        ("C", "OK"),
+    ],
+    ids=["lowercase", "titlecase", "uppercase", "lowercase_letter", "uppercase_letter"],
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.assessment_logic.pipelines.run_assessment_end_response_validator_pipeline"
+)
+def test_validate_ease_of_completion_handles_ok_variations(
+    mock_run_pipeline, user_input, expected_processed_response
+):
+    """
+    Tests that the ease-of-completion question correctly validates
+    different case variations and letter options for the "OK" response.
+    """
+
+    def mock_pipeline_logic(normalized_input, valid_responses, previous_message):
+        # Check for an exact, case-sensitive keyword match
+        if normalized_input in valid_responses:
+            return normalized_input
+
+        # NEW: Check for a single-letter match
+        if len(normalized_input) == 1 and normalized_input in ascii_lowercase:
+            try:
+                index = ascii_lowercase.index(normalized_input)
+                if index < len(valid_responses):
+                    # If "c" is input, this returns "OK"
+                    return valid_responses[index]
+            except (ValueError, IndexError):
+                pass
+
+        return None
+
+    mock_run_pipeline.side_effect = mock_pipeline_logic
+
+    # These are the details of the question being asked
+    previous_message = (
+        "How easy was it to complete this?\n"
+        "a. Very easy\nb. A little easy\nc. OK\nd. A little difficult\ne. Very difficult"
+    )
+    valid_responses = [
+        "Very easy",
+        "A little easy",
+        "OK",
+        "A little difficult",
+        "Very difficult",
+    ]
+
+    # Act: Call the function we are testing
+    result = validate_assessment_end_response(
+        previous_message=previous_message,
+        previous_message_nr=1,
+        previous_message_valid_responses=valid_responses,
+        user_response=user_input,
+    )
+
+    # Assert: Check the result
+    assert result["processed_user_response"] == expected_processed_response
+    assert result["next_message_number"] == 2

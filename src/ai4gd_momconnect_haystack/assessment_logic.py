@@ -1,5 +1,6 @@
 import logging
 from typing import Any
+
 from pydantic import ValidationError
 
 from ai4gd_momconnect_haystack import pipelines
@@ -16,8 +17,8 @@ from ai4gd_momconnect_haystack.pydantic_models import (
     Turn,
 )
 from ai4gd_momconnect_haystack.utilities import (
-    assessment_map_to_their_pre,
     assessment_flow_map,
+    assessment_map_to_their_pre,
     dma_post_flow_id,
     dma_pre_flow_id,
     kab_a_post_flow_id,
@@ -27,7 +28,6 @@ from ai4gd_momconnect_haystack.utilities import (
     kab_k_pre_flow_id,
     prepare_valid_responses_to_use_in_assessment_system_prompt,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -201,6 +201,9 @@ def validate_assessment_end_response(
     """ """
     # Normalize the user's input before sending it to the pipeline
     normalized_user_response = user_response.lower().strip()
+
+    if normalized_user_response == "ok":
+        normalized_user_response = "OK"
 
     # Create and run a pipeline that validates the user's response to the previous message
     processed_user_response = pipelines.run_assessment_end_response_validator_pipeline(
