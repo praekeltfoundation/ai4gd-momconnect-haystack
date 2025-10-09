@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timedelta, timezone
 from string import ascii_lowercase
 from typing import Any
@@ -1619,3 +1620,97 @@ def test_validate_ease_of_completion_handles_ok_variations(
     # Assert: Check the result
     assert result["processed_user_response"] == expected_processed_response
     assert result["next_message_number"] == 2
+
+
+@pytest.mark.parametrize(
+    "user_input, valid_responses, expected_processed_response",
+    [
+        # Scenarios for DMA / Attitude assessments ("Yes" / "No")
+        ("yes", ["Yes", "No"], "Yes"),
+        ("yebo", ["Yes", "No"], "Yes"),
+        ("a", ["Yes", "No"], "Yes"),
+        ("no", ["Yes", "No"], "No"),
+        ("b", ["Yes", "No"], "No"),
+        # Scenarios for Knowledge / Behaviour assessments ("Yes" / "Remind me tomorrow")
+        ("remind me", ["Yes", "Remind me tomorrow"], "Remind me tomorrow"),
+        ("remind me tomorrow", ["Yes", "Remind me tomorrow"], "Remind me tomorrow"),
+        ("b", ["Yes", "Remind me tomorrow"], "Remind me tomorrow"),
+        ("yes", ["Yes", "Remind me tomorrow"], "Yes"),
+        ("a", ["Yes", "Remind me tomorrow"], "Yes"),
+        # Scenario for an invalid response
+        ("maybe", ["Yes", "No"], None),
+    ],
+    ids=[
+        "dma_yes_keyword",
+        "dma_yes_yebo",
+        "dma_yes_letter",
+        "dma_no_keyword",
+        "dma_no_letter",
+        "kab_remind_keyword",
+        "kab_remind_full",
+        "kab_remind_letter",
+        "kab_yes_keyword",
+        "kab_yes_letter",
+        "invalid_input",
+    ],
+)
+@mock.patch(
+    "ai4gd_momconnect_haystack.assessment_logic.pipelines.run_assessment_end_response_validator_pipeline"
+)
+def test_validate_assessment_end_response_skipped_many_scenarios(
+    mock_run_pipeline, user_input, valid_responses, expected_processed_response
+):
+    """
+    Tests that `validate_assessment_end_response` correctly processes various
+    user inputs for the 'skipped-many' prompt into the canonical form expected
+    by the API's reminder logic. This test simulates the pipeline's behavior
+    to focus on the data processing.
+    """
+
+    # Arrange: Simulate the logic of the pipeline being called.
+    # This mock will check for keywords or letter choices, just like the real pipeline.
+    def mock_pipeline_logic(normalized_input, canonical_responses, _previous_message):
+        # 1. Check for single-letter match (e.g., "a", "b")
+        if len(normalized_input) == 1 and normalized_input in ascii_lowercase:
+            try:
+                index = ascii_lowercase.index(normalized_input)
+                if index < len(canonical_responses):
+                    return canonical_responses[index]
+            except (ValueError, IndexError):
+                pass  # Fall through to keyword check
+
+        # 2. Check for keyword/synonym match
+        # CORRECTED LOGIC: Explicitly check for known affirmative synonyms
+        affirmative_synonyms = {"yes", "yebo"}
+        if (
+            any(syn in normalized_input for syn in affirmative_synonyms)
+            and "Yes" in canonical_responses
+        ):
+            return "Yes"
+
+        # General keyword matching for other cases like "remind" or "no"
+        for response in canonical_responses:
+            keyword = re.split(r"[\s,]", response)[0].lower()
+            if keyword in normalized_input:
+                return response
+
+        return None  # No match found
+
+    mock_run_pipeline.side_effect = mock_pipeline_logic
+
+    # Construct the `previous_message` that includes the options, as the function expects.
+    previous_message_options = "\n".join(
+        [f"{ascii_lowercase[i]}. {resp}" for i, resp in enumerate(valid_responses)]
+    )
+    previous_message = f"Some question\n{previous_message_options}"
+
+    # Act: Call the function we are testing.
+    result = validate_assessment_end_response(
+        previous_message=previous_message,
+        previous_message_nr=1,
+        previous_message_valid_responses=valid_responses,
+        user_response=user_input,
+    )
+
+    # Assert: Verify that the processed response is what the API's `if` clause expects.
+    assert result["processed_user_response"] == expected_processed_response
