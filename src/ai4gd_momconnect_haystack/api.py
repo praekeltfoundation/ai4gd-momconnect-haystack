@@ -863,27 +863,8 @@ def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_to
     logger.info(f"Determined intent: {intent}")
     logger.info(f"Determined intent-related response: {intent_related_response}")
 
-    # Process Intent and Determine Next Step
     next_message = ""
-    if intent == "REQUEST_TO_BE_REMINDED":
-        reminder_type = 2
-        message, reengage_info = handle_reminder_request(
-            user_id=request.user_id,
-            flow_id=request.flow_id.value,
-            step_identifier=str(previous_message_nr),
-            last_question=previous_message,
-            user_context={},
-            reminder_type=reminder_type,
-        )
-
-        return AssessmentEndResponse(
-            message=message,
-            task="",
-            intent=intent,
-            intent_related_response=intent_related_response,
-            reengagement_info=reengage_info,
-        )
-    elif intent == "JOURNEY_RESPONSE":
+    if intent in ("JOURNEY_RESPONSE", "REQUEST_TO_BE_REMINDED"):
         # Check if the user was responding to a question that requires
         # validation
         if request.user_input and response_is_required_for(
