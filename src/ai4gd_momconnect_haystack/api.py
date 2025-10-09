@@ -885,7 +885,7 @@ def assessment_end(request: AssessmentEndRequest, token: str = Depends(verify_to
             if validation_result["next_message_number"] == previous_message_nr:
                 # Validation failed, repeat the previous question
                 next_message_nr = previous_message_nr
-                next_message_data = flow_content_map.get(next_message_nr)
+                next_message_data = flow_content_map[next_message_nr]
                 next_message, _ = get_content_from_message_data(
                     next_message_data, score_category
                 )
