@@ -112,7 +112,7 @@ REPHRASED_QUESTION_SCHEMA = {
 # --- The ANC Survey flow, statically defined ---
 ANC_SURVEY_FLOW_LOGIC = {
     # --- Entry Point ---
-    "intro": lambda ctx: "Q_why_not_go"
+    "intro": lambda ctx: "start_not_going"
     if ctx.get("intro") == "NO"
     else "start_going_soon"
     if ctx.get("intro") == "SOON"
@@ -120,7 +120,13 @@ ANC_SURVEY_FLOW_LOGIC = {
     # --- Branch 1: Going Soon ---
     "start_going_soon": lambda ctx: None,  # Ends flow, triggers 3-day reminder
     # --- Branch 2: Not Going ---
-    "Q_why_not_go": lambda ctx: "intent",
+    "start_not_going": lambda ctx: "Q_why_not_go"
+    if ctx.get("start_not_going") == "YES"
+    else "mom_ANC_remind_me_01",
+    "Q_why_not_go": lambda ctx: "Q_why_not_go_other"
+    if ctx.get("Q_why_not_go") == "SOMETHING_ELSE"
+    else "intent",
+    "Q_why_not_go_other": lambda ctx: "intent",
     # --- Branch 3: Went to Clinic ---
     "Q_seen": lambda ctx: "seen_yes" if ctx.get("Q_seen") == "YES" else "Q_seen_no",
     # > Sub-branch: Was Seen
@@ -137,14 +143,24 @@ ANC_SURVEY_FLOW_LOGIC = {
     "bad": lambda ctx: "Q_visit_bad"
     if ctx.get("bad") == "YES"
     else "mom_ANC_remind_me_01",
-    "Q_visit_bad": lambda ctx: "Q_challenges",
-    "Q_visit_good": lambda ctx: "Q_challenges",
-    "Q_challenges": lambda ctx: "intent",
+    "Q_visit_bad": lambda ctx: "Q_visit_other"
+    if ctx.get("Q_visit_bad") == "SOMETHING_ELSE"
+    else "Q_challenges",
+    "Q_visit_good": lambda ctx: "Q_visit_other"
+    if ctx.get("Q_visit_good") == "SOMETHING_ELSE"
+    else "Q_challenges",
+    "Q_visit_other": lambda ctx: "Q_challenges",
+    "Q_challenges": lambda ctx: "Q_challenges_other"
+    if ctx.get("Q_challenges") == "SOMETHING_ELSE"
+    else "intent",
+    "Q_challenges_other": lambda ctx: "intent",
     # > Sub-branch: Was at clinic but NOT Seen
     "Q_seen_no": lambda ctx: "Q_why_no_visit"
     if ctx.get("Q_seen_no") == "YES"
     else "mom_ANC_remind_me_01",
-    "Q_why_no_visit": lambda ctx: "intent",
+    "Q_why_no_visit": lambda ctx: "Q_why_no_visit_other"
+    if ctx.get("Q_why_no_visit") == "SOMETHING_ELSE"
+    else "intent",
     # --- Converging Paths & End States ---
     "intent": lambda ctx: (
         "feedback_if_first_survey" if ctx.get("first_survey") else "end"
