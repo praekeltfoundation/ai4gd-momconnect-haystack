@@ -263,6 +263,11 @@ def prepare_valid_responses_to_display_to_anc_survey_user(
     if valid_responses and step_title in [
         "Q_experience",
         "feedback_if_first_survey",
+        "Q_visit_bad",
+        "Q_visit_good",
+        "Q_challenges",
+        "Q_why_no_visit",
+        "Q_why_not_go",
         "seen_yes",
         "Q_seen_no",
         "start_not_going",
