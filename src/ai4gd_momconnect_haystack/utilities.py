@@ -259,10 +259,13 @@ def prepare_valid_responses_to_display_to_anc_survey_user(
 ) -> str:
     final_question_text = text_to_prepend + question
 
-    # Only show options for the specified multiple-choice questions.
+    # Only show options for the specified questions.
     if valid_responses and step_title in [
         "Q_experience",
         "feedback_if_first_survey",
+        "seen_yes",
+        "Q_seen_no",
+        "start_not_going",
     ]:
         options = "\n\n" + "\n".join(
             prepend_valid_responses_with_alphabetical_index(valid_responses)
