@@ -9,9 +9,8 @@ from sqlalchemy import create_engine
 
 # Set the environment variable for the test database BEFORE any app code is imported.
 # This is critical to ensure all modules use the correct test database URL from the start.
-os.environ["DATABASE_URL"] = (
-    "postgresql+psycopg://postgres:postgres@localhost:5432/ai4gd_momconnect_haystack_test"
-)
+TEST_DB_FILE = "./test.db"
+os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_FILE}"
 
 # Now that the environment is configured, we can safely import app and database code.
 # CRITICAL: Import the models module. This registers your table definitions
@@ -36,12 +35,13 @@ def setup_test_database():
     This fixture runs once per test session. It creates the test database file
     and all tables synchronously before any tests run, preventing async conflicts.
     """
+    # Ensure any old test database from a previous failed run is removed
+    if os.path.exists(TEST_DB_FILE):
+        os.remove(TEST_DB_FILE)
+
     # Create a synchronous engine for setup.
     sync_db_url = os.environ["DATABASE_URL"].replace("sqlite+aiosqlite", "sqlite")
     engine = create_engine(sync_db_url)
-
-    # Ensure any old test database from a previous failed run is removed
-    Base.metadata.drop_all(bind=engine)
 
     # Create all tables in the test database using the metadata from the imported models.
     Base.metadata.create_all(bind=engine)
@@ -49,7 +49,8 @@ def setup_test_database():
     yield  # This is where the tests will run
 
     # Teardown: clean up the database file after the test session is complete
-    Base.metadata.drop_all(bind=engine)
+    if os.path.exists(TEST_DB_FILE):
+        os.remove(TEST_DB_FILE)
 
 
 @pytest.fixture
