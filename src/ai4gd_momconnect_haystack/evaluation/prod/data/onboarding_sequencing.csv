@@ -1,4 +1,4 @@
-Sequence,Users_Onboarding,Users_Started_DMA,Users_Completed_DMA,DMA_Completion_Rate_Raw,DMA_Completion_Rate_Fmt
+path,User_Count,DMA_Start_Count,DMA_Complete_Count,completion_rate_val,DMA Completion Rate
 province → area_type → relationship_status → education_level → hunger_days → num_children → phone_ownership,185,173,152,0.8216216216216217,82.2% (152)
 area_type → province → relationship_status → education_level → hunger_days → num_children → phone_ownership,54,52,47,0.8703703703703703,87.0% (47)
 num_children → province → area_type → relationship_status → education_level → hunger_days → phone_ownership,45,43,40,0.8888888888888888,88.9% (40)
