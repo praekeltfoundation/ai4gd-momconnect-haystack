@@ -326,14 +326,14 @@ def get_assessment_question(
     else:
         flow_id_to_use = "behaviour-pre-assessment"
 
-    question_list = assessment_flow_map.get(flow_id.value)
+    question_list = assessment_flow_map.get(flow_id_to_use)
     if not question_list:
-        logger.error(f"Invalid flow_id: '{flow_id.value}'. No questions found.")
+        logger.error(f"Invalid flow_id: '{flow_id_to_use}'. No questions found.")
         return {}
 
     if question_number > len(question_list):
         logger.info(
-            f"Question number '{question_number}' for flow '{flow_id.value}' does not exist. End of flow."
+            f"Question number '{question_number}' for flow '{flow_id_to_use}' does not exist. End of flow."
         )
         return {}
 
@@ -346,7 +346,7 @@ def get_assessment_question(
     )
 
     if not contextualized_question:
-        logger.error(f"Question contextualization failed in flow: '{flow_id.value}'.")
+        logger.error(f"Question contextualization failed in flow: '{flow_id_to_use}'.")
         return {}
 
     question_data = [q for q in question_list if q.question_number == question_number][
@@ -355,7 +355,7 @@ def get_assessment_question(
 
     # For KAB Behaviour assessments, the user provides free-text input without seeing options.
     # For DMA, KAB Knowledge, and KAB Attitude, we display the options.
-    if "behaviour" not in flow_id.value:
+    if "behaviour" not in flow_id_to_use:
         contextualized_question = prepare_valid_responses_to_display_to_assessment_user(
             flow_id_to_use, question_number, contextualized_question, question_data
         )
@@ -1357,6 +1357,18 @@ def handle_reminder_response(
     Returns:
         A SurveyResponse object with the next question or another reminder.
     """
+    # If this reminder response came from a resume flow, clear the flag so it won't trigger again.
+    if state.user_context.get("resume") is True:
+        state.user_context.pop("resume", None)
+        save_user_journey_state(
+            user_id=user_id,
+            flow_id=state.current_flow_id,
+            step_identifier=state.current_step_identifier,
+            last_question=state.last_question_sent,
+            user_context=state.user_context,
+            expected_step_id=getattr(state, "expected_step_id", None),
+        )
+
     # Use the robust classifier for the user's "Yes" or "Remind me tomorrow"
     intent = classify_ussd_intro_response(user_input)
 

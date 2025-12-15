@@ -54,6 +54,15 @@ assessment_flow_map = {
     kab_b_post_flow_id: all_kab_b_post_questions,
 }
 
+assessment_flow_map.update(
+    {
+        "dma-assessment": all_dma_questions,
+        "knowledge-assessment": all_kab_k_questions,
+        "attitude-assessment": all_kab_a_questions,
+        "behaviour-assessment": all_kab_b_pre_questions,
+    }
+)
+
 FLOWS_WITH_INTRO = [
     onboarding_flow_id,
     kab_b_pre_flow_id,
